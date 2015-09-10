@@ -38,6 +38,7 @@ func (l *Lexer) skipWhiteChars() int {
 	return counter
 }
 
+// Read an alphanumeric word from the buffer, advancing it.
 func (l *Lexer) scanWord() []rune {
 	i := 0
 	for i < len(l.buf) && (unicode.IsLetter(l.buf[i]) || unicode.IsLetter(l.buf[i])) {
@@ -59,7 +60,10 @@ func (l *Lexer) isEnd() bool {
 	return len(l.buf) == 0
 }
 
-func (l *Lexer) emitFromQueue() *Token {
+// Token queue is used in situations when a single buffer location can emit
+// many tokens. They are placed in the queue, Next() looks into it first,
+// before advancing the buffer.
+func (l *Lexer) popFromQueue() *Token {
 	result := l.queue[0]
 	l.queue = l.queue[1:]
 	return result
@@ -67,7 +71,7 @@ func (l *Lexer) emitFromQueue() *Token {
 
 func (l *Lexer) Next() (*Token, error) {
 	if len(l.queue) > 0 {
-		return l.emitFromQueue(), nil
+		return l.popFromQueue(), nil
 	}
 
 	if l.isEnd() {
