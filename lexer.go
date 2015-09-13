@@ -16,6 +16,7 @@ var (
 	TOKEN_ENDSCOPE        = "endscope"
 	TOKEN_FOR             = "for"
 	TOKEN_WORD            = "word"
+	TOKEN_BR              = "br"
 )
 
 type Lexer struct {
@@ -96,8 +97,8 @@ func (l *Lexer) Next() (*Token, error) {
 		indent := l.skipWhiteChars()
 
 		if l.isEnd() {
+			l.queue = append(l.queue, &Token{TOKEN_BR, nil})
 			return l.Next()
-			//return &Token{TOKEN_EOF, nil}, nil
 		}
 
 		if l.buf[0] == '\n' {
@@ -105,9 +106,12 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.Next()
 		}
 
+		l.queue = append(l.queue, &Token{TOKEN_BR, nil})
+
 		if len(l.indentsStack) == 0 || indent > l.indentsStack[len(l.indentsStack)-1] {
 			l.indentsStack = append(l.indentsStack, indent)
-			return &Token{TOKEN_NEWSCOPE, nil}, nil
+			l.queue = append(l.queue, &Token{TOKEN_NEWSCOPE, nil})
+			return l.Next()
 		} else {
 			for len(l.indentsStack) > 0 && l.indentsStack[len(l.indentsStack)-1] > indent {
 				l.queue = append(l.queue, &Token{TOKEN_ENDSCOPE, nil})

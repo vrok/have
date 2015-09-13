@@ -17,6 +17,7 @@ func testTokens(t *testing.T, input []rune, output []*Token) {
 		if !reflect.DeepEqual(token, expected) {
 			fmt.Printf("Received %v instead of %v\n", token, expected)
 			t.Fail()
+			return
 		}
 	}
 }
@@ -24,6 +25,7 @@ func testTokens(t *testing.T, input []rune, output []*Token) {
 func TestIndents(t *testing.T) {
 	testTokens(t, []rune(""), []*Token{&Token{TOKEN_EOF, nil}})
 	testTokens(t, []rune("\n  for"), []*Token{
+		&Token{TOKEN_BR, nil},
 		&Token{TOKEN_NEWSCOPE, nil},
 		&Token{TOKEN_FOR, nil},
 		&Token{TOKEN_ENDSCOPE, nil},
@@ -36,12 +38,16 @@ func TestIndents(t *testing.T) {
 `
 
 	testTokens(t, []rune(s), []*Token{
+		&Token{TOKEN_BR, nil},
 		&Token{TOKEN_NEWSCOPE, nil},
 		&Token{TOKEN_FOR, nil},
 		&Token{TOKEN_WORD, "test"},
+		&Token{TOKEN_BR, nil},
 		&Token{TOKEN_NEWSCOPE, nil},
 		&Token{TOKEN_FOR, nil},
+		&Token{TOKEN_BR, nil},
 		&Token{TOKEN_WORD, "frog"},
+		&Token{TOKEN_BR, nil},
 		&Token{TOKEN_ENDSCOPE, nil},
 		&Token{TOKEN_ENDSCOPE, nil},
 		&Token{TOKEN_EOF, nil},
