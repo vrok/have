@@ -23,6 +23,7 @@ func testTokens(t *testing.T, input []rune, output []*Token) {
 }
 
 func TestIndents(t *testing.T) {
+
 	testTokens(t, []rune(""), []*Token{&Token{TOKEN_EOF, nil}})
 	testTokens(t, []rune("\n  for"), []*Token{
 		&Token{TOKEN_BR, nil},
@@ -32,10 +33,10 @@ func TestIndents(t *testing.T) {
 		&Token{TOKEN_EOF, nil}})
 
 	s := `
-  for test
-    for
-    frog
-`
+		  for test
+		    for
+		    frog
+		`
 
 	testTokens(t, []rune(s), []*Token{
 		&Token{TOKEN_BR, nil},
@@ -53,7 +54,11 @@ func TestIndents(t *testing.T) {
 		&Token{TOKEN_EOF, nil},
 	})
 
-	testTokens(t, []rune("for"), []*Token{
+	testTokens(t, []rune("for == = =< =>"), []*Token{
 		&Token{TOKEN_FOR, nil},
+		&Token{TOKEN_EQUALS, nil},
+		&Token{TOKEN_ASSIGN, nil},
+		&Token{TOKEN_EQ_LT, nil},
+		&Token{TOKEN_EQ_GT, nil},
 		&Token{TOKEN_EOF, nil}})
 }

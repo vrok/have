@@ -17,6 +17,10 @@ var (
 	TOKEN_FOR             = "for"
 	TOKEN_WORD            = "word"
 	TOKEN_BR              = "br"
+	TOKEN_ASSIGN          = "assign"
+	TOKEN_EQUALS          = "equals"
+	TOKEN_EQ_LT           = "equals_lt"
+	TOKEN_EQ_GT           = "equals_gt"
 )
 
 type Lexer struct {
@@ -68,6 +72,21 @@ func (l *Lexer) popFromQueue() *Token {
 	result := l.queue[0]
 	l.queue = l.queue[1:]
 	return result
+}
+
+// Check which token is currently at the beginning of the buffer.
+// Can be used to decide between tokens with the same beginning, e.g.
+// "=", "==", "=<", ">=".
+// Returns the first token matched, NOT the longest one, so order matters.
+// E.g. instead of "=", "=="; rather use "==", "=".
+func (l *Lexer) checkAlt(alts ...string) (alt string, ok bool) {
+	for _, alt := range alts {
+		if string(l.buf[:len(alt)]) == alt {
+			l.buf = l.buf[len(alt):]
+			return alt, true
+		}
+	}
+	return "", false
 }
 
 func (l *Lexer) Next() (*Token, error) {
@@ -137,7 +156,18 @@ func (l *Lexer) Next() (*Token, error) {
 		default:
 			return &Token{TOKEN_WORD, s}, nil
 		}
-
+	case ch == '=':
+		alt, _ := l.checkAlt("==", "=<", "=>", "=")
+		switch alt {
+		case "=":
+			return &Token{TOKEN_ASSIGN, nil}, nil
+		case "==":
+			return &Token{TOKEN_EQUALS, nil}, nil
+		case "=<":
+			return &Token{TOKEN_EQ_LT, nil}, nil
+		case "=>":
+			return &Token{TOKEN_EQ_GT, nil}, nil
+		}
 	}
 
 	return nil, fmt.Errorf("Don't know what to do")
