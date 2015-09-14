@@ -22,9 +22,11 @@ func testTokens(t *testing.T, input []rune, output []*Token) {
 	}
 }
 
-func TestIndents(t *testing.T) {
-
+func TestEOF(t *testing.T) {
 	testTokens(t, []rune(""), []*Token{&Token{TOKEN_EOF, nil}})
+}
+
+func TestIndents(t *testing.T) {
 	testTokens(t, []rune("\n  for"), []*Token{
 		&Token{TOKEN_BR, nil},
 		&Token{TOKEN_NEWSCOPE, nil},
@@ -53,7 +55,9 @@ func TestIndents(t *testing.T) {
 		&Token{TOKEN_ENDSCOPE, nil},
 		&Token{TOKEN_EOF, nil},
 	})
+}
 
+func TestEquals(t *testing.T) {
 	testTokens(t, []rune("for == = =< =>"), []*Token{
 		&Token{TOKEN_FOR, nil},
 		&Token{TOKEN_EQUALS, nil},
