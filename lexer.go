@@ -21,6 +21,8 @@ var (
 	TOKEN_EQUALS          = "equals"
 	TOKEN_EQ_LT           = "equals_lt"
 	TOKEN_EQ_GT           = "equals_gt"
+	TOKEN_NUM             = "num"
+	TOKEN_STR             = "str"
 )
 
 type Lexer struct {
@@ -46,7 +48,7 @@ func (l *Lexer) skipWhiteChars() int {
 // Read an alphanumeric word from the buffer, advancing it.
 func (l *Lexer) scanWord() []rune {
 	i := 0
-	for i < len(l.buf) && (unicode.IsLetter(l.buf[i]) || unicode.IsLetter(l.buf[i])) {
+	for i < len(l.buf) && (unicode.IsLetter(l.buf[i]) || unicode.IsNumber(l.buf[i])) {
 		i++
 	}
 
@@ -87,6 +89,30 @@ func (l *Lexer) checkAlt(alts ...string) (alt string, ok bool) {
 		}
 	}
 	return "", false
+}
+
+func (l *Lexer) loadEscapedString() (string, error) {
+	if len(l.buf) == 0 || l.buf[0] != '"' {
+		return "", fmt.Errorf("String literal has to start with a double quote")
+	}
+
+	l.skip()
+
+	i := 0
+	for ; i < len(l.buf); i++ {
+		switch l.buf[i] {
+		case '\\':
+			i++
+			if i == len(l.buf) {
+				return "", fmt.Errorf("Unexpected file end - middle of a string literal")
+			}
+		case '"':
+			s := string(l.buf[:i])
+			l.buf = l.buf[i+1:]
+			return s, nil
+		}
+	}
+	return "", fmt.Errorf("Unterminated string literal")
 }
 
 func (l *Lexer) Next() (*Token, error) {
@@ -168,6 +194,15 @@ func (l *Lexer) Next() (*Token, error) {
 		case "=>":
 			return &Token{TOKEN_EQ_GT, nil}, nil
 		}
+	case unicode.IsNumber(ch):
+		word := l.scanWord()
+		return &Token{TOKEN_NUM, string(word)}, nil
+	case ch == '"':
+		str, err := l.loadEscapedString()
+		if err != nil {
+			return nil, err
+		}
+		return &Token{TOKEN_STR, str}, nil
 	}
 
 	return nil, fmt.Errorf("Don't know what to do")

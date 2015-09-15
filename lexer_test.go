@@ -66,3 +66,20 @@ func TestEquals(t *testing.T) {
 		&Token{TOKEN_EQ_GT, nil},
 		&Token{TOKEN_EOF, nil}})
 }
+
+func TestNumbers(t *testing.T) {
+	testTokens(t, []rune("123"), []*Token{
+		&Token{TOKEN_NUM, "123"},
+		&Token{TOKEN_EOF, nil}})
+}
+
+func TestString(t *testing.T) {
+	testTokens(t, []rune("\"123\""), []*Token{
+		&Token{TOKEN_STR, "123"},
+		&Token{TOKEN_EOF, nil}})
+
+	testTokens(t, []rune("\"12\\\"3\" hej"), []*Token{
+		&Token{TOKEN_STR, "12\\\"3"},
+		&Token{TOKEN_WORD, "hej"},
+		&Token{TOKEN_EOF, nil}})
+}
