@@ -11,18 +11,23 @@ type Token struct {
 }
 
 var (
-	TOKEN_EOF      string = "eof"
-	TOKEN_NEWSCOPE        = "newscope"
-	TOKEN_ENDSCOPE        = "endscope"
-	TOKEN_FOR             = "for"
-	TOKEN_WORD            = "word"
-	TOKEN_BR              = "br"
-	TOKEN_ASSIGN          = "assign"
-	TOKEN_EQUALS          = "equals"
-	TOKEN_EQ_LT           = "equals_lt"
-	TOKEN_EQ_GT           = "equals_gt"
-	TOKEN_NUM             = "num"
-	TOKEN_STR             = "str"
+	TOKEN_EOF         string = "eof"
+	TOKEN_NEWSCOPE           = "newscope"   // "{" in other languages
+	TOKEN_ENDSCOPE           = "endscope"   // "}" in other languages
+	TOKEN_FOR                = "for"        // the "for" keyword
+	TOKEN_WORD               = "word"       // alphanumeric word, starts witn a letter
+	TOKEN_BR                 = "br"         // new line
+	TOKEN_ASSIGN             = "assign"     // =
+	TOKEN_EQUALS             = "equals"     // ==
+	TOKEN_EQ_LT              = "equals_lt"  // =<
+	TOKEN_EQ_GT              = "equals_gt"  // =>
+	TOKEN_NUM                = "num"        // general token for all number literals
+	TOKEN_STR                = "str"        // string literal
+	TOKEN_LBRACE             = "lbrace"     // (
+	TOKEN_RBRACE             = "rbrace"     // )
+	TOKEN_PLUS               = "plus"       // +
+	TOKEN_PLUS_ASSIGN        = "plusassign" // +=
+	TOKEN_INCREMENT          = "increment"  // ++
 )
 
 type Lexer struct {
@@ -194,6 +199,16 @@ func (l *Lexer) Next() (*Token, error) {
 		case "=>":
 			return &Token{TOKEN_EQ_GT, nil}, nil
 		}
+	case ch == '+':
+		alt, _ := l.checkAlt("++", "+=", "+")
+		switch alt {
+		case "+":
+			return &Token{TOKEN_PLUS, nil}, nil
+		case "+=":
+			return &Token{TOKEN_PLUS_ASSIGN, nil}, nil
+		case "++":
+			return &Token{TOKEN_INCREMENT, nil}, nil
+		}
 	case unicode.IsNumber(ch):
 		word := l.scanWord()
 		return &Token{TOKEN_NUM, string(word)}, nil
@@ -203,6 +218,12 @@ func (l *Lexer) Next() (*Token, error) {
 			return nil, err
 		}
 		return &Token{TOKEN_STR, str}, nil
+	case ch == '(':
+		l.skip()
+		return &Token{TOKEN_LBRACE, nil}, nil
+	case ch == ')':
+		l.skip()
+		return &Token{TOKEN_RBRACE, nil}, nil
 	}
 
 	return nil, fmt.Errorf("Don't know what to do")

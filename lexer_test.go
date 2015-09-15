@@ -83,3 +83,19 @@ func TestString(t *testing.T) {
 		&Token{TOKEN_WORD, "hej"},
 		&Token{TOKEN_EOF, nil}})
 }
+
+func TestBraces(t *testing.T) {
+	testTokens(t, []rune("(1)"), []*Token{
+		&Token{TOKEN_LBRACE, nil},
+		&Token{TOKEN_NUM, "1"},
+		&Token{TOKEN_RBRACE, nil},
+		&Token{TOKEN_EOF, nil}})
+}
+
+func TestPlus(t *testing.T) {
+	testTokens(t, []rune("+ ++ +="), []*Token{
+		&Token{TOKEN_PLUS, nil},
+		&Token{TOKEN_INCREMENT, nil},
+		&Token{TOKEN_PLUS_ASSIGN, nil},
+		&Token{TOKEN_EOF, nil}})
+}
