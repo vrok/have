@@ -73,6 +73,13 @@ func TestNumbers(t *testing.T) {
 		&Token{TOKEN_EOF, nil}})
 }
 
+func TestKeywords(t *testing.T) {
+	testTokens(t, []rune("var for"), []*Token{
+		&Token{TOKEN_VAR, nil},
+		&Token{TOKEN_FOR, nil},
+		&Token{TOKEN_EOF, nil}})
+}
+
 func TestString(t *testing.T) {
 	testTokens(t, []rune("\"123\""), []*Token{
 		&Token{TOKEN_STR, "123"},
@@ -86,9 +93,9 @@ func TestString(t *testing.T) {
 
 func TestBraces(t *testing.T) {
 	testTokens(t, []rune("(1)"), []*Token{
-		&Token{TOKEN_LBRACE, nil},
+		&Token{TOKEN_LPARENTH, nil},
 		&Token{TOKEN_NUM, "1"},
-		&Token{TOKEN_RBRACE, nil},
+		&Token{TOKEN_RPARENTH, nil},
 		&Token{TOKEN_EOF, nil}})
 }
 

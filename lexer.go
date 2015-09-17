@@ -5,29 +5,35 @@ import (
 	"unicode"
 )
 
+type TokenType int
+
 type Token struct {
-	Type  string
+	Type  TokenType
 	Value interface{}
 }
 
-var (
-	TOKEN_EOF         string = "eof"
-	TOKEN_NEWSCOPE           = "newscope"   // "{" in other languages
-	TOKEN_ENDSCOPE           = "endscope"   // "}" in other languages
-	TOKEN_FOR                = "for"        // the "for" keyword
-	TOKEN_WORD               = "word"       // alphanumeric word, starts witn a letter
-	TOKEN_BR                 = "br"         // new line
-	TOKEN_ASSIGN             = "assign"     // =
-	TOKEN_EQUALS             = "equals"     // ==
-	TOKEN_EQ_LT              = "equals_lt"  // =<
-	TOKEN_EQ_GT              = "equals_gt"  // =>
-	TOKEN_NUM                = "num"        // general token for all number literals
-	TOKEN_STR                = "str"        // string literal
-	TOKEN_LBRACE             = "lbrace"     // (
-	TOKEN_RBRACE             = "rbrace"     // )
-	TOKEN_PLUS               = "plus"       // +
-	TOKEN_PLUS_ASSIGN        = "plusassign" // +=
-	TOKEN_INCREMENT          = "increment"  // ++
+const (
+	TOKEN_EOF         TokenType = iota + 1
+	TOKEN_NEWSCOPE              // "{" in other languages
+	TOKEN_ENDSCOPE              // "}" in other languages
+	TOKEN_FOR                   // the "for" keyword
+	TOKEN_WORD                  // alphanumeric word, starts witn a letter
+	TOKEN_BR                    // new line
+	TOKEN_ASSIGN                // =
+	TOKEN_EQUALS                // ==
+	TOKEN_EQ_LT                 // =<
+	TOKEN_EQ_GT                 // =>
+	TOKEN_NUM                   // general token for all number literals
+	TOKEN_STR                   // string literal
+	TOKEN_DOT                   // .
+	TOKEN_LPARENTH              // (
+	TOKEN_RPARENTH              // )
+	TOKEN_LBRACKET              // [
+	TOKEN_RBRACKET              // ]
+	TOKEN_PLUS                  // +
+	TOKEN_PLUS_ASSIGN           // +=
+	TOKEN_INCREMENT             // ++
+	TOKEN_VAR                   // the "var" keyword
 )
 
 type Lexer struct {
@@ -184,6 +190,8 @@ func (l *Lexer) Next() (*Token, error) {
 		switch s := string(word); s {
 		case "for":
 			return &Token{TOKEN_FOR, nil}, nil
+		case "var":
+			return &Token{TOKEN_VAR, nil}, nil
 		default:
 			return &Token{TOKEN_WORD, s}, nil
 		}
@@ -220,10 +228,19 @@ func (l *Lexer) Next() (*Token, error) {
 		return &Token{TOKEN_STR, str}, nil
 	case ch == '(':
 		l.skip()
-		return &Token{TOKEN_LBRACE, nil}, nil
+		return &Token{TOKEN_LPARENTH, nil}, nil
 	case ch == ')':
 		l.skip()
-		return &Token{TOKEN_RBRACE, nil}, nil
+		return &Token{TOKEN_RPARENTH, nil}, nil
+	case ch == '[':
+		l.skip()
+		return &Token{TOKEN_LBRACKET, nil}, nil
+	case ch == ']':
+		l.skip()
+		return &Token{TOKEN_RBRACKET, nil}, nil
+	case ch == '.':
+		l.skip()
+		return &Token{TOKEN_DOT, nil}, nil
 	}
 
 	return nil, fmt.Errorf("Don't know what to do")
