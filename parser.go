@@ -57,7 +57,7 @@ type ArrayExpr struct {
 
 type DotSelector struct {
 	left  Expr
-	right *Token
+	right *Ident
 }
 
 // implements PrimaryExpr
@@ -117,7 +117,7 @@ loop:
 		case TOKEN_DOT:
 			// TODO: parse type assertions
 			selector := p.expect(TOKEN_WORD)
-			left = &DotSelector{left, selector}
+			left = &DotSelector{left, &Ident{selector.Value.(string)}}
 		case TOKEN_LPARENTH:
 			args := p.parseArgs()
 			left = &FuncCall{left, args}
