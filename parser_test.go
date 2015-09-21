@@ -17,6 +17,8 @@ func testPrimaryExpr(t *testing.T, code string, expected Expr) {
 }
 
 func TestPrimaryExpr(t *testing.T) {
+	testPrimaryExpr(t, "test", &Ident{"test"})
+	testPrimaryExpr(t, "test(arg)", &FuncCall{left: &Ident{"test"}, args: nil}) // TODO: fill args
 	testPrimaryExpr(t, "test.tere[123]",
 		&ArrayExpr{
 			left: &DotSelector{

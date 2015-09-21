@@ -133,7 +133,15 @@ loop:
 	return left
 }
 
+var hierarchy [][]TokenType = [][]TokenType{
+	{TOKEN_MUL, TOKEN_DIV},
+	{TOKEN_ADD, TOKEN_SUB},
+	{TOKEN_SHL, TOKEN_SHR},
+	{TOKEN_LT, TOKEN_GT, TOKEN_EQ_GT, TOKEN_EQ_LT},
+	{TOKEN_EQUALS}}
+
 func (p *Parser) parseExpr() Node {
+	// TODO NOW
 	return nil
 }
 

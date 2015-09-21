@@ -34,6 +34,17 @@ const (
 	TOKEN_PLUS_ASSIGN           // +=
 	TOKEN_INCREMENT             // ++
 	TOKEN_VAR                   // the "var" keyword
+	TOKEN_GT                    // >
+	TOKEN_LT                    // <
+	TOKEN_MUL                   // *
+	TOKEN_DIV                   // /
+	TOKEN_ADD                   // +
+	TOKEN_SUB                   // -
+	TOKEN_SHL                   // <<
+	TOKEN_SHR                   // >>
+	TOKEN_SEND                  // <-
+	TOKEN_SET_ADD               // +=
+	TOKEN_SET_SUB               // -=
 )
 
 type Lexer struct {
@@ -217,6 +228,40 @@ func (l *Lexer) Next() (*Token, error) {
 		case "++":
 			return &Token{TOKEN_INCREMENT, nil}, nil
 		}
+	case ch == '<':
+		alt, _ := l.checkAlt("<<", "<-", "<")
+		switch alt {
+		case "<":
+			return &Token{TOKEN_LT, nil}, nil
+		case "<-":
+			return &Token{TOKEN_SEND, nil}, nil
+		case "<<":
+			return &Token{TOKEN_SHL, nil}, nil
+		}
+	case ch == '>':
+		alt, _ := l.checkAlt(">>", ">")
+		switch alt {
+		case ">":
+			return &Token{TOKEN_GT, nil}, nil
+		case ">>":
+			return &Token{TOKEN_SHR, nil}, nil
+		}
+	case ch == '+':
+		alt, _ := l.checkAlt("+=", "+")
+		switch alt {
+		case "+":
+			return &Token{TOKEN_ADD, nil}, nil
+		case "+=":
+			return &Token{TOKEN_SET_ADD, nil}, nil
+		}
+	case ch == '-':
+		alt, _ := l.checkAlt("-=", "-")
+		switch alt {
+		case "-":
+			return &Token{TOKEN_SUB, nil}, nil
+		case "-=":
+			return &Token{TOKEN_SET_SUB, nil}, nil
+		}
 	case unicode.IsNumber(ch):
 		word := l.scanWord()
 		return &Token{TOKEN_NUM, string(word)}, nil
@@ -238,6 +283,9 @@ func (l *Lexer) Next() (*Token, error) {
 	case ch == ']':
 		l.skip()
 		return &Token{TOKEN_RBRACKET, nil}, nil
+	case ch == '.':
+		l.skip()
+		return &Token{TOKEN_DOT, nil}, nil
 	case ch == '.':
 		l.skip()
 		return &Token{TOKEN_DOT, nil}, nil
