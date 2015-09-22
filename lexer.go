@@ -13,38 +13,37 @@ type Token struct {
 }
 
 const (
-	TOKEN_EOF         TokenType = iota + 1
-	TOKEN_NEWSCOPE              // "{" in other languages
-	TOKEN_ENDSCOPE              // "}" in other languages
-	TOKEN_FOR                   // the "for" keyword
-	TOKEN_WORD                  // alphanumeric word, starts witn a letter
-	TOKEN_BR                    // new line
-	TOKEN_ASSIGN                // =
-	TOKEN_EQUALS                // ==
-	TOKEN_EQ_LT                 // =<
-	TOKEN_EQ_GT                 // =>
-	TOKEN_NUM                   // general token for all number literals
-	TOKEN_STR                   // string literal
-	TOKEN_DOT                   // .
-	TOKEN_LPARENTH              // (
-	TOKEN_RPARENTH              // )
-	TOKEN_LBRACKET              // [
-	TOKEN_RBRACKET              // ]
-	TOKEN_PLUS                  // +
-	TOKEN_PLUS_ASSIGN           // +=
-	TOKEN_INCREMENT             // ++
-	TOKEN_VAR                   // the "var" keyword
-	TOKEN_GT                    // >
-	TOKEN_LT                    // <
-	TOKEN_MUL                   // *
-	TOKEN_DIV                   // /
-	TOKEN_ADD                   // +
-	TOKEN_SUB                   // -
-	TOKEN_SHL                   // <<
-	TOKEN_SHR                   // >>
-	TOKEN_SEND                  // <-
-	TOKEN_SET_ADD               // +=
-	TOKEN_SET_SUB               // -=
+	TOKEN_EOF          TokenType = iota + 1
+	TOKEN_NEWSCOPE               // "{" in other languages
+	TOKEN_ENDSCOPE               // "}" in other languages
+	TOKEN_FOR                    // the "for" keyword
+	TOKEN_WORD                   // alphanumeric word, starts witn a letter
+	TOKEN_BR                     // new line
+	TOKEN_ASSIGN                 // =
+	TOKEN_EQUALS                 // ==
+	TOKEN_EQ_LT                  // =<
+	TOKEN_EQ_GT                  // =>
+	TOKEN_NUM                    // general token for all number literals
+	TOKEN_STR                    // string literal
+	TOKEN_DOT                    // .
+	TOKEN_LPARENTH               // (
+	TOKEN_RPARENTH               // )
+	TOKEN_LBRACKET               // [
+	TOKEN_RBRACKET               // ]
+	TOKEN_PLUS                   // +
+	TOKEN_PLUS_ASSIGN            // +=
+	TOKEN_INCREMENT              // ++
+	TOKEN_MINUS                  // -
+	TOKEN_MINUS_ASSIGN           // -=
+	TOKEN_DECREMENT              // --
+	TOKEN_VAR                    // the "var" keyword
+	TOKEN_GT                     // >
+	TOKEN_LT                     // <
+	TOKEN_MUL                    // *
+	TOKEN_DIV                    // /
+	TOKEN_SHL                    // <<
+	TOKEN_SHR                    // >>
+	TOKEN_SEND                   // <-
 )
 
 type Lexer struct {
@@ -228,6 +227,16 @@ func (l *Lexer) Next() (*Token, error) {
 		case "++":
 			return &Token{TOKEN_INCREMENT, nil}, nil
 		}
+	case ch == '-':
+		alt, _ := l.checkAlt("--", "-=", "-")
+		switch alt {
+		case "-":
+			return &Token{TOKEN_MINUS, nil}, nil
+		case "-=":
+			return &Token{TOKEN_MINUS_ASSIGN, nil}, nil
+		case "--":
+			return &Token{TOKEN_DECREMENT, nil}, nil
+		}
 	case ch == '<':
 		alt, _ := l.checkAlt("<<", "<-", "<")
 		switch alt {
@@ -245,22 +254,6 @@ func (l *Lexer) Next() (*Token, error) {
 			return &Token{TOKEN_GT, nil}, nil
 		case ">>":
 			return &Token{TOKEN_SHR, nil}, nil
-		}
-	case ch == '+':
-		alt, _ := l.checkAlt("+=", "+")
-		switch alt {
-		case "+":
-			return &Token{TOKEN_ADD, nil}, nil
-		case "+=":
-			return &Token{TOKEN_SET_ADD, nil}, nil
-		}
-	case ch == '-':
-		alt, _ := l.checkAlt("-=", "-")
-		switch alt {
-		case "-":
-			return &Token{TOKEN_SUB, nil}, nil
-		case "-=":
-			return &Token{TOKEN_SET_SUB, nil}, nil
 		}
 	case unicode.IsNumber(ch):
 		word := l.scanWord()
@@ -289,7 +282,10 @@ func (l *Lexer) Next() (*Token, error) {
 	case ch == '.':
 		l.skip()
 		return &Token{TOKEN_DOT, nil}, nil
+	case ch == '*': // TODO: use checkAlt, "*=", etc
+		l.skip()
+		return &Token{TOKEN_MUL, nil}, nil
 	}
 
-	return nil, fmt.Errorf("Don't know what to do")
+	return nil, fmt.Errorf("Don't know what to do, '%c'", ch)
 }

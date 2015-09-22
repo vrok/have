@@ -1,5 +1,7 @@
 package have
 
+import "fmt"
+
 type Parser struct {
 	lex       *Lexer
 	tokensBuf []*Token
@@ -36,13 +38,13 @@ type BasicLit struct {
 
 // implements Expr
 type BinaryOp struct {
-	left, right *Expr
+	left, right Expr
 	op          *Token
 }
 
 // implements Expr
 type UnaryOp struct {
-	right *Expr
+	right Expr
 	op    *Token
 }
 
@@ -133,14 +135,86 @@ loop:
 	return left
 }
 
+// Return primary expression, possibly wrapped in an unary operator
+func (p *Parser) parseMaybeUnaryExpr() Expr {
+	token := p.nextToken()
+	isOp, _ := opSet[token.Type] // FIXME we should create another set with just unary operators
+	if isOp {
+		return &UnaryOp{op: token, right: p.parsePrimaryExpr()}
+	} else {
+		p.putBack(token)
+		return p.parsePrimaryExpr()
+	}
+}
+
 var hierarchy [][]TokenType = [][]TokenType{
 	{TOKEN_MUL, TOKEN_DIV},
-	{TOKEN_ADD, TOKEN_SUB},
+	{TOKEN_PLUS, TOKEN_MINUS},
 	{TOKEN_SHL, TOKEN_SHR},
 	{TOKEN_LT, TOKEN_GT, TOKEN_EQ_GT, TOKEN_EQ_LT},
 	{TOKEN_EQUALS}}
 
+var opSet map[TokenType]bool = make(map[TokenType]bool)
+
+func init() {
+	for _, layer := range hierarchy {
+		for _, op := range layer {
+			fmt.Printf("%#v ", op)
+			opSet[op] = true
+		}
+	}
+	fmt.Printf("\n")
+}
+
+func hierarchyNum(typ TokenType) int {
+	for i, layer := range hierarchy {
+		for _, t := range layer {
+			if t == typ {
+				return i
+			}
+		}
+	}
+	panic(fmt.Errorf("Token %#v isn't a binary operator", typ))
+}
+
 func (p *Parser) parseExpr() Node {
+	exprStack := []Expr{}
+	opStack := []*Token{}
+
+	reduce := func() {
+		reduced := &BinaryOp{
+			left:  exprStack[len(exprStack)-2],
+			right: exprStack[len(exprStack)-1],
+			op:    opStack[len(opStack)-1]}
+		exprStack = append(exprStack[:len(exprStack)-2], reduced)
+		opStack = opStack[:len(opStack)-1]
+	}
+
+	for {
+		expr := p.parseMaybeUnaryExpr()
+		exprStack = append(exprStack, expr)
+
+		op := p.nextToken()
+		isOp, _ := opSet[op.Type]
+		fmt.Printf("[DEBUG] for op %#v got %#v\n", op, isOp)
+		if isOp {
+			layer := hierarchyNum(op.Type)
+			for len(opStack) > 0 && hierarchyNum(opStack[len(opStack)-1].Type) < layer {
+				reduce()
+			}
+			opStack = append(opStack, op)
+		} else {
+			// Not an operator, so the expression ends here.
+			p.putBack(op)
+			// All operators left should now be ordered by their precedence (from the least
+			// to the highest), so we can just reduce them all.
+			for len(exprStack) > 1 {
+				reduce()
+			}
+			return exprStack[0]
+		}
+	}
+
 	// TODO NOW
 	return nil
 }
