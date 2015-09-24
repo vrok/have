@@ -8,8 +8,9 @@ import (
 type TokenType int
 
 type Token struct {
-	Type  TokenType
-	Value interface{}
+	Type   TokenType
+	Offset int
+	Value  interface{}
 }
 
 const (
@@ -47,9 +48,17 @@ const (
 )
 
 type Lexer struct {
-	buf          []rune
+	// Characters not processed yet.
+	buf []rune
+	// Stack of opened indents.
 	indentsStack []int
-	queue        []*Token
+	// When a single char occurence produces more than one token,
+	// they should be added to this queue.
+	queue []*Token
+	// How many characters we've processed.
+	skipped int
+	// Offset of currently processed token.
+	curTokenPos int
 }
 
 func NewLexer(buf []rune) *Lexer {
@@ -74,13 +83,20 @@ func (l *Lexer) scanWord() []rune {
 	}
 
 	result := l.buf[:i]
-	l.buf = l.buf[i:]
+	l.skipBy(i)
 	return result
 }
 
 // Advance lexer's buffer by one character.
 func (l *Lexer) skip() {
+	l.skipped++
 	l.buf = l.buf[1:]
+}
+
+// Advance lexer's buffer by N characters.
+func (l *Lexer) skipBy(n int) {
+	l.skipped += n
+	l.buf = l.buf[n:]
 }
 
 // Tells if we've reached the end of the buffer.
@@ -105,7 +121,7 @@ func (l *Lexer) popFromQueue() *Token {
 func (l *Lexer) checkAlt(alts ...string) (alt string, ok bool) {
 	for _, alt := range alts {
 		if string(l.buf[:len(alt)]) == alt {
-			l.buf = l.buf[len(alt):]
+			l.skipBy(len(alt))
 			return alt, true
 		}
 	}
@@ -129,11 +145,21 @@ func (l *Lexer) loadEscapedString() (string, error) {
 			}
 		case '"':
 			s := string(l.buf[:i])
-			l.buf = l.buf[i+1:]
+			l.skipBy(i + 1)
 			return s, nil
 		}
 	}
 	return "", fmt.Errorf("Unterminated string literal")
+}
+
+func (l *Lexer) newToken(typ TokenType, val interface{}) *Token {
+	return &Token{Type: typ, Offset: l.curTokenPos, Value: val}
+}
+
+// A convenience wrapper for newToken, handy in situations when a token
+// is created just to be immediately returned with a nil error.
+func (l *Lexer) retNewToken(typ TokenType, val interface{}) (*Token, error) {
+	return l.newToken(typ, val), nil
 }
 
 func (l *Lexer) Next() (*Token, error) {
@@ -141,14 +167,16 @@ func (l *Lexer) Next() (*Token, error) {
 		return l.popFromQueue(), nil
 	}
 
+	l.curTokenPos = l.skipped
+
 	if l.isEnd() {
 		for i := 0; i < len(l.indentsStack); i++ {
-			l.queue = append(l.queue, &Token{TOKEN_ENDSCOPE, nil})
+			l.queue = append(l.queue, l.newToken(TOKEN_ENDSCOPE, nil))
 		}
 		l.indentsStack = l.indentsStack[:0]
 
 		if len(l.queue) == 0 {
-			return &Token{TOKEN_EOF, nil}, nil
+			return l.retNewToken(TOKEN_EOF, nil)
 		} else {
 			return l.Next()
 		}
@@ -163,7 +191,7 @@ func (l *Lexer) Next() (*Token, error) {
 		indent := l.skipWhiteChars()
 
 		if l.isEnd() {
-			l.queue = append(l.queue, &Token{TOKEN_BR, nil})
+			l.queue = append(l.queue, l.newToken(TOKEN_BR, nil))
 			return l.Next()
 		}
 
@@ -172,15 +200,15 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.Next()
 		}
 
-		l.queue = append(l.queue, &Token{TOKEN_BR, nil})
+		l.queue = append(l.queue, l.newToken(TOKEN_BR, nil))
 
 		if len(l.indentsStack) == 0 || indent > l.indentsStack[len(l.indentsStack)-1] {
 			l.indentsStack = append(l.indentsStack, indent)
-			l.queue = append(l.queue, &Token{TOKEN_NEWSCOPE, nil})
+			l.queue = append(l.queue, l.newToken(TOKEN_NEWSCOPE, nil))
 			return l.Next()
 		} else {
 			for len(l.indentsStack) > 0 && l.indentsStack[len(l.indentsStack)-1] > indent {
-				l.queue = append(l.queue, &Token{TOKEN_ENDSCOPE, nil})
+				l.queue = append(l.queue, l.newToken(TOKEN_ENDSCOPE, nil))
 				l.indentsStack = l.indentsStack[:len(l.indentsStack)-1]
 			}
 
@@ -199,92 +227,92 @@ func (l *Lexer) Next() (*Token, error) {
 		word := l.scanWord()
 		switch s := string(word); s {
 		case "for":
-			return &Token{TOKEN_FOR, nil}, nil
+			return l.retNewToken(TOKEN_FOR, nil)
 		case "var":
-			return &Token{TOKEN_VAR, nil}, nil
+			return l.retNewToken(TOKEN_VAR, nil)
 		default:
-			return &Token{TOKEN_WORD, s}, nil
+			return l.retNewToken(TOKEN_WORD, s)
 		}
 	case ch == '=':
 		alt, _ := l.checkAlt("==", "=<", "=>", "=")
 		switch alt {
 		case "=":
-			return &Token{TOKEN_ASSIGN, nil}, nil
+			return l.retNewToken(TOKEN_ASSIGN, nil)
 		case "==":
-			return &Token{TOKEN_EQUALS, nil}, nil
+			return l.retNewToken(TOKEN_EQUALS, nil)
 		case "=<":
-			return &Token{TOKEN_EQ_LT, nil}, nil
+			return l.retNewToken(TOKEN_EQ_LT, nil)
 		case "=>":
-			return &Token{TOKEN_EQ_GT, nil}, nil
+			return l.retNewToken(TOKEN_EQ_GT, nil)
 		}
 	case ch == '+':
 		alt, _ := l.checkAlt("++", "+=", "+")
 		switch alt {
 		case "+":
-			return &Token{TOKEN_PLUS, nil}, nil
+			return l.retNewToken(TOKEN_PLUS, nil)
 		case "+=":
-			return &Token{TOKEN_PLUS_ASSIGN, nil}, nil
+			return l.retNewToken(TOKEN_PLUS_ASSIGN, nil)
 		case "++":
-			return &Token{TOKEN_INCREMENT, nil}, nil
+			return l.retNewToken(TOKEN_INCREMENT, nil)
 		}
 	case ch == '-':
 		alt, _ := l.checkAlt("--", "-=", "-")
 		switch alt {
 		case "-":
-			return &Token{TOKEN_MINUS, nil}, nil
+			return l.retNewToken(TOKEN_MINUS, nil)
 		case "-=":
-			return &Token{TOKEN_MINUS_ASSIGN, nil}, nil
+			return l.retNewToken(TOKEN_MINUS_ASSIGN, nil)
 		case "--":
-			return &Token{TOKEN_DECREMENT, nil}, nil
+			return l.retNewToken(TOKEN_DECREMENT, nil)
 		}
 	case ch == '<':
 		alt, _ := l.checkAlt("<<", "<-", "<")
 		switch alt {
 		case "<":
-			return &Token{TOKEN_LT, nil}, nil
+			return l.retNewToken(TOKEN_LT, nil)
 		case "<-":
-			return &Token{TOKEN_SEND, nil}, nil
+			return l.retNewToken(TOKEN_SEND, nil)
 		case "<<":
-			return &Token{TOKEN_SHL, nil}, nil
+			return l.retNewToken(TOKEN_SHL, nil)
 		}
 	case ch == '>':
 		alt, _ := l.checkAlt(">>", ">")
 		switch alt {
 		case ">":
-			return &Token{TOKEN_GT, nil}, nil
+			return l.retNewToken(TOKEN_GT, nil)
 		case ">>":
-			return &Token{TOKEN_SHR, nil}, nil
+			return l.retNewToken(TOKEN_SHR, nil)
 		}
 	case unicode.IsNumber(ch):
 		word := l.scanWord()
-		return &Token{TOKEN_NUM, string(word)}, nil
+		return l.retNewToken(TOKEN_NUM, string(word))
 	case ch == '"':
 		str, err := l.loadEscapedString()
 		if err != nil {
 			return nil, err
 		}
-		return &Token{TOKEN_STR, str}, nil
+		return l.retNewToken(TOKEN_STR, str)
 	case ch == '(':
 		l.skip()
-		return &Token{TOKEN_LPARENTH, nil}, nil
+		return l.retNewToken(TOKEN_LPARENTH, nil)
 	case ch == ')':
 		l.skip()
-		return &Token{TOKEN_RPARENTH, nil}, nil
+		return l.retNewToken(TOKEN_RPARENTH, nil)
 	case ch == '[':
 		l.skip()
-		return &Token{TOKEN_LBRACKET, nil}, nil
+		return l.retNewToken(TOKEN_LBRACKET, nil)
 	case ch == ']':
 		l.skip()
-		return &Token{TOKEN_RBRACKET, nil}, nil
+		return l.retNewToken(TOKEN_RBRACKET, nil)
 	case ch == '.':
 		l.skip()
-		return &Token{TOKEN_DOT, nil}, nil
+		return l.retNewToken(TOKEN_DOT, nil)
 	case ch == '.':
 		l.skip()
-		return &Token{TOKEN_DOT, nil}, nil
+		return l.retNewToken(TOKEN_DOT, nil)
 	case ch == '*': // TODO: use checkAlt, "*=", etc
 		l.skip()
-		return &Token{TOKEN_MUL, nil}, nil
+		return l.retNewToken(TOKEN_MUL, nil)
 	}
 
 	return nil, fmt.Errorf("Don't know what to do, '%c'", ch)

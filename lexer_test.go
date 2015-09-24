@@ -23,16 +23,16 @@ func testTokens(t *testing.T, input []rune, output []*Token) {
 }
 
 func TestEOF(t *testing.T) {
-	testTokens(t, []rune(""), []*Token{&Token{TOKEN_EOF, nil}})
+	testTokens(t, []rune(""), []*Token{&Token{TOKEN_EOF, 0, nil}})
 }
 
 func TestIndents(t *testing.T) {
 	testTokens(t, []rune("\n  for"), []*Token{
-		&Token{TOKEN_BR, nil},
-		&Token{TOKEN_NEWSCOPE, nil},
-		&Token{TOKEN_FOR, nil},
-		&Token{TOKEN_ENDSCOPE, nil},
-		&Token{TOKEN_EOF, nil}})
+		&Token{TOKEN_BR, 0, nil},
+		&Token{TOKEN_NEWSCOPE, 0, nil},
+		&Token{TOKEN_FOR, 3, nil},
+		&Token{TOKEN_ENDSCOPE, 6, nil},
+		&Token{TOKEN_EOF, 6, nil}})
 
 	s := `
 		  for test
@@ -41,68 +41,72 @@ func TestIndents(t *testing.T) {
 		`
 
 	testTokens(t, []rune(s), []*Token{
-		&Token{TOKEN_BR, nil},
-		&Token{TOKEN_NEWSCOPE, nil},
-		&Token{TOKEN_FOR, nil},
-		&Token{TOKEN_WORD, "test"},
-		&Token{TOKEN_BR, nil},
-		&Token{TOKEN_NEWSCOPE, nil},
-		&Token{TOKEN_FOR, nil},
-		&Token{TOKEN_BR, nil},
-		&Token{TOKEN_WORD, "frog"},
-		&Token{TOKEN_BR, nil},
-		&Token{TOKEN_ENDSCOPE, nil},
-		&Token{TOKEN_ENDSCOPE, nil},
-		&Token{TOKEN_EOF, nil},
+		&Token{TOKEN_BR, 0, nil},
+		&Token{TOKEN_NEWSCOPE, 0, nil},
+		&Token{TOKEN_FOR, 5, nil},
+		&Token{TOKEN_WORD, 9, "test"},
+		&Token{TOKEN_BR, 13, nil},
+		&Token{TOKEN_NEWSCOPE, 13, nil},
+		&Token{TOKEN_FOR, 20, nil},
+		&Token{TOKEN_BR, 23, nil},
+		&Token{TOKEN_WORD, 30, "frog"},
+		&Token{TOKEN_BR, 34, nil},
+		// Lines with just whitespace don't interfere with indents,
+		// no matter how many whitespace chars they have. Lexer
+		// simply jumps over them (hence ENDSCOPE is generated
+		// from EOF, not BR in this case).
+		&Token{TOKEN_ENDSCOPE, 37, nil},
+		&Token{TOKEN_ENDSCOPE, 37, nil},
+		&Token{TOKEN_EOF, 37, nil},
 	})
 }
 
 func TestEquals(t *testing.T) {
 	testTokens(t, []rune("for == = =< =>"), []*Token{
-		&Token{TOKEN_FOR, nil},
-		&Token{TOKEN_EQUALS, nil},
-		&Token{TOKEN_ASSIGN, nil},
-		&Token{TOKEN_EQ_LT, nil},
-		&Token{TOKEN_EQ_GT, nil},
-		&Token{TOKEN_EOF, nil}})
+		&Token{TOKEN_FOR, 0, nil},
+		&Token{TOKEN_EQUALS, 4, nil},
+		&Token{TOKEN_ASSIGN, 7, nil},
+		&Token{TOKEN_EQ_LT, 9, nil},
+		&Token{TOKEN_EQ_GT, 12, nil},
+		&Token{TOKEN_EOF, 14, nil}})
 }
 
 func TestNumbers(t *testing.T) {
 	testTokens(t, []rune("123"), []*Token{
-		&Token{TOKEN_NUM, "123"},
-		&Token{TOKEN_EOF, nil}})
+		&Token{TOKEN_NUM, 0, "123"},
+		&Token{TOKEN_EOF, 3, nil}})
 }
 
 func TestKeywords(t *testing.T) {
 	testTokens(t, []rune("var for"), []*Token{
-		&Token{TOKEN_VAR, nil},
-		&Token{TOKEN_FOR, nil},
-		&Token{TOKEN_EOF, nil}})
+		&Token{TOKEN_VAR, 0, nil},
+		&Token{TOKEN_FOR, 4, nil},
+		&Token{TOKEN_EOF, 7, nil}})
 }
 
 func TestString(t *testing.T) {
 	testTokens(t, []rune("\"123\""), []*Token{
-		&Token{TOKEN_STR, "123"},
-		&Token{TOKEN_EOF, nil}})
+		&Token{TOKEN_STR, 0, "123"},
+		&Token{TOKEN_EOF, 5, nil}})
 
 	testTokens(t, []rune("\"12\\\"3\" hej"), []*Token{
-		&Token{TOKEN_STR, "12\\\"3"},
-		&Token{TOKEN_WORD, "hej"},
-		&Token{TOKEN_EOF, nil}})
+		&Token{TOKEN_STR, 0, "12\\\"3"},
+		&Token{TOKEN_WORD, 8, "hej"},
+		&Token{TOKEN_EOF, 11, nil}})
 }
 
 func TestBraces(t *testing.T) {
 	testTokens(t, []rune("(1)"), []*Token{
-		&Token{TOKEN_LPARENTH, nil},
-		&Token{TOKEN_NUM, "1"},
-		&Token{TOKEN_RPARENTH, nil},
-		&Token{TOKEN_EOF, nil}})
+		&Token{TOKEN_LPARENTH, 0, nil},
+		&Token{TOKEN_NUM, 1, "1"},
+		&Token{TOKEN_RPARENTH, 2, nil},
+		&Token{TOKEN_EOF, 3, nil}})
 }
 
 func TestPlus(t *testing.T) {
 	testTokens(t, []rune("+ ++ +="), []*Token{
-		&Token{TOKEN_PLUS, nil},
-		&Token{TOKEN_INCREMENT, nil},
-		&Token{TOKEN_PLUS_ASSIGN, nil},
-		&Token{TOKEN_EOF, nil}})
+		&Token{TOKEN_PLUS, 0, nil},
+		&Token{TOKEN_INCREMENT, 2, nil},
+		&Token{TOKEN_PLUS_ASSIGN, 5, nil},
+		&Token{TOKEN_EOF, 7, nil}})
 }
