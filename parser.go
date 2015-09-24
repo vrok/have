@@ -29,22 +29,37 @@ func (p *Parser) putBack(tok *Token) {
 }
 
 type Expr interface {
+	Pos() int
+}
+
+type expr struct {
+	pos int
+}
+
+func (e *expr) Pos() int {
+	return e.pos
 }
 
 // implements Expr
 type BasicLit struct {
+	expr
+
 	token *Token
 }
 
 // implements Expr
 type BinaryOp struct {
-	left, right Expr
+	expr
+
+	Left, Right Expr
 	op          *Token
 }
 
 // implements Expr
 type UnaryOp struct {
-	right Expr
+	expr
+
+	Right Expr
 	op    *Token
 }
 
@@ -54,23 +69,31 @@ type PrimaryExpr interface {
 
 // implements PrimaryExpr
 type ArrayExpr struct {
-	left, index Expr
+	expr
+
+	Left, Index Expr
 }
 
 type DotSelector struct {
-	left  Expr
-	right *Ident
+	expr
+
+	Left  Expr
+	Right *Ident
 }
 
 // implements PrimaryExpr
 type FuncCall struct {
-	left Expr
+	expr
+
+	Left Expr
 	//args []*Expr
-	args Expr
+	Args []Expr
 }
 
 // implements PrimaryExpr
 type Ident struct {
+	expr
+
 	name string
 	//token *Token
 }
@@ -103,10 +126,10 @@ func (p *Parser) parsePrimaryExpr() PrimaryExpr {
 	case TOKEN_LPARENTH:
 		left = p.parseExpr()
 	case TOKEN_WORD:
-		left = &Ident{name: token.Value.(string)}
+		left = &Ident{expr: expr{token.Offset}, name: token.Value.(string)}
 		//next := p.nextToken()
 	case TOKEN_STR, TOKEN_NUM:
-		return &BasicLit{token}
+		return &BasicLit{expr{token.Offset}, token}
 	default:
 		// TODO: report error
 		return nil
@@ -119,13 +142,13 @@ loop:
 		case TOKEN_DOT:
 			// TODO: parse type assertions
 			selector := p.expect(TOKEN_WORD)
-			left = &DotSelector{left, &Ident{selector.Value.(string)}}
+			left = &DotSelector{expr{token.Offset}, left, &Ident{expr{selector.Offset}, selector.Value.(string)}}
 		case TOKEN_LPARENTH:
 			args := p.parseArgs()
-			left = &FuncCall{left, args}
+			left = &FuncCall{expr{token.Offset}, left, args}
 		case TOKEN_LBRACKET:
 			index := p.parseExpr()
-			left = &ArrayExpr{left, index}
+			left = &ArrayExpr{expr{token.Offset}, left, index}
 		default:
 			p.putBack(token)
 			break loop
@@ -140,7 +163,7 @@ func (p *Parser) parseMaybeUnaryExpr() Expr {
 	token := p.nextToken()
 	isOp, _ := opSet[token.Type] // FIXME we should create another set with just unary operators
 	if isOp {
-		return &UnaryOp{op: token, right: p.parsePrimaryExpr()}
+		return &UnaryOp{op: token, Right: p.parsePrimaryExpr()}
 	} else {
 		p.putBack(token)
 		return p.parsePrimaryExpr()
@@ -177,15 +200,17 @@ func hierarchyNum(typ TokenType) int {
 	panic(fmt.Errorf("Token %#v isn't a binary operator", typ))
 }
 
-func (p *Parser) parseExpr() Node {
+func (p *Parser) parseExpr() Expr {
 	exprStack := []Expr{}
 	opStack := []*Token{}
 
 	reduce := func() {
+		op := opStack[len(opStack)-1]
 		reduced := &BinaryOp{
-			left:  exprStack[len(exprStack)-2],
-			right: exprStack[len(exprStack)-1],
-			op:    opStack[len(opStack)-1]}
+			expr:  expr{op.Offset},
+			Left:  exprStack[len(exprStack)-2],
+			Right: exprStack[len(exprStack)-1],
+			op:    op}
 		exprStack = append(exprStack[:len(exprStack)-2], reduced)
 		opStack = opStack[:len(opStack)-1]
 	}
@@ -219,7 +244,7 @@ func (p *Parser) parseExpr() Node {
 	return nil
 }
 
-func (p *Parser) parseArgs() Node {
+func (p *Parser) parseArgs() []Expr {
 	return nil
 }
 
