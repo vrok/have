@@ -84,3 +84,14 @@ func TestParseExpr(t *testing.T) {
 		},
 	})
 }
+
+func TestParseType(t *testing.T) {
+	//in := []rune("int")
+	//in := []rune("trelemorele")
+	//in := []rune("**trelemorele")
+	//in := []rune("[]trelemorele")
+	in := []rune("[123]trelemorele")
+	parser := NewParser(NewLexer(in))
+	result, err := parser.parseType()
+	fmt.Printf("DEBUG type %#v, %#v\n", result, err)
+}

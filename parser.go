@@ -1,6 +1,7 @@
 package have
 
 import "fmt"
+import "strconv"
 
 type Parser struct {
 	lex       *Lexer
@@ -34,6 +35,52 @@ type Expr interface {
 
 type expr struct {
 	pos int
+}
+
+type Type interface {
+	// True means no underscores beneath, no type inference needed.
+	Known() bool
+}
+
+type SimpleType struct {
+	Name string
+}
+
+func (t *SimpleType) Known() bool { return true }
+
+type ArrayType struct {
+	Size int
+	Of   Type
+}
+
+func (t *ArrayType) Known() bool { return t.Of.Known() }
+
+type SliceType struct {
+	Of Type
+}
+
+func (t *SliceType) Known() bool { return t.Of.Known() }
+
+type PointerType struct {
+	To Type
+}
+
+func (t *PointerType) Known() bool { return t.To.Known() }
+
+type CustomType struct {
+	Name string
+}
+
+func (t *CustomType) Known() bool { return true }
+
+type UnknownType struct {
+}
+
+func (t *UnknownType) Known() bool { return false }
+
+type TypeExpr struct {
+	expr
+	typ Type
 }
 
 func (e *expr) Pos() int {
@@ -116,6 +163,78 @@ func (p *Parser) parseVarDecl() Node {
 	//ident := p.expect(TOKEN_WORD)
 
 	return nil
+}
+
+func (p *Parser) parseType() (Type, error) {
+	token := p.nextToken()
+	switch token.Type {
+	case TOKEN_MUL:
+		ptrTo, err := p.parseType()
+		if err != nil {
+			return nil, err
+		}
+		return &PointerType{ptrTo}, nil
+	case TOKEN_LBRACKET:
+		next := p.nextToken()
+		switch next.Type {
+		case TOKEN_RBRACKET:
+			sliceOf, err := p.parseType()
+			if err != nil {
+				return nil, err
+			}
+			return &SliceType{sliceOf}, nil
+		case TOKEN_NUM:
+			if p.expect(TOKEN_RBRACKET) == nil {
+				// TODO: add location info
+				return nil, fmt.Errorf("Expected ']'")
+			}
+
+			size, err := strconv.ParseInt(next.Value.(string), 10, 64)
+			if err != nil {
+				// TODO: add location info
+				return nil, fmt.Errorf("Couldn't parse array size")
+			}
+
+			arrayOf, err := p.parseType()
+			if err != nil {
+				return nil, err
+			}
+
+			return &ArrayType{Of: arrayOf, Size: int(size)}, nil
+		default:
+			// TODO: add location info
+			return nil, fmt.Errorf("Invalid type name, expected slice or array")
+
+			// TODO:
+			// case TOKEN_THREEDOTS
+		}
+	case TOKEN_WORD:
+		name := token.Value.(string)
+		switch name {
+		case "bool", "byte", "complex128", "complex64", "error", "float32",
+			"float64", "int", "int16", "int32", "int64", "int8", "rune",
+			"string", "uint", "uint16", "uint32", "uint64", "uint8", "uintptr":
+			return &SimpleType{Name: name}, nil
+		default:
+			return &CustomType{Name: name}, nil
+		}
+	default:
+		// TODO add location info
+		return nil, fmt.Errorf("Expected type name")
+	}
+}
+
+func (p *Parser) parseTypeExpr() (*TypeExpr, error) {
+	token := p.nextToken()
+	loc := token.Offset
+	p.putBack(token)
+
+	typ, err := p.parseType()
+	if err != nil {
+		return nil, err
+	}
+
+	return &TypeExpr{expr{loc}, typ}, nil
 }
 
 func (p *Parser) parsePrimaryExpr() PrimaryExpr {
