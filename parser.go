@@ -40,43 +40,50 @@ type expr struct {
 type Type interface {
 	// True means no underscores beneath, no type inference needed.
 	Known() bool
+	String() string
 }
 
 type SimpleType struct {
 	Name string
 }
 
-func (t *SimpleType) Known() bool { return true }
+func (t *SimpleType) Known() bool    { return true }
+func (t *SimpleType) String() string { return t.Name }
 
 type ArrayType struct {
 	Size int
 	Of   Type
 }
 
-func (t *ArrayType) Known() bool { return t.Of.Known() }
+func (t *ArrayType) Known() bool    { return t.Of.Known() }
+func (t *ArrayType) String() string { return fmt.Sprintf("[%d]%s", t.Size, t.Of.String()) }
 
 type SliceType struct {
 	Of Type
 }
 
-func (t *SliceType) Known() bool { return t.Of.Known() }
+func (t *SliceType) Known() bool    { return t.Of.Known() }
+func (t *SliceType) String() string { return "[]" + t.Of.String() }
 
 type PointerType struct {
 	To Type
 }
 
-func (t *PointerType) Known() bool { return t.To.Known() }
+func (t *PointerType) Known() bool    { return t.To.Known() }
+func (t *PointerType) String() string { return "*" + t.To.String() }
 
 type CustomType struct {
 	Name string
 }
 
-func (t *CustomType) Known() bool { return true }
+func (t *CustomType) Known() bool    { return true }
+func (t *CustomType) String() string { return t.Name }
 
 type UnknownType struct {
 }
 
-func (t *UnknownType) Known() bool { return false }
+func (t *UnknownType) Known() bool    { return false }
+func (t *UnknownType) String() string { return "_" }
 
 type TypeExpr struct {
 	expr

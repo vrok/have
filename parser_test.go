@@ -85,13 +85,26 @@ func TestParseExpr(t *testing.T) {
 	})
 }
 
-func TestParseType(t *testing.T) {
-	//in := []rune("int")
-	//in := []rune("trelemorele")
-	//in := []rune("**trelemorele")
-	//in := []rune("[]trelemorele")
-	in := []rune("[123]trelemorele")
+func testTypes(t *testing.T, code string, expected Type) {
+	in := []rune(code)
 	parser := NewParser(NewLexer(in))
 	result, err := parser.parseType()
-	fmt.Printf("DEBUG type %#v, %#v\n", result, err)
+	if err != nil {
+		fmt.Print(err)
+		t.Fail()
+	}
+	if result.String() != expected.String() {
+		fmt.Printf("Types aren't equal (%d and %d)\n", result.String(), expected.String())
+		t.Fail()
+	}
+}
+
+func TestParseType(t *testing.T) {
+	testTypes(t, "int", &SimpleType{Name: "int"})
+	testTypes(t, "trelemorele", &CustomType{Name: "trelemorele"})
+	testTypes(t, "*trelemorele", &PointerType{To: &CustomType{Name: "trelemorele"}})
+	testTypes(t, "**trelemorele", &PointerType{To: &PointerType{To: &CustomType{Name: "trelemorele"}}})
+	testTypes(t, "[123]trelemorele", &ArrayType{Of: &CustomType{Name: "trelemorele"}, Size: 123})
+	testTypes(t, "*[123]trelemorele", &PointerType{To: &ArrayType{Of: &CustomType{Name: "trelemorele"}, Size: 123}})
+	testTypes(t, "[]trelemorele", &SliceType{Of: &CustomType{Name: "trelemorele"}})
 }
