@@ -251,6 +251,10 @@ func (p *Parser) parsePrimaryExpr() PrimaryExpr {
 	switch token.Type {
 	case TOKEN_LPARENTH:
 		left = p.parseExpr()
+		if p.expect(TOKEN_RPARENTH) == nil {
+			// TODO: return error
+			return nil
+		}
 	case TOKEN_WORD:
 		left = &Ident{expr: expr{token.Offset}, name: token.Value.(string)}
 		//next := p.nextToken()
@@ -270,7 +274,10 @@ loop:
 			selector := p.expect(TOKEN_WORD)
 			left = &DotSelector{expr{token.Offset}, left, &Ident{expr{selector.Offset}, selector.Value.(string)}}
 		case TOKEN_LPARENTH:
-			args := p.parseArgs()
+			args, err := p.parseArgs()
+			if err != nil {
+				return nil // TODO: report error
+			}
 			left = &FuncCall{expr{token.Offset}, left, args}
 		case TOKEN_LBRACKET:
 			index := p.parseExpr()
@@ -370,8 +377,23 @@ func (p *Parser) parseExpr() Expr {
 	return nil
 }
 
-func (p *Parser) parseArgs() []Expr {
-	return nil
+func (p *Parser) parseArgs() ([]Expr, error) {
+	result := []Expr{}
+	for {
+		token := p.nextToken()
+		switch token.Type {
+		case TOKEN_EOF, TOKEN_RPARENTH:
+			p.putBack(token)
+			return result, nil
+		case TOKEN_COMMA:
+			// nada
+		default:
+			p.putBack(token)
+			expr := p.parseExpr()
+			result = append(result, expr)
+		}
+	}
+	return result, nil
 }
 
 func (p *Parser) Parse() Node {

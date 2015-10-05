@@ -20,8 +20,7 @@ func compareExpr(a, b Expr) (equal bool, msg string) {
 		field := valA.Field(i)
 		if field.Type().Implements(typeOfExpr) {
 			eq, msg := compareExpr(
-				field.
-					Interface().(Expr),
+				field.Interface().(Expr),
 				valB.Field(i).Interface().(Expr))
 			if !eq {
 				return false, msg
@@ -83,6 +82,19 @@ func TestParseExpr(t *testing.T) {
 			Right: &BasicLit{expr: expr{6}}, // TODO: put num value
 		},
 	})
+	testExpr(t, "(1+2)*(3+4)", &BinaryOp{
+		expr: expr{5},
+		Left: &BinaryOp{
+			expr:  expr{2},
+			Left:  &BasicLit{expr: expr{1}}, // TODO: put num value
+			Right: &BasicLit{expr: expr{3}}, // TODO: put num value
+		},
+		Right: &BinaryOp{
+			expr:  expr{8},
+			Left:  &BasicLit{expr: expr{7}}, // TODO: put num value
+			Right: &BasicLit{expr: expr{9}}, // TODO: put num value
+		},
+	})
 }
 
 func testTypes(t *testing.T, code string, expected Type) {
@@ -107,4 +119,34 @@ func TestParseType(t *testing.T) {
 	testTypes(t, "[123]trelemorele", &ArrayType{Of: &CustomType{Name: "trelemorele"}, Size: 123})
 	testTypes(t, "*[123]trelemorele", &PointerType{To: &ArrayType{Of: &CustomType{Name: "trelemorele"}, Size: 123}})
 	testTypes(t, "[]trelemorele", &SliceType{Of: &CustomType{Name: "trelemorele"}})
+}
+
+func testArgs(t *testing.T, code string, expected []Expr) {
+	in := []rune(code)
+	parser := NewParser(NewLexer(in))
+	result, err := parser.parseArgs()
+	if err != nil {
+		fmt.Print(err)
+		t.Fail()
+	}
+	if len(result) != len(expected) {
+		fmt.Printf("Lengths are different (%d and %d)\n", len(result), len(expected))
+		t.Fail()
+	}
+	for i, arg := range result {
+		equal, msg := compareExpr(arg, expected[i])
+		if !equal {
+			fmt.Printf(msg)
+			t.Fail()
+		}
+	}
+}
+
+func TestArgs(t *testing.T) {
+	testArgs(t, "", []Expr{})
+	testArgs(t, ")", []Expr{})
+	testArgs(t, "1,bla", []Expr{&BasicLit{expr{0}, &Token{TOKEN_NUM, 0, "1"}},
+		&Ident{expr{2}, "bla"}})
+	testArgs(t, "1,bla)", []Expr{&BasicLit{expr{0}, &Token{TOKEN_NUM, 0, "1"}},
+		&Ident{expr{2}, "bla"}})
 }

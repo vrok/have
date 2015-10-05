@@ -45,6 +45,7 @@ const (
 	TOKEN_SHL                    // <<
 	TOKEN_SHR                    // >>
 	TOKEN_SEND                   // <-
+	TOKEN_COMMA                  // ,
 )
 
 type Lexer struct {
@@ -313,6 +314,9 @@ func (l *Lexer) Next() (*Token, error) {
 	case ch == '*': // TODO: use checkAlt, "*=", etc
 		l.skip()
 		return l.retNewToken(TOKEN_MUL, nil)
+	case ch == ',':
+		l.skip()
+		return l.retNewToken(TOKEN_COMMA, nil)
 	}
 
 	return nil, fmt.Errorf("Don't know what to do, '%c'", ch)
