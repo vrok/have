@@ -2,6 +2,7 @@ package have
 
 import (
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"reflect"
 	"testing"
 )
@@ -149,4 +150,13 @@ func TestArgs(t *testing.T) {
 		&Ident{expr{2}, "bla"}})
 	testArgs(t, "1,bla)", []Expr{&BasicLit{expr{0}, &Token{TOKEN_NUM, 0, "1"}},
 		&Ident{expr{2}, "bla"}})
+}
+
+func TestVarDecl(t *testing.T) {
+	//code := "var x int = 1\n"
+	code := "var x,y int = 1, 2\n"
+	in := []rune(code)
+	parser := NewParser(NewLexer(in))
+	result, err := parser.parseVarDecl()
+	spew.Printf("ZZZ %s -- %#v\n", spew.Sdump(result), err)
 }

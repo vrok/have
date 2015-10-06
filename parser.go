@@ -2,6 +2,7 @@ package have
 
 import "fmt"
 import "strconv"
+import "github.com/davecgh/go-spew/spew"
 
 type Parser struct {
 	lex       *Lexer
@@ -35,6 +36,22 @@ type Expr interface {
 
 type expr struct {
 	pos int
+}
+
+type Stmt interface {
+	Expr
+}
+
+type VarDecl struct {
+	Name string
+	Type Type
+	Init Expr
+}
+
+// implements Stmt
+type VarStmt struct {
+	expr
+	Vars []*VarDecl
 }
 
 type Type interface {
@@ -93,6 +110,15 @@ type TypeExpr struct {
 func (e *expr) Pos() int {
 	return e.pos
 }
+
+// Blank expression, represents no expression.
+// Sometimes useful.
+// implements Expr
+type BlankExpr struct {
+	expr
+}
+
+func NewBlankExpr() *BlankExpr { return &BlankExpr{expr{0}} }
 
 // implements Expr
 type BasicLit struct {
@@ -166,10 +192,89 @@ func (p *Parser) expect(typ TokenType) *Token {
 	return token
 }
 
-func (p *Parser) parseVarDecl() Node {
-	//ident := p.expect(TOKEN_WORD)
+func (p *Parser) parseVarDecl() (*VarStmt, error) {
+	ident := p.expect(TOKEN_VAR)
+	if ident == nil {
+		return nil, fmt.Errorf("Impossible happened")
+	}
+	unknownType := &UnknownType{}
+	vars := []*VarDecl{}
+	var err error
 
-	return nil
+	// Parse left side of "="
+loop:
+	for {
+		decl := &VarDecl{}
+
+		token := p.nextToken()
+		switch token.Type {
+		case TOKEN_WORD:
+			decl.Name = token.Value.(string)
+		case TOKEN_ASSIGN:
+			break loop
+		case TOKEN_BR:
+			// All default values.
+			for _, v := range vars {
+				v.Init = NewBlankExpr()
+			}
+			return &VarStmt{expr{ident.Offset}, vars}, nil
+		default:
+			return nil, fmt.Errorf("Unexpected token %s\n", token)
+		}
+
+		token = p.nextToken()
+
+		if token.Type != TOKEN_COMMA && token.Type != TOKEN_ASSIGN {
+			// Type is specified, not inferred.
+			p.putBack(token)
+			decl.Type, err = p.parseType()
+			if err != nil {
+				return nil, err
+			}
+			// We have a type decl, it refers to all earlier declarations
+			// without a type.
+			for i := len(vars) - 1; i >= 0; i-- {
+				if vars[i].Type == unknownType {
+					vars[i].Type = decl.Type
+				} else {
+					break
+				}
+			}
+			token = p.nextToken()
+		}
+
+		switch token.Type {
+		case TOKEN_COMMA:
+			decl.Type = unknownType
+		case TOKEN_ASSIGN:
+			decl.Type = unknownType
+			vars = append(vars, decl)
+			break loop
+		default:
+			return nil, fmt.Errorf("Unexpected token")
+		}
+
+		vars = append(vars, decl)
+	}
+
+	// Right side of "="
+	if len(vars) == 0 {
+		return nil, fmt.Errorf("No vars declared on the right side of \"=\"")
+	}
+
+	inits, err := p.parseArgs()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(inits) != len(vars) {
+		return nil, fmt.Errorf("Different number of new vars and initializers\n")
+	}
+
+	for i := range vars {
+		vars[i].Init = inits[i]
+	}
+	return &VarStmt{expr{ident.Offset}, vars}, nil
 }
 
 func (p *Parser) parseType() (Type, error) {
@@ -227,7 +332,7 @@ func (p *Parser) parseType() (Type, error) {
 		}
 	default:
 		// TODO add location info
-		return nil, fmt.Errorf("Expected type name")
+		return nil, fmt.Errorf("Expected type name, got %s", spew.Sdump(token))
 	}
 }
 
@@ -382,7 +487,7 @@ func (p *Parser) parseArgs() ([]Expr, error) {
 	for {
 		token := p.nextToken()
 		switch token.Type {
-		case TOKEN_EOF, TOKEN_RPARENTH:
+		case TOKEN_EOF, TOKEN_RPARENTH, TOKEN_BR:
 			p.putBack(token)
 			return result, nil
 		case TOKEN_COMMA:
@@ -396,11 +501,21 @@ func (p *Parser) parseArgs() ([]Expr, error) {
 	return result, nil
 }
 
-func (p *Parser) Parse() Node {
+func (p *Parser) parseStmt() (Stmt, error) {
 	token := p.nextToken()
 	switch token.Type {
 	case TOKEN_VAR:
+		p.putBack(token)
 		return p.parseVarDecl()
+	}
+	return nil, nil
+}
+
+func (p *Parser) Parse() Node {
+	token := p.nextToken()
+	switch token.Type {
+	//case TOKEN_VAR:
+	//	return p.parseVarDecl()
 	default:
 		return p.parseExpr()
 	}
