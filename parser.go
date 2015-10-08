@@ -204,7 +204,7 @@ func (p *Parser) parseVarDecl() (*VarStmt, error) {
 	// Parse left side of "="
 loop:
 	for {
-		decl := &VarDecl{}
+		decl := &VarDecl{Type: unknownType}
 
 		token := p.nextToken()
 		switch token.Type {
@@ -245,9 +245,7 @@ loop:
 
 		switch token.Type {
 		case TOKEN_COMMA:
-			decl.Type = unknownType
 		case TOKEN_ASSIGN:
-			decl.Type = unknownType
 			vars = append(vars, decl)
 			break loop
 		default:
@@ -420,7 +418,6 @@ var opSet map[TokenType]bool = make(map[TokenType]bool)
 func init() {
 	for _, layer := range hierarchy {
 		for _, op := range layer {
-			fmt.Printf("%#v ", op)
 			opSet[op] = true
 		}
 	}
@@ -459,7 +456,6 @@ func (p *Parser) parseExpr() Expr {
 
 		op := p.nextToken()
 		isOp, _ := opSet[op.Type]
-		fmt.Printf("[DEBUG] for op %#v got %#v\n", op, isOp)
 		if isOp {
 			layer := hierarchyNum(op.Type)
 			for len(opStack) > 0 && hierarchyNum(opStack[len(opStack)-1].Type) < layer {

@@ -2,7 +2,8 @@ package have
 
 import (
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
+	_ "github.com/davecgh/go-spew/spew"
+	"github.com/kr/pretty"
 	"reflect"
 	"testing"
 )
@@ -153,10 +154,106 @@ func TestArgs(t *testing.T) {
 }
 
 func TestVarDecl(t *testing.T) {
-	//code := "var x int = 1\n"
-	code := "var x,y int = 1, 2\n"
-	in := []rune(code)
-	parser := NewParser(NewLexer(in))
-	result, err := parser.parseVarDecl()
-	spew.Printf("ZZZ %s -- %#v\n", spew.Sdump(result), err)
+	var cases = []struct {
+		code     string
+		expected *VarStmt
+	}{
+		{
+			"var x int = 1 + 2\n",
+			&VarStmt{
+				expr: expr{},
+				Vars: []*VarDecl{
+					&VarDecl{
+						Name: "x",
+						Type: &SimpleType{Name: "int"},
+						Init: &BinaryOp{
+							expr: expr{pos: 14},
+							Left: &BasicLit{
+								expr:  expr{pos: 12},
+								token: &Token{Type: TOKEN_NUM, Offset: 12, Value: "1"},
+							},
+							Right: &BasicLit{
+								expr:  expr{pos: 16},
+								token: &Token{Type: TOKEN_NUM, Offset: 16, Value: "2"},
+							},
+							op: &Token{Type: TOKEN_PLUS, Offset: 14, Value: nil},
+						},
+					},
+				},
+			},
+		},
+
+		{
+			"var x,y int = 1, 2\n",
+			&VarStmt{
+				expr: expr{pos: 0},
+				Vars: []*VarDecl{
+					&VarDecl{
+						Name: "x",
+						Type: &SimpleType{Name: "int"},
+						Init: &BasicLit{
+							expr:  expr{pos: 14},
+							token: &Token{Type: TOKEN_NUM, Offset: 14, Value: "1"},
+						},
+					},
+					&VarDecl{
+						Name: "y",
+						Type: &SimpleType{Name: "int"},
+						Init: &BasicLit{
+							expr:  expr{pos: 17},
+							token: &Token{Type: TOKEN_NUM, Offset: 17, Value: "2"},
+						},
+					},
+				},
+			},
+		},
+
+		{
+			"var x,y int, z string = 1, 2, \"bum\"\n",
+			&VarStmt{
+				expr: expr{},
+				Vars: []*VarDecl{
+					&VarDecl{
+						Name: "x",
+						Type: &SimpleType{Name: "int"},
+						Init: &BasicLit{
+							expr:  expr{pos: 24},
+							token: &Token{Type: TOKEN_NUM, Offset: 24, Value: "1"},
+						},
+					},
+					&VarDecl{
+						Name: "y",
+						Type: &SimpleType{Name: "int"},
+						Init: &BasicLit{
+							expr:  expr{pos: 27},
+							token: &Token{Type: TOKEN_NUM, Offset: 27, Value: "2"},
+						},
+					},
+					&VarDecl{
+						Name: "z",
+						Type: &SimpleType{Name: "string"},
+						Init: &BasicLit{
+							expr:  expr{pos: 30},
+							token: &Token{Type: TOKEN_STR, Offset: 30, Value: "bum"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for i, test := range cases {
+		in := []rune(test.code)
+		parser := NewParser(NewLexer(in))
+		result, err := parser.parseVarDecl()
+		if err != nil {
+			fmt.Printf("Case #%d error: %s\n", i+1, err)
+			t.Fail()
+		}
+		if !reflect.DeepEqual(result, test.expected) {
+			fmt.Printf("Case #%d error, got: %# v, but wanted: %# v\n",
+				i+1, pretty.Formatter(result), pretty.Formatter(test.expected))
+			t.Fail()
+		}
+	}
 }
