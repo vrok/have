@@ -38,6 +38,10 @@ const (
 	TOKEN_MINUS_ASSIGN           // -=
 	TOKEN_DECREMENT              // --
 	TOKEN_VAR                    // the "var" keyword
+	TOKEN_IF                     // the "var" keyword
+	TOKEN_SWITCH                 // the "switch" keyword
+	TOKEN_CASE                   // the "case" keyword
+	TOKEN_RETURN                 // the "return" keyword
 	TOKEN_GT                     // >
 	TOKEN_LT                     // <
 	TOKEN_MUL                    // *
@@ -46,6 +50,7 @@ const (
 	TOKEN_SHR                    // >>
 	TOKEN_SEND                   // <-
 	TOKEN_COMMA                  // ,
+	TOKEN_SEMICOLON              // ;
 )
 
 type Lexer struct {
@@ -231,6 +236,14 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.retNewToken(TOKEN_FOR, nil)
 		case "var":
 			return l.retNewToken(TOKEN_VAR, nil)
+		case "if":
+			return l.retNewToken(TOKEN_IF, nil)
+		case "switch":
+			return l.retNewToken(TOKEN_SWITCH, nil)
+		case "case":
+			return l.retNewToken(TOKEN_CASE, nil)
+		case "return", "ret":
+			return l.retNewToken(TOKEN_RETURN, nil)
 		default:
 			return l.retNewToken(TOKEN_WORD, s)
 		}
@@ -317,6 +330,9 @@ func (l *Lexer) Next() (*Token, error) {
 	case ch == ',':
 		l.skip()
 		return l.retNewToken(TOKEN_COMMA, nil)
+	case ch == ';':
+		l.skip()
+		return l.retNewToken(TOKEN_SEMICOLON, nil)
 	}
 
 	return nil, fmt.Errorf("Don't know what to do, '%c'", ch)

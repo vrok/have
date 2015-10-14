@@ -26,8 +26,17 @@ func NewParser(lex *Lexer) *Parser {
 	return &Parser{lex: lex}
 }
 
+// Put back a token.
 func (p *Parser) putBack(tok *Token) {
 	p.tokensBuf = append([]*Token{tok}, p.tokensBuf...)
+}
+
+// Put back a stack of tokens. It means that tokens are put back
+// from the last to the first one.
+func (p *Parser) putBackStack([]tokenStack []*Token) {
+	for i := len(tokenStack)-1; i >= 0; i-- {
+		p.putBack(tokenStack[i])
+	}
 }
 
 type Expr interface {
@@ -48,10 +57,34 @@ type VarDecl struct {
 	Init Expr
 }
 
+type CodeBlock struct {
+	Statements []Stmt
+}
+
 // implements Stmt
 type VarStmt struct {
 	expr
 	Vars []*VarDecl
+}
+
+// implements Stmt
+type IfBranch struct {
+	expr
+	ScopedVarDecl *VarDecl
+	Condition     Expr
+	Code          *CodeBlock
+}
+
+// implements Stmt
+type IfStmt struct {
+	expr
+	Branches []*IfBranch
+}
+
+// implements Stmt
+// Statement wrapper for expressions.
+type ExprStmt struct {
+	Expression Expr
 }
 
 type Type interface {
@@ -190,6 +223,35 @@ func (p *Parser) expect(typ TokenType) *Token {
 		return nil
 	}
 	return token
+}
+
+func (p *Parser) parseIf() (*IfStmt, error) {
+	ident := p.expect(TOKEN_IF)
+	if ident == nil {
+		return nil, fmt.Errorf("Impossible happened")
+	}
+
+	// Scan for ";" to see if there's a scoped variable declaration.
+	// We could also always initially assume scoped variable and backtrack
+	// on parse error, but this seems simpler.
+	nopeStack := []*Token{}
+	token := p.nextToken()
+	scopedVar := false
+	for token != TOKEN_NEWSCOPE && token != TOKEN_EOF {
+		nopeStack = append(tokenStack, token)
+		if token == TOKEN_SEMICOLON {
+			scopedVar = true
+			break
+		}
+		token = p.nextToken()
+	}
+
+	p.putBackStack(nopeStack)
+
+	scopedVarDecl := nil
+	if scopedVar {
+		// TODO HERE
+	}
 }
 
 func (p *Parser) parseVarDecl() (*VarStmt, error) {
@@ -503,6 +565,9 @@ func (p *Parser) parseStmt() (Stmt, error) {
 	case TOKEN_VAR:
 		p.putBack(token)
 		return p.parseVarDecl()
+	case TOKEN_IF:
+		p.putBack(token)
+		return p.parseIf()
 	}
 	return nil, nil
 }
