@@ -33,8 +33,8 @@ func (p *Parser) putBack(tok *Token) {
 
 // Put back a stack of tokens. It means that tokens are put back
 // from the last to the first one.
-func (p *Parser) putBackStack([]tokenStack []*Token) {
-	for i := len(tokenStack)-1; i >= 0; i-- {
+func (p *Parser) putBackStack(tokenStack []*Token) {
+	for i := len(tokenStack) - 1; i >= 0; i-- {
 		p.putBack(tokenStack[i])
 	}
 }
@@ -237,9 +237,9 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 	nopeStack := []*Token{}
 	token := p.nextToken()
 	scopedVar := false
-	for token != TOKEN_NEWSCOPE && token != TOKEN_EOF {
-		nopeStack = append(tokenStack, token)
-		if token == TOKEN_SEMICOLON {
+	for token.Type != TOKEN_NEWSCOPE && token.Type != TOKEN_EOF {
+		nopeStack = append(nopeStack, token)
+		if token.Type == TOKEN_SEMICOLON {
 			scopedVar = true
 			break
 		}
@@ -248,9 +248,18 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 
 	p.putBackStack(nopeStack)
 
-	scopedVarDecl := nil
+	var scopedVarDecl *VarStmt = nil
 	if scopedVar {
-		// TODO HERE
+		scopedVarDecl, err := p.parseVarDecl()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// TODO NOW: parseExpr should return err (and all functions below it too)
+	condition, err := p.parseExpr()
+	if err != nil {
+		return nil, err
 	}
 }
 
