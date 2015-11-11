@@ -225,42 +225,79 @@ func (p *Parser) expect(typ TokenType) *Token {
 	return token
 }
 
-func (p *Parser) parseIf() (*IfStmt, error) {
-	ident := p.expect(TOKEN_IF)
-	if ident == nil {
-		return nil, fmt.Errorf("Impossible happened")
+func (p *Parser) skipWhiteSpace() {
+	t := p.nextToken()
+	// TOKEN_BR is the only whitespace token we currently have.
+	// Once we have tokens for comments they probably should be
+	// handled here as well.
+	for ; t.Type == TOKEN_BR; t = p.nextToken() {
+	}
+	p.putBack(t)
+}
+
+func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
+	if ident := p.expect(TOKEN_NEWSCOPE); ident == nil {
+		return nil, fmt.Errorf("Expected a nested block of code")
 	}
 
-	// Scan for ";" to see if there's a scoped variable declaration.
-	// We could also always initially assume scoped variable and backtrack
-	// on parse error, but this seems simpler.
-	nopeStack := []*Token{}
-	token := p.nextToken()
-	scopedVar := false
-	for token.Type != TOKEN_NEWSCOPE && token.Type != TOKEN_EOF {
-		nopeStack = append(nopeStack, token)
-		if token.Type == TOKEN_SEMICOLON {
-			scopedVar = true
-			break
-		}
-		token = p.nextToken()
-	}
+	result := make([]Stmt, 0)
 
-	p.putBackStack(nopeStack)
+	for t := p.nextToken(); t.Type != TOKEN_ENDSCOPE && t.Type != TOKEN_EOF; t = p.nextToken() {
+		p.putBack(t)
 
-	var scopedVarDecl *VarStmt = nil
-	if scopedVar {
-		scopedVarDecl, err := p.parseVarDecl()
+		stmt, err := p.parseStmt()
 		if err != nil {
 			return nil, err
 		}
+
+		result = append(result, stmt)
+		p.skipWhiteSpace()
 	}
 
-	// TODO NOW: parseExpr should return err (and all functions below it too)
-	condition, err := p.parseExpr()
-	if err != nil {
-		return nil, err
-	}
+	return &CodeBlock{Statements: result}, nil
+}
+
+func (p *Parser) parseIf() (*IfStmt, error) {
+	/*
+		ident := p.expect(TOKEN_IF)
+		if ident == nil {
+			return nil, fmt.Errorf("Impossible happened")
+		}
+
+		// Scan for ";" to see if there's a scoped variable declaration.
+		// We could also always initially assume scoped variable and backtrack
+		// on parse error, but this seems simpler.
+		nopeStack := []*Token{}
+		token := p.nextToken()
+		scopedVar := false
+		for token.Type != TOKEN_NEWSCOPE && token.Type != TOKEN_EOF {
+			nopeStack = append(nopeStack, token)
+			if token.Type == TOKEN_SEMICOLON {
+				scopedVar = true
+				break
+			}
+			token = p.nextToken()
+		}
+
+		p.putBackStack(nopeStack)
+
+		var scopedVarDecl *VarStmt = nil
+		if scopedVar {
+			scopedVarDecl, err := p.parseVarDecl()
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		// TODO: We should rather to this:
+		//condition, err := p.parseExpr()
+		condition := p.parseExpr()
+		if condition == nil {
+			// TODO NOW: parseExpr should return err (and all functions below it too)
+			return nil, fmt.Errorf("Couldn't parse the condition expression")
+		}
+	*/
+	return nil, nil
 }
 
 func (p *Parser) parseVarDecl() (*VarStmt, error) {
@@ -554,7 +591,7 @@ func (p *Parser) parseArgs() ([]Expr, error) {
 	for {
 		token := p.nextToken()
 		switch token.Type {
-		case TOKEN_EOF, TOKEN_RPARENTH, TOKEN_BR:
+		case TOKEN_EOF, TOKEN_RPARENTH, TOKEN_BR, TOKEN_ENDSCOPE:
 			p.putBack(token)
 			return result, nil
 		case TOKEN_COMMA:

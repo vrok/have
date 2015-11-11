@@ -2,10 +2,11 @@ package have
 
 import (
 	"fmt"
-	_ "github.com/davecgh/go-spew/spew"
-	"github.com/kr/pretty"
 	"reflect"
 	"testing"
+
+	spew "github.com/davecgh/go-spew/spew"
+	"github.com/kr/pretty"
 )
 
 func compareExpr(a, b Expr) (equal bool, msg string) {
@@ -151,6 +152,30 @@ func TestArgs(t *testing.T) {
 		&Ident{expr{2}, "bla"}})
 	testArgs(t, "1,bla)", []Expr{&BasicLit{expr{0}, &Token{TOKEN_NUM, 0, "1"}},
 		&Ident{expr{2}, "bla"}})
+}
+
+func TestCodeBLock(t *testing.T) {
+	var cases = []struct {
+		code       string
+		stmtCounts int
+	}{
+		{`
+ var x = 1
+ var y = 2`, 2},
+		{`
+ var x = 1
+var y = 2`, 1},
+	}
+	for _, c := range cases {
+		parser := NewParser(NewLexer([]rune(c.code)))
+		parser.nextToken()
+		result, err := parser.parseCodeBlock()
+
+		if len(result.Statements) != c.stmtCounts {
+			fmt.Printf("Wrong number of statements in code block, %s, %s", err, spew.Sdump(result))
+			t.Fail()
+		}
+	}
 }
 
 func TestVarDecl(t *testing.T) {
