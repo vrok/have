@@ -70,7 +70,7 @@ type VarStmt struct {
 // implements Stmt
 type IfBranch struct {
 	expr
-	ScopedVarDecl *VarDecl
+	ScopedVarDecl *VarStmt
 	Condition     Expr
 	Code          *CodeBlock
 }
@@ -236,6 +236,8 @@ func (p *Parser) skipWhiteSpace() {
 }
 
 func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
+	p.skipWhiteSpace()
+
 	if ident := p.expect(TOKEN_NEWSCOPE); ident == nil {
 		return nil, fmt.Errorf("Expected a nested block of code")
 	}
@@ -243,7 +245,7 @@ func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
 	result := make([]Stmt, 0)
 
 	for t := p.nextToken(); t.Type != TOKEN_ENDSCOPE && t.Type != TOKEN_EOF; t = p.nextToken() {
-		p.putBack(t)
+		p.putBack(t) // It was part of an inner statement, put it back
 
 		stmt, err := p.parseStmt()
 		if err != nil {
@@ -258,46 +260,75 @@ func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
 }
 
 func (p *Parser) parseIf() (*IfStmt, error) {
-	/*
-		ident := p.expect(TOKEN_IF)
-		if ident == nil {
-			return nil, fmt.Errorf("Impossible happened")
+	ident := p.expect(TOKEN_IF)
+	if ident == nil {
+		return nil, fmt.Errorf("Impossible happened")
+	}
+
+	// Scan for ";" to see if there's a scoped variable declaration.
+	// We could also always initially assume scoped variable and backtrack
+	// on parse error, but this seems simpler.
+	nopeStack := []*Token{}
+	token := p.nextToken()
+	scopedVar := false
+	for token.Type != TOKEN_COLON && token.Type != TOKEN_EOF {
+		if token.Type == TOKEN_SEMICOLON {
+			scopedVar = true
+			break
+		}
+		nopeStack = append(nopeStack, token)
+		token = p.nextToken()
+	}
+	nopeStack = append(nopeStack, token)
+
+	p.putBackStack(nopeStack)
+
+	var (
+		err           error
+		scopedVarDecl *VarStmt = nil
+	)
+
+	if scopedVar {
+		scopedVarDecl, err = p.parseVarDecl()
+		if err != nil {
+			return nil, err
 		}
 
-		// Scan for ";" to see if there's a scoped variable declaration.
-		// We could also always initially assume scoped variable and backtrack
-		// on parse error, but this seems simpler.
-		nopeStack := []*Token{}
-		token := p.nextToken()
-		scopedVar := false
-		for token.Type != TOKEN_NEWSCOPE && token.Type != TOKEN_EOF {
-			nopeStack = append(nopeStack, token)
-			if token.Type == TOKEN_SEMICOLON {
-				scopedVar = true
-				break
-			}
-			token = p.nextToken()
+		scolon := p.expect(TOKEN_SEMICOLON)
+		if scolon == nil {
+			return nil, fmt.Errorf("`;` expected")
 		}
+	}
 
-		p.putBackStack(nopeStack)
+	// TODO: We should rather to this:
+	//condition, err := p.parseExpr()
+	condition := p.parseExpr()
+	if condition == nil {
+		// TODO NOW: parseExpr should return err (and all functions below it too)
+		return nil, fmt.Errorf("Couldn't parse the condition expression")
+	}
 
-		var scopedVarDecl *VarStmt = nil
-		if scopedVar {
-			scopedVarDecl, err := p.parseVarDecl()
-			if err != nil {
-				return nil, err
-			}
-		}
+	colon := p.expect(TOKEN_COLON)
+	if colon == nil {
+		return nil, fmt.Errorf("Expected `:` at the end of `if` condition")
+	}
 
-		// TODO: We should rather to this:
-		//condition, err := p.parseExpr()
-		condition := p.parseExpr()
-		if condition == nil {
-			// TODO NOW: parseExpr should return err (and all functions below it too)
-			return nil, fmt.Errorf("Couldn't parse the condition expression")
-		}
-	*/
-	return nil, nil
+	block, err := p.parseCodeBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: else, elsif statements
+
+	return &IfStmt{
+		expr{ident.Offset},
+		[]*IfBranch{&IfBranch{
+			expr{ident.Offset},
+			scopedVarDecl,
+			condition,
+			block,
+		}},
+	}, nil
 }
 
 func (p *Parser) parseVarDecl() (*VarStmt, error) {
@@ -320,12 +351,6 @@ loop:
 			decl.Name = token.Value.(string)
 		case TOKEN_ASSIGN:
 			break loop
-		case TOKEN_BR:
-			// All default values.
-			for _, v := range vars {
-				v.Init = NewBlankExpr()
-			}
-			return &VarStmt{expr{ident.Offset}, vars}, nil
 		default:
 			return nil, fmt.Errorf("Unexpected token %s\n", token)
 		}
@@ -351,16 +376,22 @@ loop:
 			token = p.nextToken()
 		}
 
+		vars = append(vars, decl)
+
 		switch token.Type {
 		case TOKEN_COMMA:
 		case TOKEN_ASSIGN:
-			vars = append(vars, decl)
 			break loop
+		case TOKEN_BR, TOKEN_SEMICOLON:
+			p.putBack(token)
+			// All default values.
+			for _, v := range vars {
+				v.Init = NewBlankExpr()
+			}
+			return &VarStmt{expr{ident.Offset}, vars}, nil
 		default:
 			return nil, fmt.Errorf("Unexpected token")
 		}
-
-		vars = append(vars, decl)
 	}
 
 	// Right side of "="
@@ -469,7 +500,7 @@ func (p *Parser) parsePrimaryExpr() PrimaryExpr {
 	case TOKEN_WORD:
 		left = &Ident{expr: expr{token.Offset}, name: token.Value.(string)}
 		//next := p.nextToken()
-	case TOKEN_STR, TOKEN_NUM:
+	case TOKEN_STR, TOKEN_NUM, TOKEN_TRUE, TOKEN_FALSE:
 		return &BasicLit{expr{token.Offset}, token}
 	default:
 		// TODO: report error
@@ -591,7 +622,7 @@ func (p *Parser) parseArgs() ([]Expr, error) {
 	for {
 		token := p.nextToken()
 		switch token.Type {
-		case TOKEN_EOF, TOKEN_RPARENTH, TOKEN_BR, TOKEN_ENDSCOPE:
+		case TOKEN_EOF, TOKEN_RPARENTH, TOKEN_BR, TOKEN_ENDSCOPE, TOKEN_SEMICOLON:
 			p.putBack(token)
 			return result, nil
 		case TOKEN_COMMA:

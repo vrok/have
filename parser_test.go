@@ -154,7 +154,7 @@ func TestArgs(t *testing.T) {
 		&Ident{expr{2}, "bla"}})
 }
 
-func TestCodeBLock(t *testing.T) {
+func TestCodeBlock(t *testing.T) {
 	var cases = []struct {
 		code       string
 		stmtCounts int
@@ -171,9 +171,35 @@ var y = 2`, 1},
 		parser.nextToken()
 		result, err := parser.parseCodeBlock()
 
-		if len(result.Statements) != c.stmtCounts {
+		if err != nil {
+			fmt.Printf("Parsing block failed: %s", err)
+			t.Fail()
+		} else if len(result.Statements) != c.stmtCounts {
 			fmt.Printf("Wrong number of statements in code block, %s, %s", err, spew.Sdump(result))
 			t.Fail()
+		}
+	}
+}
+
+func TestIfStmt(t *testing.T) {
+	cases := []string{
+		`if var x = 0; x == 1:
+	var y = 3`,
+		`if var x = 100; x > 10:
+  if true:
+    var y = 3`,
+		`if var x int; false:
+  var y = 3`,
+	}
+	for _, c := range cases {
+		parser := NewParser(NewLexer([]rune(c)))
+		result, err := parser.parseIf()
+
+		// TODO: better assertions, more test cases.
+		// We'll need something more succint than comparing whole ASTs.
+		if err != nil {
+			t.Fail()
+			fmt.Printf("Error parsing `if` %s %s\n", err, spew.Sdump(result))
 		}
 	}
 }
@@ -183,6 +209,16 @@ func TestVarDecl(t *testing.T) {
 		code     string
 		expected *VarStmt
 	}{
+		{"var x int\n", &VarStmt{
+			expr: expr{},
+			Vars: []*VarDecl{
+				&VarDecl{
+					Name: "x",
+					Type: &SimpleType{Name: "int"},
+					Init: &BlankExpr{},
+				},
+			},
+		}},
 		{
 			"var x int = 1 + 2\n",
 			&VarStmt{

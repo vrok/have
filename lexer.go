@@ -38,10 +38,12 @@ const (
 	TOKEN_MINUS_ASSIGN           // -=
 	TOKEN_DECREMENT              // --
 	TOKEN_VAR                    // the "var" keyword
-	TOKEN_IF                     // the "var" keyword
+	TOKEN_IF                     // the "if" keyword
 	TOKEN_SWITCH                 // the "switch" keyword
 	TOKEN_CASE                   // the "case" keyword
 	TOKEN_RETURN                 // the "return" keyword
+	TOKEN_TRUE                   // the "true" keyword
+	TOKEN_FALSE                  // the "false" keyword
 	TOKEN_GT                     // >
 	TOKEN_LT                     // <
 	TOKEN_MUL                    // *
@@ -50,6 +52,7 @@ const (
 	TOKEN_SHR                    // >>
 	TOKEN_SEND                   // <-
 	TOKEN_COMMA                  // ,
+	TOKEN_COLON                  // :
 	TOKEN_SEMICOLON              // ;
 )
 
@@ -208,7 +211,9 @@ func (l *Lexer) Next() (*Token, error) {
 
 		l.queue = append(l.queue, l.newToken(TOKEN_BR, nil))
 
-		if len(l.indentsStack) == 0 || indent > l.indentsStack[len(l.indentsStack)-1] {
+		if (len(l.indentsStack) == 0 && indent > 0) ||
+			(len(l.indentsStack) > 0 && indent > l.indentsStack[len(l.indentsStack)-1]) {
+
 			l.indentsStack = append(l.indentsStack, indent)
 			l.queue = append(l.queue, l.newToken(TOKEN_NEWSCOPE, nil))
 			return l.Next()
@@ -244,6 +249,10 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.retNewToken(TOKEN_CASE, nil)
 		case "return", "ret":
 			return l.retNewToken(TOKEN_RETURN, nil)
+		case "true":
+			return l.retNewToken(TOKEN_TRUE, nil)
+		case "false":
+			return l.retNewToken(TOKEN_FALSE, nil)
 		default:
 			return l.retNewToken(TOKEN_WORD, s)
 		}
@@ -333,6 +342,9 @@ func (l *Lexer) Next() (*Token, error) {
 	case ch == ';':
 		l.skip()
 		return l.retNewToken(TOKEN_SEMICOLON, nil)
+	case ch == ':':
+		l.skip()
+		return l.retNewToken(TOKEN_COLON, nil)
 	}
 
 	return nil, fmt.Errorf("Don't know what to do, '%c'", ch)
