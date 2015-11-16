@@ -1,6 +1,9 @@
 package have
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+)
 import "strconv"
 import "github.com/davecgh/go-spew/spew"
 
@@ -122,6 +125,27 @@ type PointerType struct {
 func (t *PointerType) Known() bool    { return t.To.Known() }
 func (t *PointerType) String() string { return "*" + t.To.String() }
 
+type StructType struct {
+	Members map[string]Type
+}
+
+func (t *StructType) Known() bool {
+	for _, t := range t.Members {
+		if !t.Known() {
+			return false
+		}
+	}
+	return true
+}
+
+func (t *StructType) String() string {
+	out := &bytes.Buffer{}
+	for k, t := range t.Members {
+		fmt.Fprintf(out, "%s: %s, ", k, t.String())
+	}
+	return out.String()
+}
+
 type CustomType struct {
 	Name string
 }
@@ -223,6 +247,16 @@ func (p *Parser) expect(typ TokenType) *Token {
 		return nil
 	}
 	return token
+}
+
+func (p *Parser) expectSeries(types ...TokenType) bool {
+	for _, typ := range types {
+		t := p.expect(typ)
+		if t == nil {
+			return false
+		}
+	}
+	return true
 }
 
 func (p *Parser) skipWhiteSpace() {
@@ -414,6 +448,33 @@ loop:
 	return &VarStmt{expr{ident.Offset}, vars}, nil
 }
 
+func (p *Parser) parseStruct() (*StructType, error) {
+	if !p.expectSeries(TOKEN_STRUCT, TOKEN_COLON, TOKEN_BR, TOKEN_NEWSCOPE) {
+		return nil, fmt.Errorf("Couldn't parse struct declaration")
+	}
+
+	result := &StructType{Members: map[string]Type{}}
+	for {
+		token := p.nextToken()
+
+		switch token.Type {
+		case TOKEN_WORD:
+			name := token.Value.(string)
+			typ, err := p.parseType()
+			if err != nil {
+				return nil, err
+			}
+			result.Members[name] = typ
+		case TOKEN_BR:
+			// Struct continues.
+		case TOKEN_ENDSCOPE, TOKEN_EOF:
+			return result, nil
+		default:
+			return nil, fmt.Errorf("Expected struct member name")
+		}
+	}
+}
+
 func (p *Parser) parseType() (Type, error) {
 	token := p.nextToken()
 	switch token.Type {
@@ -467,6 +528,9 @@ func (p *Parser) parseType() (Type, error) {
 		default:
 			return &CustomType{Name: name}, nil
 		}
+	case TOKEN_STRUCT:
+		p.putBack(token)
+		return p.parseStruct()
 	default:
 		// TODO add location info
 		return nil, fmt.Errorf("Expected type name, got %s", spew.Sdump(token))

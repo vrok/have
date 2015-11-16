@@ -204,6 +204,32 @@ func TestIfStmt(t *testing.T) {
 	}
 }
 
+func TestParseStruct(t *testing.T) {
+	cases := []string{
+		`struct:
+  x int
+  yb string
+
+`,
+		`struct:
+  x int
+  kreff struct:
+    pr int
+  yb string`,
+	}
+	for _, c := range cases {
+		parser := NewParser(NewLexer([]rune(c)))
+		result, err := parser.parseStruct()
+
+		// TODO: better assertions, more test cases.
+		// We'll need something more succint than comparing whole ASTs.
+		if err != nil {
+			t.Fail()
+			fmt.Printf("Error parsing `struct` %s %s\n", err, spew.Sdump(result))
+		}
+	}
+}
+
 func TestVarDecl(t *testing.T) {
 	var cases = []struct {
 		code     string
