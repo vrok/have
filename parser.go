@@ -140,9 +140,16 @@ func (t *StructType) Known() bool {
 
 func (t *StructType) String() string {
 	out := &bytes.Buffer{}
-	for k, t := range t.Members {
-		fmt.Fprintf(out, "%s: %s, ", k, t.String())
+	out.Write([]byte("{"))
+	c := 0
+	for k, v := range t.Members {
+		fmt.Fprintf(out, "%s: %s", k, v.String())
+		c++
+		if c < len(t.Members) {
+			out.Write([]byte(", "))
+		}
 	}
+	out.Write([]byte("}"))
 	return out.String()
 }
 
