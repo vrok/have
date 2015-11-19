@@ -31,6 +31,8 @@ const (
 	TOKEN_RPARENTH               // )
 	TOKEN_LBRACKET               // [
 	TOKEN_RBRACKET               // ]
+	TOKEN_LBRACE                 // {
+	TOKEN_RBRACE                 // }
 	TOKEN_PLUS                   // +
 	TOKEN_PLUS_ASSIGN            // +=
 	TOKEN_INCREMENT              // ++
@@ -330,6 +332,12 @@ func (l *Lexer) Next() (*Token, error) {
 	case ch == ']':
 		l.skip()
 		return l.retNewToken(TOKEN_RBRACKET, nil)
+	case ch == '{':
+		l.skip()
+		return l.retNewToken(TOKEN_LBRACE, nil)
+	case ch == '}':
+		l.skip()
+		return l.retNewToken(TOKEN_RBRACE, nil)
 	case ch == '.':
 		l.skip()
 		return l.retNewToken(TOKEN_DOT, nil)

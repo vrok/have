@@ -191,6 +191,22 @@ type BasicLit struct {
 	token *Token
 }
 
+type CompoundLitKind int
+
+const (
+	COMPOUND_UNKNOWN CompoundLitKind = iota
+	COMPOUND_EMPTY
+	COMPOUND_LISTLIKE
+	COMPOUND_MAPLIKE
+)
+
+// implements Expr
+type CompoundLit struct {
+	typ   Type
+	kind  CompoundLitKind
+	elems []Expr
+}
+
 // implements Expr
 type BinaryOp struct {
 	expr
@@ -453,6 +469,61 @@ loop:
 		vars[i].Init = inits[i]
 	}
 	return &VarStmt{expr{ident.Offset}, vars}, nil
+}
+
+func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
+	if p.expect(TOKEN_LBRACE) == nil {
+		return nil, fmt.Errorf("Compound literal has to start with `{`")
+	}
+
+	if t := p.nextToken(); t.Type == TOKEN_RBRACE {
+		return &CompoundLit{typ: &UnknownType{}, kind: COMPOUND_EMPTY, elems: nil}, nil
+	} else {
+		p.putBack(t)
+	}
+
+	kind := COMPOUND_UNKNOWN
+	elems := []Expr{}
+
+	for i := 0; true; i++ {
+		el := p.parseExpr()
+		if el == nil {
+			return nil, fmt.Errorf("Expected expression within a compound literal")
+		}
+
+		elems = append(elems, el)
+
+		if i%2 == 0 {
+			switch t := p.nextToken(); t.Type {
+			case TOKEN_COLON:
+				if kind == COMPOUND_LISTLIKE {
+					return nil, fmt.Errorf("Mixture of value and key:value expressions in a literal")
+				}
+				kind = COMPOUND_MAPLIKE
+			case TOKEN_COMMA:
+				if kind == COMPOUND_MAPLIKE {
+					return nil, fmt.Errorf("Mixture of value and key:value expressions in a literal")
+				}
+				kind = COMPOUND_LISTLIKE
+			case TOKEN_RBRACE:
+				if kind == COMPOUND_MAPLIKE {
+					return nil, fmt.Errorf("Unexpected end of a map-like compound literal")
+				}
+				return &CompoundLit{&UnknownType{}, kind, elems}, nil
+			default:
+				return nil, fmt.Errorf("Unexpected token in a compound literal")
+			}
+		} else {
+			switch t := p.nextToken(); t.Type {
+			case TOKEN_COMMA:
+			case TOKEN_RBRACE:
+				return &CompoundLit{&UnknownType{}, kind, elems}, nil
+			default:
+				return nil, fmt.Errorf("Unexpected token in a compound literal")
+			}
+		}
+	}
+	return nil, fmt.Errorf("Impossible happened")
 }
 
 func (p *Parser) parseStruct() (*StructType, error) {

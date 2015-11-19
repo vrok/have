@@ -230,6 +230,35 @@ func TestParseStruct(t *testing.T) {
 	}
 }
 
+func TestParseCompoundLiterals(t *testing.T) {
+	cases := []struct {
+		code  string
+		valid bool
+	}{
+		{`{1, 2, 3}`, true},
+		{`{1: 2, 3: 4}`, true},
+		{`{a: "123", b: 4}`, true},
+		{`{a+b: "123", (b*2): false}`, true},
+		{`{1: 2, 3}`, false},
+		{`{1: 2, 3, 4: 5}`, false},
+		{`{2, 3: 4}`, false},
+	}
+	for _, c := range cases {
+		parser := NewParser(NewLexer([]rune(c.code)))
+		result, err := parser.parseCompoundLit()
+
+		// TODO: better assertions, more test cases.
+		// We'll need something more succint than comparing whole ASTs.
+		if err != nil && c.valid {
+			t.Fail()
+			fmt.Printf("Error parsing a compound literal %s %s\n", err, spew.Sdump(result))
+		} else if err == nil && !c.valid {
+			t.Fail()
+			fmt.Printf("Parsing a compound literal should've failed %s %s\n", err, spew.Sdump(result))
+		}
+	}
+}
+
 func TestVarDecl(t *testing.T) {
 	var cases = []struct {
 		code     string
