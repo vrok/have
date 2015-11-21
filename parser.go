@@ -202,6 +202,7 @@ const (
 
 // implements Expr
 type CompoundLit struct {
+	expr
 	typ   Type
 	kind  CompoundLitKind
 	elems []Expr
@@ -472,7 +473,8 @@ loop:
 }
 
 func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
-	if p.expect(TOKEN_LBRACE) == nil {
+	startTok := p.expect(TOKEN_LBRACE)
+	if startTok == nil {
 		return nil, fmt.Errorf("Compound literal has to start with `{`")
 	}
 
@@ -508,8 +510,10 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 			case TOKEN_RBRACE:
 				if kind == COMPOUND_MAPLIKE {
 					return nil, fmt.Errorf("Unexpected end of a map-like compound literal")
+				} else if kind == COMPOUND_UNKNOWN {
+					kind = COMPOUND_LISTLIKE
 				}
-				return &CompoundLit{&UnknownType{}, kind, elems}, nil
+				return &CompoundLit{expr{startTok.Offset}, &UnknownType{}, kind, elems}, nil
 			default:
 				return nil, fmt.Errorf("Unexpected token in a compound literal")
 			}
@@ -517,7 +521,7 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 			switch t := p.nextToken(); t.Type {
 			case TOKEN_COMMA:
 			case TOKEN_RBRACE:
-				return &CompoundLit{&UnknownType{}, kind, elems}, nil
+				return &CompoundLit{expr{startTok.Offset}, &UnknownType{}, kind, elems}, nil
 			default:
 				return nil, fmt.Errorf("Unexpected token in a compound literal")
 			}
@@ -631,6 +635,7 @@ func (p *Parser) parseTypeExpr() (*TypeExpr, error) {
 func (p *Parser) parsePrimaryExpr() PrimaryExpr {
 	token := p.nextToken()
 	var left Expr
+	var err error
 
 	switch token.Type {
 	case TOKEN_LPARENTH:
@@ -644,6 +649,14 @@ func (p *Parser) parsePrimaryExpr() PrimaryExpr {
 		//next := p.nextToken()
 	case TOKEN_STR, TOKEN_NUM, TOKEN_TRUE, TOKEN_FALSE:
 		return &BasicLit{expr{token.Offset}, token}
+	case TOKEN_LBRACE:
+		// Untyped compound literal, we'll have to deduce its type.
+		p.putBack(token)
+		left, err = p.parseCompoundLit()
+		if err != nil {
+			// TODO: report error
+			return nil
+		}
 	default:
 		// TODO: report error
 		return nil

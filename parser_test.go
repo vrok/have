@@ -54,6 +54,10 @@ func TestPrimaryExpr(t *testing.T) {
 				Left:  &Ident{expr{0}, "test"},
 				Right: &Ident{expr{5}, "tere"}},
 			Index: &BasicLit{expr{10}, &Token{TOKEN_NUM, 10, 123}}})
+	testPrimaryExpr(t, "{1,2}", &CompoundLit{})
+	testPrimaryExpr(t, "{1:2}.bla", &DotSelector{expr: expr{5},
+		Left:  &CompoundLit{expr: expr{0}},
+		Right: &Ident{expr{6}, "bla"}})
 }
 
 func testExpr(t *testing.T, code string, expected Expr) {
@@ -234,14 +238,16 @@ func TestParseCompoundLiterals(t *testing.T) {
 	cases := []struct {
 		code  string
 		valid bool
+		kind  CompoundLitKind
 	}{
-		{`{1, 2, 3}`, true},
-		{`{1: 2, 3: 4}`, true},
-		{`{a: "123", b: 4}`, true},
-		{`{a+b: "123", (b*2): false}`, true},
-		{`{1: 2, 3}`, false},
-		{`{1: 2, 3, 4: 5}`, false},
-		{`{2, 3: 4}`, false},
+		{`{1, 2, 3}`, true, COMPOUND_LISTLIKE},
+		{`{1: 2, 3: 4}`, true, COMPOUND_MAPLIKE},
+		{`{a: "123", b: 4}`, true, COMPOUND_MAPLIKE},
+		{`{a+b: "123", (b*2): false}`, true, COMPOUND_MAPLIKE},
+		{`{1: 2, 3}`, false, COMPOUND_UNKNOWN},
+		{`{1: 2, 3, 4: 5}`, false, COMPOUND_UNKNOWN},
+		{`{2, 3: 4}`, false, COMPOUND_UNKNOWN},
+		{`{1}`, true, COMPOUND_LISTLIKE},
 	}
 	for _, c := range cases {
 		parser := NewParser(NewLexer([]rune(c.code)))
@@ -249,9 +255,9 @@ func TestParseCompoundLiterals(t *testing.T) {
 
 		// TODO: better assertions, more test cases.
 		// We'll need something more succint than comparing whole ASTs.
-		if err != nil && c.valid {
+		if c.valid && (err != nil || c.kind != result.kind) {
 			t.Fail()
-			fmt.Printf("Error parsing a compound literal %s %s\n", err, spew.Sdump(result))
+			fmt.Printf("Error parsing a compound literal %s %s %d\n", err, spew.Sdump(result), result.kind)
 		} else if err == nil && !c.valid {
 			t.Fail()
 			fmt.Printf("Parsing a compound literal should've failed %s %s\n", err, spew.Sdump(result))
