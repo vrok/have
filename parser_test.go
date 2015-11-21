@@ -58,6 +58,10 @@ func TestPrimaryExpr(t *testing.T) {
 	testPrimaryExpr(t, "{1:2}.bla", &DotSelector{expr: expr{5},
 		Left:  &CompoundLit{expr: expr{0}},
 		Right: &Ident{expr{6}, "bla"}})
+	testPrimaryExpr(t, "map[int]int{1:2}", &CompoundLit{})
+	testPrimaryExpr(t, "[]int{1,2}", &CompoundLit{})
+	testPrimaryExpr(t, "dywan{1}", &CompoundLit{})
+	testPrimaryExpr(t, "dy.wan{1}", &CompoundLit{})
 }
 
 func testExpr(t *testing.T, code string, expected Expr) {

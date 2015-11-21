@@ -118,6 +118,13 @@ type SliceType struct {
 func (t *SliceType) Known() bool    { return t.Of.Known() }
 func (t *SliceType) String() string { return "[]" + t.Of.String() }
 
+type MapType struct {
+	By, Of Type
+}
+
+func (t *MapType) Known() bool    { return t.By.Known() && t.Of.Known() }
+func (t *MapType) String() string { return "map[" + t.By.String() + "]" + t.Of.String() }
+
 type PointerType struct {
 	To Type
 }
@@ -566,6 +573,26 @@ func (p *Parser) parseType() (Type, error) {
 			return nil, err
 		}
 		return &PointerType{ptrTo}, nil
+	case TOKEN_MAP:
+		if p.expect(TOKEN_LBRACKET) == nil {
+			return nil, fmt.Errorf("Expected `[` after `map`")
+		}
+
+		by, err := p.parseType()
+		if err != nil {
+			return nil, fmt.Errorf("Failed parsing map index type: %s", err)
+		}
+
+		if p.expect(TOKEN_RBRACKET) == nil {
+			return nil, fmt.Errorf("Expected `]` after map's index type")
+		}
+
+		of, err := p.parseType()
+		if err != nil {
+			return nil, fmt.Errorf("Failed parsing map value type: %s", err)
+		}
+
+		return &MapType{by, of}, nil
 	case TOKEN_LBRACKET:
 		next := p.nextToken()
 		switch next.Type {
@@ -649,6 +676,13 @@ func (p *Parser) parsePrimaryExpr() PrimaryExpr {
 		//next := p.nextToken()
 	case TOKEN_STR, TOKEN_NUM, TOKEN_TRUE, TOKEN_FALSE:
 		return &BasicLit{expr{token.Offset}, token}
+	case TOKEN_MAP, TOKEN_STRUCT, TOKEN_LBRACKET:
+		p.putBack(token)
+		left, err = p.parseTypeExpr()
+		if err != nil {
+			// TODO: report error
+			return nil
+		}
 	case TOKEN_LBRACE:
 		// Untyped compound literal, we'll have to deduce its type.
 		p.putBack(token)
@@ -679,6 +713,21 @@ loop:
 		case TOKEN_LBRACKET:
 			index := p.parseExpr()
 			left = &ArrayExpr{expr{token.Offset}, left, index}
+		case TOKEN_LBRACE:
+			p.putBack(token)
+			literal, err := p.parseCompoundLit()
+			if err != nil {
+				return nil // TODO: report error
+			}
+
+			switch t := left.(type) {
+			case *BasicLit:
+				literal.typ = &CustomType{Name: t.token.Value.(string)}
+			case *TypeExpr:
+				literal.typ = t.typ
+			default:
+				return nil // TODO: report error
+			}
 		default:
 			p.putBack(token)
 			break loop
