@@ -36,8 +36,8 @@ func compareExpr(a, b Expr) (equal bool, msg string) {
 func testPrimaryExpr(t *testing.T, code string, expected Expr) {
 	in := []rune(code)
 	parser := NewParser(NewLexer(in))
-	result := parser.parsePrimaryExpr()
-	if eq, msg := compareExpr(result, expected); !eq {
+	result, err := parser.parsePrimaryExpr()
+	if eq, msg := compareExpr(result, expected); !eq || (err != nil) {
 		fmt.Printf("Error, expected:\n   %#v\nbut got:\n   %#v\nMSG: %s\n", expected, result, msg)
 		t.Fail()
 	}
@@ -67,8 +67,8 @@ func TestPrimaryExpr(t *testing.T) {
 func testExpr(t *testing.T, code string, expected Expr) {
 	in := []rune(code)
 	parser := NewParser(NewLexer(in))
-	result := parser.parseExpr()
-	if eq, msg := compareExpr(result, expected); !eq {
+	result, err := parser.parseExpr()
+	if eq, msg := compareExpr(result, expected); !eq || err != nil {
 		fmt.Printf("Error, expected:\n   %#v\nbut got:\n   %#v\nMSG: %s\n", expected, result, msg)
 		t.Fail()
 	}

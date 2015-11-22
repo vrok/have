@@ -365,12 +365,9 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 		}
 	}
 
-	// TODO: We should rather to this:
-	//condition, err := p.parseExpr()
-	condition := p.parseExpr()
-	if condition == nil {
-		// TODO NOW: parseExpr should return err (and all functions below it too)
-		return nil, fmt.Errorf("Couldn't parse the condition expression")
+	condition, err := p.parseExpr()
+	if err != nil {
+		return nil, fmt.Errorf("Couldn't parse the condition expression: %s", err)
 	}
 
 	colon := p.expect(TOKEN_COLON)
@@ -495,9 +492,9 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 	elems := []Expr{}
 
 	for i := 0; true; i++ {
-		el := p.parseExpr()
-		if el == nil {
-			return nil, fmt.Errorf("Expected expression within a compound literal")
+		el, err := p.parseExpr()
+		if err != nil {
+			return nil, err
 		}
 
 		elems = append(elems, el)
@@ -659,41 +656,40 @@ func (p *Parser) parseTypeExpr() (*TypeExpr, error) {
 	return &TypeExpr{expr{loc}, typ}, nil
 }
 
-func (p *Parser) parsePrimaryExpr() PrimaryExpr {
+func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 	token := p.nextToken()
 	var left Expr
 	var err error
 
 	switch token.Type {
 	case TOKEN_LPARENTH:
-		left = p.parseExpr()
+		left, err = p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
 		if p.expect(TOKEN_RPARENTH) == nil {
-			// TODO: return error
-			return nil
+			return nil, fmt.Errorf("Expected closing `)`")
 		}
 	case TOKEN_WORD:
 		left = &Ident{expr: expr{token.Offset}, name: token.Value.(string)}
 		//next := p.nextToken()
 	case TOKEN_STR, TOKEN_NUM, TOKEN_TRUE, TOKEN_FALSE:
-		return &BasicLit{expr{token.Offset}, token}
+		return &BasicLit{expr{token.Offset}, token}, nil
 	case TOKEN_MAP, TOKEN_STRUCT, TOKEN_LBRACKET:
 		p.putBack(token)
 		left, err = p.parseTypeExpr()
 		if err != nil {
-			// TODO: report error
-			return nil
+			return nil, err
 		}
 	case TOKEN_LBRACE:
 		// Untyped compound literal, we'll have to deduce its type.
 		p.putBack(token)
 		left, err = p.parseCompoundLit()
 		if err != nil {
-			// TODO: report error
-			return nil
+			return nil, err
 		}
 	default:
-		// TODO: report error
-		return nil
+		return nil, fmt.Errorf("Unexpected token (expected a primary expression): %c", token)
 	}
 
 loop:
@@ -707,17 +703,20 @@ loop:
 		case TOKEN_LPARENTH:
 			args, err := p.parseArgs()
 			if err != nil {
-				return nil // TODO: report error
+				return nil, err
 			}
 			left = &FuncCall{expr{token.Offset}, left, args}
 		case TOKEN_LBRACKET:
-			index := p.parseExpr()
+			index, err := p.parseExpr()
+			if err != nil {
+				return nil, err
+			}
 			left = &ArrayExpr{expr{token.Offset}, left, index}
 		case TOKEN_LBRACE:
 			p.putBack(token)
 			literal, err := p.parseCompoundLit()
 			if err != nil {
-				return nil // TODO: report error
+				return nil, err
 			}
 
 			switch t := left.(type) {
@@ -726,7 +725,7 @@ loop:
 			case *TypeExpr:
 				literal.typ = t.typ
 			default:
-				return nil // TODO: report error
+				return nil, fmt.Errorf("Compound literal preceded with something that can't be a type")
 			}
 		default:
 			p.putBack(token)
@@ -734,15 +733,19 @@ loop:
 		}
 	}
 
-	return left
+	return left, nil
 }
 
 // Return primary expression, possibly wrapped in an unary operator
-func (p *Parser) parseMaybeUnaryExpr() Expr {
+func (p *Parser) parseMaybeUnaryExpr() (Expr, error) {
 	token := p.nextToken()
 	isOp, _ := opSet[token.Type] // FIXME we should create another set with just unary operators
 	if isOp {
-		return &UnaryOp{op: token, Right: p.parsePrimaryExpr()}
+		primaryExpr, err := p.parsePrimaryExpr()
+		if err != nil {
+			return nil, err
+		}
+		return &UnaryOp{op: token, Right: primaryExpr}, nil
 	} else {
 		p.putBack(token)
 		return p.parsePrimaryExpr()
@@ -778,7 +781,7 @@ func hierarchyNum(typ TokenType) int {
 	panic(fmt.Errorf("Token %#v isn't a binary operator", typ))
 }
 
-func (p *Parser) parseExpr() Expr {
+func (p *Parser) parseExpr() (Expr, error) {
 	exprStack := []Expr{}
 	opStack := []*Token{}
 
@@ -794,7 +797,10 @@ func (p *Parser) parseExpr() Expr {
 	}
 
 	for {
-		expr := p.parseMaybeUnaryExpr()
+		expr, err := p.parseMaybeUnaryExpr()
+		if err != nil {
+			return nil, err
+		}
 		exprStack = append(exprStack, expr)
 
 		op := p.nextToken()
@@ -813,12 +819,11 @@ func (p *Parser) parseExpr() Expr {
 			for len(exprStack) > 1 {
 				reduce()
 			}
-			return exprStack[0]
+			return exprStack[0], nil
 		}
 	}
 
-	// TODO NOW
-	return nil
+	return nil, fmt.Errorf("Error parsing expression, couldn't reduce primary/unary expression stack")
 }
 
 func (p *Parser) parseArgs() ([]Expr, error) {
@@ -833,7 +838,10 @@ func (p *Parser) parseArgs() ([]Expr, error) {
 			// nada
 		default:
 			p.putBack(token)
-			expr := p.parseExpr()
+			expr, err := p.parseExpr()
+			if err != nil {
+				return nil, err
+			}
 			result = append(result, expr)
 		}
 	}
@@ -853,7 +861,7 @@ func (p *Parser) parseStmt() (Stmt, error) {
 	return nil, nil
 }
 
-func (p *Parser) Parse() Node {
+func (p *Parser) Parse() (Node, error) {
 	token := p.nextToken()
 	switch token.Type {
 	//case TOKEN_VAR:
