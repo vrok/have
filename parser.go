@@ -161,7 +161,8 @@ func (t *StructType) String() string {
 }
 
 type CustomType struct {
-	Name string
+	Name    string
+	Package string // "" means local
 }
 
 func (t *CustomType) Known() bool    { return true }
@@ -720,12 +721,13 @@ loop:
 			}
 
 			switch t := left.(type) {
-			case *BasicLit:
-				literal.typ = &CustomType{Name: t.token.Value.(string)}
+			case *Ident:
+				literal.typ = &CustomType{Name: t.name}
 			case *TypeExpr:
 				literal.typ = t.typ
+			// TODO: DotSelector for types from other packages
 			default:
-				return nil, fmt.Errorf("Compound literal preceded with something that can't be a type")
+				return nil, fmt.Errorf("Compound literal preceded with something that can't be a type: %T", t)
 			}
 		default:
 			p.putBack(token)
