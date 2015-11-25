@@ -251,6 +251,10 @@ func TestParseCompoundLiterals(t *testing.T) {
 		{`{1, 2, 3}`, true, COMPOUND_LISTLIKE},
 		{`{1: 2, 3: 4}`, true, COMPOUND_MAPLIKE},
 		{`{a: "123", b: 4}`, true, COMPOUND_MAPLIKE},
+		/*{`{
+				a: "123",
+				b: 4
+		}`, true, COMPOUND_MAPLIKE},*/
 		{`{a+b: "123", (b*2): false}`, true, COMPOUND_MAPLIKE},
 		{`{1: 2, 3}`, false, COMPOUND_UNKNOWN},
 		{`{1: 2, 3, 4: 5}`, false, COMPOUND_UNKNOWN},

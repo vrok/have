@@ -79,13 +79,14 @@ func NewLexer(buf []rune) *Lexer {
 }
 
 // Advance lexer's buffer by skipping whitespace, except newlines.
-func (l *Lexer) skipWhiteChars() int {
-	counter := 0
-	for len(l.buf) > 0 && (unicode.IsSpace(l.buf[0]) && l.buf[0] != '\n') {
-		l.skip()
-		counter++
+func (l *Lexer) skipWhiteChars() []rune {
+	i := 0
+	for i < len(l.buf) && (unicode.IsSpace(l.buf[i]) && l.buf[i] != '\n') {
+		i++
 	}
-	return counter
+	whitespace := l.buf[:i]
+	l.skipBy(i)
+	return whitespace
 }
 
 // Read an alphanumeric word from the buffer, advancing it.
@@ -201,7 +202,7 @@ func (l *Lexer) Next() (*Token, error) {
 	case ch == '\n':
 		l.skip()
 
-		indent := l.skipWhiteChars()
+		indent := len(l.skipWhiteChars())
 
 		if l.isEnd() {
 			l.queue = append(l.queue, l.newToken(TOKEN_BR, nil))
