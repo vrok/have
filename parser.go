@@ -4,12 +4,16 @@ import (
 	"bytes"
 	"fmt"
 )
-import "strconv"
+import (
+	"strconv"
+	"strings"
+)
 import "github.com/davecgh/go-spew/spew"
 
 type Parser struct {
-	lex       *Lexer
-	tokensBuf []*Token
+	lex         *Lexer
+	tokensBuf   []*Token
+	indentStack []string
 }
 
 func (p *Parser) nextToken() *Token {
@@ -293,25 +297,80 @@ func (p *Parser) expectSeries(types ...TokenType) bool {
 
 func (p *Parser) skipWhiteSpace() {
 	t := p.nextToken()
-	// TOKEN_BR is the only whitespace token we currently have.
+	// TOKEN_INDENT is the only whitespace token we currently have.
 	// Once we have tokens for comments they probably should be
 	// handled here as well.
-	for ; t.Type == TOKEN_BR; t = p.nextToken() {
+	for ; t.Type == TOKEN_INDENT; t = p.nextToken() {
 	}
 	p.putBack(t)
 }
 
-func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
-	p.skipWhiteSpace()
+// Use it in a place where you expect a new indented block of code
+// to start.
+// `err` not being nil indicates some indent mismatch.
+func (p *Parser) expectNewIndent() (*Token, error) {
+	//indent := p.expect(TOKEN_INDENT)
+	indent := p.nextToken()
+	if indent.Type != TOKEN_INDENT {
+		return nil, fmt.Errorf("New indent expected, got %#v", indent)
+	}
 
-	if ident := p.expect(TOKEN_NEWSCOPE); ident == nil {
-		return nil, fmt.Errorf("Expected a nested block of code")
+	prevIndent := ""
+	if len(p.indentStack) > 0 {
+		prevIndent = p.indentStack[len(p.indentStack)-1]
+	}
+	newIndent := indent.Value.(string)
+
+	if !strings.HasPrefix(newIndent, prevIndent) || len(newIndent) == len(prevIndent) {
+		return nil, fmt.Errorf("Code block is not indented")
+	}
+
+	p.indentStack = append(p.indentStack, newIndent)
+	return indent, nil
+}
+
+// Use it in a place where you expect another line of an indented
+// block of code.
+// If `end` is true then this indented block ends here, and parser
+// will be pointed to the beginning of the next line.
+// `err` not being nil indicates some indent mismatch.
+func (p *Parser) checkIndentEnd() (end bool, err error) {
+	token := p.expect(TOKEN_INDENT)
+	if token == nil {
+		return false, fmt.Errorf("Indent expected")
+	}
+	curIdent := p.indentStack[len(p.indentStack)-1]
+	ident := token.Value.(string)
+	if curIdent != ident {
+		if len(ident) >= len(curIdent) {
+			return false, fmt.Errorf("Unexpected indent")
+		}
+
+		p.indentStack = p.indentStack[:len(p.indentStack)-1]
+		p.putBack(token)
+		return true, nil
+	}
+	return false, nil
+}
+
+func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
+	indent, err := p.expectNewIndent()
+	if err != nil {
+		return nil, err
 	}
 
 	result := make([]Stmt, 0)
+	p.putBack(indent)
 
-	for t := p.nextToken(); t.Type != TOKEN_ENDSCOPE && t.Type != TOKEN_EOF; t = p.nextToken() {
-		p.putBack(t) // It was part of an inner statement, put it back
+	for t := p.nextToken(); t.Type != TOKEN_EOF; t = p.nextToken() {
+		p.putBack(t) // So that we can use checkIndentEnd
+		end, err := p.checkIndentEnd()
+		if err != nil {
+			return nil, err
+		}
+		if end {
+			break
+		}
 
 		stmt, err := p.parseStmt()
 		if err != nil {
@@ -319,7 +378,6 @@ func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
 		}
 
 		result = append(result, stmt)
-		p.skipWhiteSpace()
 	}
 
 	return &CodeBlock{Statements: result}, nil
@@ -445,7 +503,7 @@ loop:
 		case TOKEN_COMMA:
 		case TOKEN_ASSIGN:
 			break loop
-		case TOKEN_BR, TOKEN_SEMICOLON:
+		case TOKEN_INDENT, TOKEN_SEMICOLON:
 			p.putBack(token)
 			// All default values.
 			for _, v := range vars {
@@ -483,6 +541,8 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 		return nil, fmt.Errorf("Compound literal has to start with `{`")
 	}
 
+	p.skipWhiteSpace()
+
 	if t := p.nextToken(); t.Type == TOKEN_RBRACE {
 		return &CompoundLit{typ: &UnknownType{}, kind: COMPOUND_EMPTY, elems: nil}, nil
 	} else {
@@ -493,10 +553,14 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 	elems := []Expr{}
 
 	for i := 0; true; i++ {
+		p.skipWhiteSpace()
+
 		el, err := p.parseExpr()
 		if err != nil {
 			return nil, err
 		}
+
+		p.skipWhiteSpace()
 
 		elems = append(elems, el)
 
@@ -536,8 +600,13 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 }
 
 func (p *Parser) parseStruct() (*StructType, error) {
-	if !p.expectSeries(TOKEN_STRUCT, TOKEN_COLON, TOKEN_BR, TOKEN_NEWSCOPE) {
+	if !p.expectSeries(TOKEN_STRUCT, TOKEN_COLON) {
 		return nil, fmt.Errorf("Couldn't parse struct declaration")
+	}
+
+	_, err := p.expectNewIndent()
+	if err != nil {
+		return nil, err
 	}
 
 	result := &StructType{Members: map[string]Type{}}
@@ -552,9 +621,17 @@ func (p *Parser) parseStruct() (*StructType, error) {
 				return nil, err
 			}
 			result.Members[name] = typ
-		case TOKEN_BR:
+		case TOKEN_INDENT:
+			p.putBack(token)
+			end, err := p.checkIndentEnd()
+			if err != nil {
+				return nil, err
+			}
+			if end {
+				return result, nil
+			}
 			// Struct continues.
-		case TOKEN_ENDSCOPE, TOKEN_EOF:
+		case TOKEN_EOF:
 			return result, nil
 		default:
 			return nil, fmt.Errorf("Expected struct member name")
@@ -833,7 +910,7 @@ func (p *Parser) parseArgs() ([]Expr, error) {
 	for {
 		token := p.nextToken()
 		switch token.Type {
-		case TOKEN_EOF, TOKEN_RPARENTH, TOKEN_BR, TOKEN_ENDSCOPE, TOKEN_SEMICOLON:
+		case TOKEN_EOF, TOKEN_RPARENTH, TOKEN_INDENT, TOKEN_SEMICOLON:
 			p.putBack(token)
 			return result, nil
 		case TOKEN_COMMA:

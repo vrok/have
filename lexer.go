@@ -15,11 +15,9 @@ type Token struct {
 
 const (
 	TOKEN_EOF          TokenType = iota + 1
-	TOKEN_NEWSCOPE               // "{" in other languages
-	TOKEN_ENDSCOPE               // "}" in other languages
+	TOKEN_INDENT                 // indent - []rune of whitespace characters
 	TOKEN_FOR                    // the "for" keyword
 	TOKEN_WORD                   // alphanumeric word, starts witn a letter
-	TOKEN_BR                     // new line
 	TOKEN_ASSIGN                 // =
 	TOKEN_EQUALS                 // ==
 	TOKEN_EQ_LT                  // =<
@@ -184,16 +182,7 @@ func (l *Lexer) Next() (*Token, error) {
 	l.curTokenPos = l.skipped
 
 	if l.isEnd() {
-		for i := 0; i < len(l.indentsStack); i++ {
-			l.queue = append(l.queue, l.newToken(TOKEN_ENDSCOPE, nil))
-		}
-		l.indentsStack = l.indentsStack[:0]
-
-		if len(l.queue) == 0 {
-			return l.retNewToken(TOKEN_EOF, nil)
-		} else {
-			return l.Next()
-		}
+		return l.retNewToken(TOKEN_EOF, nil)
 	}
 
 	ch := l.buf[0]
@@ -201,41 +190,8 @@ func (l *Lexer) Next() (*Token, error) {
 	switch {
 	case ch == '\n':
 		l.skip()
-
-		indent := len(l.skipWhiteChars())
-
-		if l.isEnd() {
-			l.queue = append(l.queue, l.newToken(TOKEN_BR, nil))
-			return l.Next()
-		}
-
-		if l.buf[0] == '\n' {
-			// Whole line was just whitespace, ignore it.
-			return l.Next()
-		}
-
-		l.queue = append(l.queue, l.newToken(TOKEN_BR, nil))
-
-		if (len(l.indentsStack) == 0 && indent > 0) ||
-			(len(l.indentsStack) > 0 && indent > l.indentsStack[len(l.indentsStack)-1]) {
-
-			l.indentsStack = append(l.indentsStack, indent)
-			l.queue = append(l.queue, l.newToken(TOKEN_NEWSCOPE, nil))
-			return l.Next()
-		} else {
-			for len(l.indentsStack) > 0 && l.indentsStack[len(l.indentsStack)-1] > indent {
-				l.queue = append(l.queue, l.newToken(TOKEN_ENDSCOPE, nil))
-				l.indentsStack = l.indentsStack[:len(l.indentsStack)-1]
-			}
-
-			if len(l.indentsStack) > 0 && l.indentsStack[len(l.indentsStack)-1] != indent {
-				// Wrong indent.
-				return nil, fmt.Errorf("Bad indent")
-			}
-
-			// We should finally be pointing to something meaningful in a line.
-			return l.Next()
-		}
+		indent := string(l.skipWhiteChars())
+		return l.retNewToken(TOKEN_INDENT, indent)
 	case unicode.IsSpace(ch):
 		l.skipWhiteChars()
 		return l.Next()

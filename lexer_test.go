@@ -28,36 +28,30 @@ func TestEOF(t *testing.T) {
 
 func TestIndents(t *testing.T) {
 	testTokens(t, []rune("\n  for"), []*Token{
-		&Token{TOKEN_BR, 0, nil},
-		&Token{TOKEN_NEWSCOPE, 0, nil},
+		&Token{TOKEN_INDENT, 0, "  "},
 		&Token{TOKEN_FOR, 3, nil},
-		&Token{TOKEN_ENDSCOPE, 6, nil},
 		&Token{TOKEN_EOF, 6, nil}})
 
 	s := `
 		  for test
 		    for
 		    frog
-		`
+`
 
 	testTokens(t, []rune(s), []*Token{
-		&Token{TOKEN_BR, 0, nil},
-		&Token{TOKEN_NEWSCOPE, 0, nil},
+		&Token{TOKEN_INDENT, 0, "		  "},
 		&Token{TOKEN_FOR, 5, nil},
 		&Token{TOKEN_WORD, 9, "test"},
-		&Token{TOKEN_BR, 13, nil},
-		&Token{TOKEN_NEWSCOPE, 13, nil},
+		&Token{TOKEN_INDENT, 13, "		    "},
 		&Token{TOKEN_FOR, 20, nil},
-		&Token{TOKEN_BR, 23, nil},
+		&Token{TOKEN_INDENT, 23, "		    "},
 		&Token{TOKEN_WORD, 30, "frog"},
-		&Token{TOKEN_BR, 34, nil},
 		// Lines with just whitespace don't interfere with indents,
 		// no matter how many whitespace chars they have. Lexer
 		// simply jumps over them (hence ENDSCOPE is generated
 		// from EOF, not BR in this case).
-		&Token{TOKEN_ENDSCOPE, 37, nil},
-		&Token{TOKEN_ENDSCOPE, 37, nil},
-		&Token{TOKEN_EOF, 37, nil},
+		&Token{TOKEN_INDENT, 34, ""},
+		&Token{TOKEN_EOF, 35, nil},
 	})
 }
 

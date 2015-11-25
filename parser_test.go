@@ -180,7 +180,7 @@ var y = 2`, 1},
 	}
 	for _, c := range cases {
 		parser := NewParser(NewLexer([]rune(c.code)))
-		parser.nextToken()
+		//parser.nextToken()
 		result, err := parser.parseCodeBlock()
 
 		if err != nil {
@@ -251,11 +251,11 @@ func TestParseCompoundLiterals(t *testing.T) {
 		{`{1, 2, 3}`, true, COMPOUND_LISTLIKE},
 		{`{1: 2, 3: 4}`, true, COMPOUND_MAPLIKE},
 		{`{a: "123", b: 4}`, true, COMPOUND_MAPLIKE},
-		/*{`{
-				a: "123",
-				b: 4
-		}`, true, COMPOUND_MAPLIKE},*/
 		{`{a+b: "123", (b*2): false}`, true, COMPOUND_MAPLIKE},
+		{`{
+ a: "123",
+         b: 4
+                   }`, true, COMPOUND_MAPLIKE},
 		{`{1: 2, 3}`, false, COMPOUND_UNKNOWN},
 		{`{1: 2, 3, 4: 5}`, false, COMPOUND_UNKNOWN},
 		{`{2, 3: 4}`, false, COMPOUND_UNKNOWN},
@@ -269,7 +269,7 @@ func TestParseCompoundLiterals(t *testing.T) {
 		// We'll need something more succint than comparing whole ASTs.
 		if c.valid && (err != nil || c.kind != result.kind) {
 			t.Fail()
-			fmt.Printf("Error parsing a compound literal %s %s %d\n", err, spew.Sdump(result), result.kind)
+			fmt.Printf("Error parsing a compound literal %s %s\n", err, spew.Sdump(result))
 		} else if err == nil && !c.valid {
 			t.Fail()
 			fmt.Printf("Parsing a compound literal should've failed %s %s\n", err, spew.Sdump(result))
