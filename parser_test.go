@@ -202,6 +202,7 @@ var y = 2`, 1},
 	}
 }
 
+/*
 func TestIfStmt(t *testing.T) {
 	cases := []string{
 		`if var x = 0; x == 1:
@@ -223,7 +224,7 @@ func TestIfStmt(t *testing.T) {
 			fmt.Printf("Error parsing `if` %s %s\n", err, spew.Sdump(result))
 		}
 	}
-}
+}*/
 
 func TestParseStruct(t *testing.T) {
 	cases := []string{
@@ -277,6 +278,37 @@ func TestParseCompoundLiterals(t *testing.T) {
 		// TODO: better assertions, more test cases.
 		// We'll need something more succint than comparing whole ASTs.
 		if c.valid && (err != nil || c.kind != result.kind) {
+			t.Fail()
+			fmt.Printf("Error parsing a compound literal %s %s\n", err, spew.Sdump(result))
+		} else if err == nil && !c.valid {
+			t.Fail()
+			fmt.Printf("Parsing a compound literal should've failed %s %s\n", err, spew.Sdump(result))
+		}
+	}
+}
+
+func disabled_TestFuncDecl(t *testing.T) {
+	cases := []struct {
+		code  string
+		valid bool
+	}{
+		{`func abc(x int):
+  var x = 1
+`, true},
+		{`func abc(x int) int:
+  var x = 1
+`, true},
+		{`func abc() int:
+  var x = 1
+`, true},
+	}
+	for _, c := range cases {
+		parser := NewParser(NewLexer([]rune(c.code)))
+		result, err := parser.parseFunc()
+
+		// TODO: better assertions, more test cases.
+		// We'll need something more succint than comparing whole ASTs.
+		if c.valid && err != nil {
 			t.Fail()
 			fmt.Printf("Error parsing a compound literal %s %s\n", err, spew.Sdump(result))
 		} else if err == nil && !c.valid {
@@ -350,45 +382,63 @@ func TestVarDecl(t *testing.T) {
 				},
 			},
 		},
-
-		{
-			"var x,y int, z string = 1, 2, \"bum\"\n",
-			&VarStmt{
-				expr: expr{},
-				Vars: []*VarDecl{
-					&VarDecl{
-						Name: "x",
-						Type: &SimpleType{Name: "int"},
-						Init: &BasicLit{
-							expr:  expr{pos: 24},
-							token: &Token{Type: TOKEN_NUM, Offset: 24, Value: "1"},
+		/*
+			{
+				"var x,y int, z string = 1, 2, \"bum\"\n",
+				&VarStmt{
+					expr: expr{},
+					Vars: []*VarDecl{
+						&VarDecl{
+							Name: "x",
+							Type: &SimpleType{Name: "int"},
+							Init: &BasicLit{
+								expr:  expr{pos: 24},
+								token: &Token{Type: TOKEN_NUM, Offset: 24, Value: "1"},
+							},
 						},
-					},
-					&VarDecl{
-						Name: "y",
-						Type: &SimpleType{Name: "int"},
-						Init: &BasicLit{
-							expr:  expr{pos: 27},
-							token: &Token{Type: TOKEN_NUM, Offset: 27, Value: "2"},
+						&VarDecl{
+							Name: "y",
+							Type: &SimpleType{Name: "int"},
+							Init: &BasicLit{
+								expr:  expr{pos: 27},
+								token: &Token{Type: TOKEN_NUM, Offset: 27, Value: "2"},
+							},
 						},
-					},
-					&VarDecl{
-						Name: "z",
-						Type: &SimpleType{Name: "string"},
-						Init: &BasicLit{
-							expr:  expr{pos: 30},
-							token: &Token{Type: TOKEN_STR, Offset: 30, Value: "bum"},
+						&VarDecl{
+							Name: "z",
+							Type: &SimpleType{Name: "string"},
+							Init: &BasicLit{
+								expr:  expr{pos: 30},
+								token: &Token{Type: TOKEN_STR, Offset: 30, Value: "bum"},
+							},
 						},
 					},
 				},
+			},*/
+		/*
+			{
+				"var x,y int = 1, 2, z = 3\n",
+				&VarStmt{},
 			},
+		*/
+		{
+			"var x,y int = (1, 2), z = 3\n",
+			&VarStmt{},
+		},
+		{
+			"var x,y int = (1), 2\n",
+			&VarStmt{},
+		},
+		{
+			"var x int, y = 1\n",
+			&VarStmt{},
 		},
 	}
 
 	for i, test := range cases {
 		in := []rune(test.code)
 		parser := NewParser(NewLexer(in))
-		result, err := parser.parseVarDecl()
+		result, err := parser.parseVarStmt()
 		if err != nil {
 			fmt.Printf("Case #%d error: %s\n", i+1, err)
 			t.Fail()

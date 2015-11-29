@@ -264,6 +264,15 @@ type FuncCall struct {
 }
 
 // implements PrimaryExpr
+type FuncDecl struct {
+	expr
+
+	Name          string
+	Args, Results *VarStmt
+	Code          *CodeBlock
+}
+
+// implements PrimaryExpr
 type Ident struct {
 	expr
 
@@ -440,7 +449,7 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 	)
 
 	if scopedVar {
-		scopedVarDecl, err = p.parseVarDecl()
+		scopedVarDecl, err = p.parseVarStmt()
 		if err != nil {
 			return nil, err
 		}
@@ -479,87 +488,160 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 	}, nil
 }
 
-func (p *Parser) parseVarDecl() (*VarStmt, error) {
+func (p *Parser) parseVarStmt() (*VarStmt, error) {
 	ident := p.expect(TOKEN_VAR)
 	if ident == nil {
 		return nil, fmt.Errorf("Impossible happened")
 	}
-	unknownType := &UnknownType{}
-	vars := []*VarDecl{}
-	var err error
 
-	// Parse left side of "="
-loop:
-	for {
-		decl := &VarDecl{Type: unknownType}
-
-		token := p.nextToken()
-		switch token.Type {
-		case TOKEN_WORD:
-			decl.Name = token.Value.(string)
-		case TOKEN_ASSIGN:
-			break loop
-		default:
-			return nil, fmt.Errorf("Unexpected token %s\n", token)
-		}
-
-		token = p.nextToken()
-
-		if token.Type != TOKEN_COMMA && token.Type != TOKEN_ASSIGN {
-			// Type is specified, not inferred.
-			p.putBack(token)
-			decl.Type, err = p.parseType()
-			if err != nil {
-				return nil, err
-			}
-			// We have a type decl, it refers to all earlier declarations
-			// without a type.
-			for i := len(vars) - 1; i >= 0; i-- {
-				if vars[i].Type == unknownType {
-					vars[i].Type = decl.Type
-				} else {
-					break
-				}
-			}
-			token = p.nextToken()
-		}
-
-		vars = append(vars, decl)
-
-		switch token.Type {
-		case TOKEN_COMMA:
-		case TOKEN_ASSIGN:
-			break loop
-		case TOKEN_INDENT, TOKEN_SEMICOLON:
-			p.putBack(token)
-			// All default values.
-			for _, v := range vars {
-				v.Init = NewBlankExpr()
-			}
-			return &VarStmt{expr{ident.Offset}, vars}, nil
-		default:
-			return nil, fmt.Errorf("Unexpected token")
-		}
-	}
-
-	// Right side of "="
-	if len(vars) == 0 {
-		return nil, fmt.Errorf("No vars declared on the right side of \"=\"")
-	}
-
-	inits, err := p.parseArgs()
+	vars, err := p.parseVarDecl()
 	if err != nil {
 		return nil, err
 	}
 
-	if len(inits) != len(vars) {
-		return nil, fmt.Errorf("Different number of new vars and initializers\n")
-	}
-
-	for i := range vars {
-		vars[i].Init = inits[i]
-	}
 	return &VarStmt{expr{ident.Offset}, vars}, nil
+}
+
+func (p *Parser) parseVarDecl() ([]*VarDecl, error) {
+	unknownType := &UnknownType{}
+	allVars := []*VarDecl{}
+	var err error
+
+	// The outermost loop iterates over groups of vars that are
+	// initialized separately. For example, this:
+	//    var x, y int = (1, 2), z = 3
+	// would be handled in two steps, one for x, y, and one for z.
+groupsLoop:
+	for {
+		// Parse left side of "="
+		vars := []*VarDecl{}
+	loop:
+		for {
+			decl := &VarDecl{Type: unknownType}
+
+			token := p.nextToken()
+			switch token.Type {
+			case TOKEN_WORD:
+				decl.Name = token.Value.(string)
+			case TOKEN_ASSIGN:
+				break loop
+			default:
+				return nil, fmt.Errorf("Unexpected token %s\n", token)
+			}
+
+			vars = append(vars, decl)
+			token = p.nextToken()
+
+			if token.Type != TOKEN_COMMA && token.Type != TOKEN_ASSIGN {
+				// Type is specified, not inferred.
+				p.putBack(token)
+				decl.Type, err = p.parseType()
+				if err != nil {
+					return nil, err
+				}
+				// We have a type decl, it refers to all earlier declarations
+				// without a type.
+				for i := 0; i < len(vars); i++ {
+					vars[i].Type = decl.Type
+				}
+				break loop
+			}
+
+			switch token.Type {
+			case TOKEN_COMMA:
+			case TOKEN_ASSIGN:
+				p.putBack(token)
+				break loop
+			case TOKEN_INDENT, TOKEN_SEMICOLON:
+				p.putBack(token)
+				// All default values.
+				for _, v := range vars {
+					v.Init = NewBlankExpr()
+				}
+				allVars = append(allVars, vars...)
+				break groupsLoop
+			default:
+				return nil, fmt.Errorf("Unexpected token")
+			}
+		}
+
+		// Right side of "="
+		if len(vars) == 0 {
+			return nil, fmt.Errorf("No vars declared on the left side of \"=\"")
+		}
+
+		switch t := p.nextToken(); t.Type {
+		case TOKEN_COMMA:
+			allVars = append(allVars, vars...)
+			continue groupsLoop
+		case TOKEN_ASSIGN:
+			// Go on
+		case TOKEN_INDENT:
+			// All default values.
+			for _, v := range vars {
+				v.Init = NewBlankExpr()
+			}
+			allVars = append(allVars, vars...)
+			break groupsLoop
+		default:
+			return nil, fmt.Errorf("Unexpected token after new vars list: %#v", t)
+		}
+
+		var inits []Expr
+		// Parse a list of initializers in parentheses.
+		if t := p.nextToken(); t.Type == TOKEN_LPARENTH {
+			inits, err = p.parseArgs()
+			if err != nil {
+				return nil, err
+			}
+
+			if len(inits) == len(vars) {
+				// Cool, it really was a list of initializers in parentheses.
+				if t := p.expect(TOKEN_RPARENTH); t == nil {
+					return nil, fmt.Errorf("Expected `)`")
+				}
+			} else if len(inits) == 1 {
+				// Whoops, someone just put an expression in parentheses and we
+				// treated it like a tuple. We need to fix this.
+				if t := p.expect(TOKEN_RPARENTH); t == nil {
+					return nil, fmt.Errorf("Expected `)`")
+				}
+				if t := p.nextToken(); t.Type == TOKEN_COMMA {
+					restInits, err := p.parseArgs()
+					if err != nil {
+						return nil, err
+					}
+					inits = append(inits, restInits...)
+				} else {
+					p.putBack(t)
+				}
+			} else {
+				return nil, fmt.Errorf("Couldn't parse the list of initializers")
+			}
+		} else {
+			p.putBack(t)
+			inits, err = p.parseArgs()
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if len(inits) != len(vars) {
+			return nil, fmt.Errorf("Different number of new vars and initializers\n")
+		}
+
+		for i := range vars {
+			vars[i].Init = inits[i]
+		}
+
+		allVars = append(allVars, vars...)
+
+		if t := p.nextToken(); t.Type != TOKEN_COMMA {
+			p.putBack(t)
+			break groupsLoop
+		}
+	}
+	return allVars, nil
 }
 
 func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
@@ -954,12 +1036,83 @@ func (p *Parser) parseArgs() ([]Expr, error) {
 	return result, nil
 }
 
+func (p *Parser) parseArgsDecl() (*VarStmt, error) {
+	// FIXME: for now it's OK but we want a different grammar for this
+	return p.parseVarStmt()
+}
+
+func (p *Parser) parseResultDecl() (*VarStmt, error) {
+	// FIXME: for now it's OK but we want a different grammar for this
+	return p.parseVarStmt()
+}
+
+func (p *Parser) parseFunc() (Expr, error) {
+	startTok := p.expect(TOKEN_FUNC)
+	if startTok == nil {
+		return nil, fmt.Errorf("Function declaration needs to start with 'func' keyword")
+	}
+
+	funcName := ""
+	t := p.nextToken()
+	switch t.Type {
+	case TOKEN_WORD:
+		funcName = t.Value.(string)
+	case TOKEN_LPARENTH:
+		// anonymous function
+		p.putBack(t)
+	default:
+		return nil, fmt.Errorf("Unexpected token after `func`: %#v", t.Type)
+	}
+
+	if t := p.expect(TOKEN_LPARENTH); t == nil {
+		return nil, fmt.Errorf("Expected `(`")
+	}
+
+	args, err := p.parseArgsDecl()
+	if err != nil {
+		return nil, err
+	}
+
+	if t := p.expect(TOKEN_RPARENTH); t == nil {
+		return nil, fmt.Errorf("Expected `)`")
+	}
+
+	results := (*VarStmt)(nil)
+
+	// Check if ':' is next - if so, function doesn't return anything.
+	t = p.nextToken()
+	if t.Type != TOKEN_COLON {
+		p.putBack(t)
+		results, err = p.parseResultDecl()
+		if err != nil {
+			return nil, err
+		}
+
+		if t := p.expect(TOKEN_COLON); t == nil {
+			return nil, fmt.Errorf("Expected `:`")
+		}
+	}
+
+	block, err := p.parseCodeBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	return &FuncDecl{
+		expr:    expr{startTok.Offset},
+		Name:    funcName,
+		Args:    args,
+		Results: results,
+		Code:    block,
+	}, nil
+}
+
 func (p *Parser) parseStmt() (Stmt, error) {
 	token := p.nextToken()
 	switch token.Type {
 	case TOKEN_VAR:
 		p.putBack(token)
-		return p.parseVarDecl()
+		return p.parseVarStmt()
 	case TOKEN_IF:
 		p.putBack(token)
 		return p.parseIf()
