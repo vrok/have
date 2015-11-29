@@ -337,6 +337,7 @@ func (p *Parser) expectNewIndent() (*Token, error) {
 func (p *Parser) checkIndentEnd() (end bool, err error) {
 	token := p.expect(TOKEN_INDENT)
 	if token == nil {
+		p.putBack(token)
 		return false, fmt.Errorf("Indent expected")
 	}
 	curIdent := p.indentStack[len(p.indentStack)-1]
@@ -351,6 +352,32 @@ func (p *Parser) checkIndentEnd() (end bool, err error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+// This is very similar to checkIndentEnd, but the indented block
+// of code can also be ended by an occurence of a token (not necessarily
+// preceded by an end of indentation, or precended by an unmatched indent).
+// Example:
+// var y = struct:
+//     x int
+//      {x: 1}  // <- '{' ends the indented block of code
+// Another:
+// var y = struct:
+//     x int
+//   {x: 1}  // <- unmatched indent, but it's all right
+// The special character is put back to the tokenizer, so that things
+// like compount initializers of nested structures work.
+func (p *Parser) checkIndentEndOrToken(tokenType TokenType) (end bool, err error) {
+	end, err = p.checkIndentEnd()
+	if end {
+		return end, err
+	}
+	next := p.nextToken()
+	defer p.putBack(next)
+	if next.Type == tokenType {
+		return true, nil
+	}
+	return false, err
 }
 
 func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
@@ -623,7 +650,7 @@ func (p *Parser) parseStruct() (*StructType, error) {
 			result.Members[name] = typ
 		case TOKEN_INDENT:
 			p.putBack(token)
-			end, err := p.checkIndentEnd()
+			end, err := p.checkIndentEndOrToken(TOKEN_LBRACE)
 			if err != nil {
 				return nil, err
 			}
