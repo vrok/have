@@ -202,7 +202,6 @@ var y = 2`, 1},
 	}
 }
 
-/*
 func TestIfStmt(t *testing.T) {
 	cases := []string{
 		`if var x = 0; x == 1:
@@ -224,7 +223,7 @@ func TestIfStmt(t *testing.T) {
 			fmt.Printf("Error parsing `if` %s %s\n", err, spew.Sdump(result))
 		}
 	}
-}*/
+}
 
 func TestParseStruct(t *testing.T) {
 	cases := []string{
@@ -287,18 +286,38 @@ func TestParseCompoundLiterals(t *testing.T) {
 	}
 }
 
-func disabled_TestFuncDecl(t *testing.T) {
+func TestFuncDecl(t *testing.T) {
 	cases := []struct {
 		code  string
 		valid bool
 	}{
 		{`func abc(x int):
-  var x = 1
-`, true},
+		  var x = 1
+		`, true},
 		{`func abc(x int) int:
+		  var x = 1
+		`, true},
+		{`func abc() int:
+		  var x = 1
+		`, true},
+		{`func abc(x int, y int) int:
+		  var x = 1
+		`, true},
+		{`func abc(x, y int) int:
+		  var x = 1
+		`, true},
+		{`func abc(x, y int, z int = 5) int:
+		  var x = 1
+		`, true},
+		{`func abc() int, float:
   var x = 1
 `, true},
-		{`func abc() int:
+		{`func abc() (x int):
+		  var x = 1
+`, true},
+		{`func abc() int, struct:
+    x int
+    y float:
   var x = 1
 `, true},
 	}
@@ -310,7 +329,7 @@ func disabled_TestFuncDecl(t *testing.T) {
 		// We'll need something more succint than comparing whole ASTs.
 		if c.valid && err != nil {
 			t.Fail()
-			fmt.Printf("Error parsing a compound literal %s %s\n", err, spew.Sdump(result))
+			fmt.Printf("Error parsing a function %s %s\n", err, spew.Sdump(result))
 		} else if err == nil && !c.valid {
 			t.Fail()
 			fmt.Printf("Parsing a compound literal should've failed %s %s\n", err, spew.Sdump(result))

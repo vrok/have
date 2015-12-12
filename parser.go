@@ -268,7 +268,7 @@ type FuncDecl struct {
 	expr
 
 	Name          string
-	Args, Results *VarStmt
+	Args, Results []*VarDecl
 	Code          *CodeBlock
 }
 
@@ -387,6 +387,25 @@ func (p *Parser) checkIndentEndOrToken(tokenType TokenType) (end bool, err error
 		return true, nil
 	}
 	return false, err
+}
+
+// Very similar to checkIndentEndOrToken, but checks if the next token
+// is NOT of tokenType type.
+func (p *Parser) checkIndentEndOrNoToken(tokenType TokenType) (end bool, err error) {
+	end, err = p.checkIndentEnd()
+	if end {
+		return end, err
+	}
+	next := p.nextToken()
+	defer p.putBack(next)
+	if next.Type != tokenType {
+		return true, nil
+	}
+	return false, err
+}
+
+func (p *Parser) forceIndentEnd() {
+	p.indentStack = p.indentStack[:len(p.indentStack)-1]
 }
 
 func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
@@ -552,16 +571,8 @@ groupsLoop:
 			case TOKEN_ASSIGN:
 				p.putBack(token)
 				break loop
-			case TOKEN_INDENT, TOKEN_SEMICOLON:
-				p.putBack(token)
-				// All default values.
-				for _, v := range vars {
-					v.Init = NewBlankExpr()
-				}
-				allVars = append(allVars, vars...)
-				break groupsLoop
 			default:
-				return nil, fmt.Errorf("Unexpected token")
+				return nil, fmt.Errorf("Unexpected token %s", token)
 			}
 		}
 
@@ -576,7 +587,8 @@ groupsLoop:
 			continue groupsLoop
 		case TOKEN_ASSIGN:
 			// Go on
-		case TOKEN_INDENT:
+		case TOKEN_INDENT, TOKEN_SEMICOLON, TOKEN_RPARENTH:
+			p.putBack(t)
 			// All default values.
 			for _, v := range vars {
 				v.Init = NewBlankExpr()
@@ -732,7 +744,7 @@ func (p *Parser) parseStruct() (*StructType, error) {
 			result.Members[name] = typ
 		case TOKEN_INDENT:
 			p.putBack(token)
-			end, err := p.checkIndentEndOrToken(TOKEN_LBRACE)
+			end, err := p.checkIndentEndOrNoToken(TOKEN_WORD)
 			if err != nil {
 				return nil, err
 			}
@@ -740,10 +752,10 @@ func (p *Parser) parseStruct() (*StructType, error) {
 				return result, nil
 			}
 			// Struct continues.
-		case TOKEN_EOF:
-			return result, nil
 		default:
-			return nil, fmt.Errorf("Expected struct member name")
+			p.putBack(token)
+			p.forceIndentEnd()
+			return result, nil
 		}
 	}
 }
@@ -1036,14 +1048,60 @@ func (p *Parser) parseArgs() ([]Expr, error) {
 	return result, nil
 }
 
-func (p *Parser) parseArgsDecl() (*VarStmt, error) {
-	// FIXME: for now it's OK but we want a different grammar for this
-	return p.parseVarStmt()
+func (p *Parser) parseArgsDecl() ([]*VarDecl, error) {
+	// TODO: check default values are set only for parameters at the end
+	t := p.nextToken()
+	p.putBack(t)
+	if t.Type == TOKEN_RPARENTH {
+		return nil, nil
+	}
+	return p.parseVarDecl()
 }
 
-func (p *Parser) parseResultDecl() (*VarStmt, error) {
-	// FIXME: for now it's OK but we want a different grammar for this
-	return p.parseVarStmt()
+func (p *Parser) parseResultDecl() ([]*VarDecl, error) {
+	t := p.nextToken()
+	if t.Type == TOKEN_LPARENTH {
+		result, err := p.parseVarDecl()
+		if err != nil {
+			return nil, err
+		}
+		if t := p.expect(TOKEN_RPARENTH); t == nil {
+			return nil, fmt.Errorf("Expected `)`")
+		}
+		return result, err
+	} else {
+		result := []*VarDecl{}
+
+		if t.Type == TOKEN_COLON {
+			return result, nil
+		}
+
+		p.putBack(t)
+
+	loop:
+		for {
+			typ, err := p.parseType()
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, &VarDecl{
+				Name: "",
+				Type: typ,
+				Init: NewBlankExpr(),
+			})
+
+			switch t := p.nextToken(); t.Type {
+			case TOKEN_COMMA:
+				// Go on
+			case TOKEN_COLON:
+				p.putBack(t)
+				break loop
+			default:
+				return nil, fmt.Errorf("Unexpected token %s", t)
+			}
+		}
+		return result, nil
+	}
 }
 
 func (p *Parser) parseFunc() (Expr, error) {
@@ -1077,7 +1135,7 @@ func (p *Parser) parseFunc() (Expr, error) {
 		return nil, fmt.Errorf("Expected `)`")
 	}
 
-	results := (*VarStmt)(nil)
+	results := []*VarDecl{}
 
 	// Check if ':' is next - if so, function doesn't return anything.
 	t = p.nextToken()
