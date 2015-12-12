@@ -382,56 +382,106 @@ func TestVarDecl(t *testing.T) {
 				},
 			},
 		},
-		/*
-			{
-				"var x,y int, z string = 1, 2, \"bum\"\n",
-				&VarStmt{
-					expr: expr{},
-					Vars: []*VarDecl{
-						&VarDecl{
-							Name: "x",
-							Type: &SimpleType{Name: "int"},
-							Init: &BasicLit{
-								expr:  expr{pos: 24},
-								token: &Token{Type: TOKEN_NUM, Offset: 24, Value: "1"},
+		{
+			"var x,y int = (1, 2), z = 3\n",
+			&VarStmt{
+				expr: expr{},
+				Vars: []*VarDecl{
+					&VarDecl{
+						Name: "x",
+						Type: &SimpleType{Name: "int"},
+						Init: &BasicLit{
+							expr: expr{pos: 15},
+							token: &Token{
+								Type:   9,
+								Offset: 15,
+								Value:  "1",
 							},
 						},
-						&VarDecl{
-							Name: "y",
-							Type: &SimpleType{Name: "int"},
-							Init: &BasicLit{
-								expr:  expr{pos: 27},
-								token: &Token{Type: TOKEN_NUM, Offset: 27, Value: "2"},
+					},
+					&VarDecl{
+						Name: "y",
+						Type: &SimpleType{Name: "int"},
+						Init: &BasicLit{
+							expr: expr{pos: 18},
+							token: &Token{
+								Type:   9,
+								Offset: 18,
+								Value:  "2",
 							},
 						},
-						&VarDecl{
-							Name: "z",
-							Type: &SimpleType{Name: "string"},
-							Init: &BasicLit{
-								expr:  expr{pos: 30},
-								token: &Token{Type: TOKEN_STR, Offset: 30, Value: "bum"},
+					},
+					&VarDecl{
+						Name: "z",
+						Type: &UnknownType{},
+						Init: &BasicLit{
+							expr: expr{pos: 26},
+							token: &Token{
+								Type:   9,
+								Offset: 26,
+								Value:  "3",
 							},
 						},
 					},
 				},
-			},*/
-		/*
-			{
-				"var x,y int = 1, 2, z = 3\n",
-				&VarStmt{},
 			},
-		*/
-		{
-			"var x,y int = (1, 2), z = 3\n",
-			&VarStmt{},
 		},
 		{
 			"var x,y int = (1), 2\n",
-			&VarStmt{},
+			&VarStmt{
+				expr: expr{},
+				Vars: []*VarDecl{
+					&VarDecl{
+						Name: "x",
+						Type: &SimpleType{Name: "int"},
+						Init: &BasicLit{
+							expr: expr{pos: 15},
+							token: &Token{
+								Type:   9,
+								Offset: 15,
+								Value:  "1",
+							},
+						},
+					},
+					&VarDecl{
+						Name: "y",
+						Type: &SimpleType{Name: "int"},
+						Init: &BasicLit{
+							expr: expr{pos: 19},
+							token: &Token{
+								Type:   9,
+								Offset: 19,
+								Value:  "2",
+							},
+						},
+					},
+				},
+			},
 		},
 		{
 			"var x int, y = 1\n",
-			&VarStmt{},
+			&VarStmt{
+				expr: expr{},
+				Vars: []*VarDecl{
+					&VarDecl{
+						Name: "x",
+						Type: &SimpleType{Name: "int"},
+						Init: nil,
+					},
+					&VarDecl{
+						Name: "y",
+						Type: &UnknownType{},
+						Init: &BasicLit{
+							expr: expr{pos: 15},
+							token: &Token{
+								Type:   9,
+								Offset: 15,
+								Value:  "1",
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
