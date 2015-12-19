@@ -36,6 +36,7 @@ func compareExpr(a, b Expr) (equal bool, msg string) {
 func testPrimaryExpr(t *testing.T, code string, expected Expr) {
 	in := []rune(code)
 	parser := NewParser(NewLexer(in))
+	parser.ignoreUnknowns = true
 	result, err := parser.parsePrimaryExpr()
 	if err != nil {
 		fmt.Printf("Parsing primary expr failed: %s", err)
@@ -48,20 +49,20 @@ func testPrimaryExpr(t *testing.T, code string, expected Expr) {
 }
 
 func TestPrimaryExpr(t *testing.T) {
-	testPrimaryExpr(t, "test", &Ident{expr{0}, "test"})
-	testPrimaryExpr(t, "test(arg)", &FuncCall{expr: expr{4}, Left: &Ident{expr{0}, "test"}, Args: nil}) // TODO: fill args
+	testPrimaryExpr(t, "test", &Ident{expr{0}, "test", nil})
+	testPrimaryExpr(t, "test(arg)", &FuncCall{expr: expr{4}, Left: &Ident{expr{0}, "test", nil}, Args: nil}) // TODO: fill args
 	testPrimaryExpr(t, "test.tere[123]",
 		&ArrayExpr{
 			expr: expr{9},
 			Left: &DotSelector{
 				expr:  expr{4},
-				Left:  &Ident{expr{0}, "test"},
-				Right: &Ident{expr{5}, "tere"}},
+				Left:  &Ident{expr{0}, "test", nil},
+				Right: &Ident{expr{5}, "tere", nil}},
 			Index: &BasicLit{expr{10}, &Token{TOKEN_NUM, 10, 123}}})
 	testPrimaryExpr(t, "{1,2}", &CompoundLit{})
 	testPrimaryExpr(t, "{1:2}.bla", &DotSelector{expr: expr{5},
 		Left:  &CompoundLit{expr: expr{0}},
-		Right: &Ident{expr{6}, "bla"}})
+		Right: &Ident{expr{6}, "bla", nil}})
 	testPrimaryExpr(t, "map[int]int{1:2}", &CompoundLit{})
 	testPrimaryExpr(t, "[]int{1,2}", &CompoundLit{})
 	testPrimaryExpr(t, "dywan{1}", &CompoundLit{})
@@ -80,6 +81,7 @@ func TestPrimaryExpr(t *testing.T) {
 func testExpr(t *testing.T, code string, expected Expr) {
 	in := []rune(code)
 	parser := NewParser(NewLexer(in))
+	parser.ignoreUnknowns = true
 	result, err := parser.parseExpr()
 	if eq, msg := compareExpr(result, expected); !eq || err != nil {
 		fmt.Printf("Error, expected:\n   %#v\nbut got:\n   %#v\nMSG: %s\n", expected, result, msg)
@@ -90,8 +92,8 @@ func testExpr(t *testing.T, code string, expected Expr) {
 func TestParseExpr(t *testing.T) {
 	testExpr(t, "test+pies", &BinaryOp{
 		expr:  expr{4},
-		Left:  &Ident{expr{0}, "test"},
-		Right: &Ident{expr{5}, "pies"},
+		Left:  &Ident{expr{0}, "test", nil},
+		Right: &Ident{expr{5}, "pies", nil},
 	})
 	testExpr(t, "1*2+3*4", &BinaryOp{
 		expr: expr{3},
@@ -148,6 +150,7 @@ func TestParseType(t *testing.T) {
 func testArgs(t *testing.T, code string, expected []Expr) {
 	in := []rune(code)
 	parser := NewParser(NewLexer(in))
+	parser.ignoreUnknowns = true
 	result, err := parser.parseArgs()
 	if err != nil {
 		fmt.Print(err)
@@ -170,9 +173,9 @@ func TestArgs(t *testing.T) {
 	testArgs(t, "", []Expr{})
 	testArgs(t, ")", []Expr{})
 	testArgs(t, "1,bla", []Expr{&BasicLit{expr{0}, &Token{TOKEN_NUM, 0, "1"}},
-		&Ident{expr{2}, "bla"}})
+		&Ident{expr{2}, "bla", nil}})
 	testArgs(t, "1,bla)", []Expr{&BasicLit{expr{0}, &Token{TOKEN_NUM, 0, "1"}},
-		&Ident{expr{2}, "bla"}})
+		&Ident{expr{2}, "bla", nil}})
 }
 
 func TestCodeBlock(t *testing.T) {
@@ -272,6 +275,7 @@ func TestParseCompoundLiterals(t *testing.T) {
 	}
 	for _, c := range cases {
 		parser := NewParser(NewLexer([]rune(c.code)))
+		parser.ignoreUnknowns = true
 		result, err := parser.parseCompoundLit()
 
 		// TODO: better assertions, more test cases.
@@ -282,6 +286,56 @@ func TestParseCompoundLiterals(t *testing.T) {
 		} else if err == nil && !c.valid {
 			t.Fail()
 			fmt.Printf("Parsing a compound literal should've failed %s %s\n", err, spew.Sdump(result))
+		}
+	}
+}
+
+func TestIdentSearch(t *testing.T) {
+	cases := []struct {
+		code  string
+		valid bool
+	}{
+		{`func abc(x int):
+		  var x = 1
+		`, true},
+		{`func abc(x int) int:
+		  var zzz = 1
+		  var y = x * zzz
+		`, true},
+		{`func abc() int:
+		  var x = z
+		`, false},
+		{`func abc(x int, y int) int:
+	if var z = 1; z == x:
+		var b = x * y * z
+`, true},
+		{`func abc(x int, y int) int:
+	if var z = 1; z == x:
+		var b = x * y * z
+	var a = x * y * z
+`, false},
+		{`func abc(x int, y int) int:
+	if var Z = 1; z == x:
+		var b = x * y * z
+`, false},
+		{`func abc(x int) int:
+	if var y = 1; y == x:
+		if var z = 1; z == y:
+			var b = x * y * z
+`, true},
+	}
+	for _, c := range cases {
+		parser := NewParser(NewLexer([]rune(c.code)))
+		result, err := parser.parseFunc()
+
+		// TODO: better assertions, more test cases.
+		// We'll need something more succint than comparing whole ASTs.
+		if c.valid && err != nil {
+			t.Fail()
+			fmt.Printf("Error parsing %s %s\n", err, spew.Sdump(result))
+		} else if err == nil && !c.valid {
+			t.Fail()
+			fmt.Printf("Parsing should've failed %s %s\n", err, spew.Sdump(result))
 		}
 	}
 }
@@ -301,7 +355,7 @@ func TestFuncDecl(t *testing.T) {
 		  var x = 1
 		`, true},
 		{`func abc(x int, y int) int:
-		  var x = 1
+		  var x = y * 2
 		`, true},
 		{`func abc(x, y int) int:
 		  var x = 1

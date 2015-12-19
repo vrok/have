@@ -235,7 +235,8 @@ type FuncDecl struct {
 type Ident struct {
 	expr
 
-	name string
+	name    string
+	varDecl *VarDecl
 	//token *Token
 }
 

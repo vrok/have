@@ -11,6 +11,36 @@ type Parser struct {
 	lex         *Lexer
 	tokensBuf   []*Token
 	indentStack []string
+	identStack  *IdentStack
+
+	ignoreUnknowns bool
+}
+
+type IdentStack []map[string]*VarDecl
+
+func (is *IdentStack) pushScope() {
+	*is = append(*is, map[string]*VarDecl{})
+}
+
+func (is *IdentStack) popScope() {
+	*is = (*is)[:len(*is)-1]
+}
+
+func (is *IdentStack) empty() bool {
+	return len(*is) == 0
+}
+
+func (is *IdentStack) addVar(v *VarDecl) {
+	(*is)[len(*is)-1][v.Name] = v
+}
+
+func (is *IdentStack) findVar(name string) *VarDecl {
+	for i := len(*is) - 1; i >= 0; i-- {
+		if v, ok := (*is)[i][name]; ok {
+			return v
+		}
+	}
+	return nil
 }
 
 func (p *Parser) nextToken() *Token {
@@ -27,7 +57,7 @@ func (p *Parser) nextToken() *Token {
 }
 
 func NewParser(lex *Lexer) *Parser {
-	return &Parser{lex: lex}
+	return &Parser{lex: lex, identStack: &IdentStack{map[string]*VarDecl{}}}
 }
 
 // Put back a token.
@@ -174,6 +204,9 @@ func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
 	result := make([]Stmt, 0)
 	p.putBack(indent)
 
+	p.identStack.pushScope()
+	defer p.identStack.popScope()
+
 	for t := p.nextToken(); t.Type != TOKEN_EOF; t = p.nextToken() {
 		p.putBack(t) // So that we can use checkIndentEnd
 		end, err := p.checkIndentEnd()
@@ -225,6 +258,9 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 	)
 
 	if scopedVar {
+		p.identStack.pushScope()
+		defer p.identStack.popScope()
+
 		scopedVarDecl, err = p.parseVarStmt()
 		if err != nil {
 			return nil, err
@@ -273,6 +309,10 @@ func (p *Parser) parseVarStmt() (*VarStmt, error) {
 	vars, err := p.parseVarDecl()
 	if err != nil {
 		return nil, err
+	}
+
+	for _, v := range vars {
+		p.identStack.addVar(v)
 	}
 
 	return &VarStmt{expr{ident.Offset}, vars}, nil
@@ -627,7 +667,11 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 			return nil, fmt.Errorf("Expected closing `)`")
 		}
 	case TOKEN_WORD:
-		left = &Ident{expr: expr{token.Offset}, name: token.Value.(string)}
+		name := token.Value.(string)
+		if v := p.identStack.findVar(name); v == nil && !p.ignoreUnknowns {
+			return nil, fmt.Errorf("Unknown identifier: %s", name)
+		}
+		left = &Ident{expr: expr{token.Offset}, name: name}
 		//next := p.nextToken()
 	case TOKEN_STR, TOKEN_NUM, TOKEN_TRUE, TOKEN_FALSE:
 		return &BasicLit{expr{token.Offset}, token}, nil
@@ -655,7 +699,7 @@ loop:
 		case TOKEN_DOT:
 			// TODO: parse type assertions
 			selector := p.expect(TOKEN_WORD)
-			left = &DotSelector{expr{token.Offset}, left, &Ident{expr{selector.Offset}, selector.Value.(string)}}
+			left = &DotSelector{expr{token.Offset}, left, &Ident{expr{selector.Offset}, selector.Value.(string), nil}}
 		case TOKEN_LPARENTH:
 			args, err := p.parseArgs()
 			if err != nil {
@@ -883,9 +927,17 @@ func (p *Parser) parseFunc() (Expr, error) {
 		return nil, fmt.Errorf("Expected `(`")
 	}
 
+	p.identStack.pushScope()
+	defer p.identStack.popScope()
+
 	args, err := p.parseArgsDecl()
 	if err != nil {
 		return nil, err
+	}
+
+	// Make arguments accessiable within the function body.
+	for _, arg := range args {
+		p.identStack.addVar(arg)
 	}
 
 	if t := p.expect(TOKEN_RPARENTH); t == nil {
@@ -901,6 +953,11 @@ func (p *Parser) parseFunc() (Expr, error) {
 		results, err = p.parseResultDecl()
 		if err != nil {
 			return nil, err
+		}
+
+		// Make named results accessiable within the function body.
+		for _, r := range results {
+			p.identStack.addVar(r)
 		}
 
 		if t := p.expect(TOKEN_COLON); t == nil {
