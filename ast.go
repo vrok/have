@@ -53,18 +53,49 @@ type ExprStmt struct {
 	Expression Expr
 }
 
+type Kind int
+
+const (
+	KIND_SIMPLE = Kind(iota + 1)
+	KIND_ARRAY
+	KIND_SLICE
+	KIND_MAP
+	KIND_POINTER
+	KIND_CUSTOM
+	KIND_STRUCT
+	KIND_UNKNOWN
+)
+
 type Type interface {
 	// True means no underscores beneath, no type inference needed.
 	Known() bool
 	String() string
+	Kind() Kind
+	Negotiate(other Type) (Type, error)
+}
+
+type SimpleTypeID int
+
+const (
+	SIMPLE_TYPE_INT = SimpleTypeID(iota + 1)
+	SIMPLE_TYPE_STRING
+	SIMPLE_TYPE_BOOL
+	// TODO: add others
+)
+
+var simpleTypeAsStr = map[SimpleTypeID]string{
+	SIMPLE_TYPE_INT:    "int",
+	SIMPLE_TYPE_STRING: "string",
+	SIMPLE_TYPE_BOOL:   "bool",
 }
 
 type SimpleType struct {
-	Name string
+	ID SimpleTypeID
 }
 
 func (t *SimpleType) Known() bool    { return true }
-func (t *SimpleType) String() string { return t.Name }
+func (t *SimpleType) String() string { return simpleTypeAsStr[t.ID] }
+func (t *SimpleType) Kind() Kind     { return KIND_SIMPLE }
 
 type ArrayType struct {
 	Size int
@@ -73,6 +104,7 @@ type ArrayType struct {
 
 func (t *ArrayType) Known() bool    { return t.Of.Known() }
 func (t *ArrayType) String() string { return fmt.Sprintf("[%d]%s", t.Size, t.Of.String()) }
+func (t *ArrayType) Kind() Kind     { return KIND_ARRAY }
 
 type SliceType struct {
 	Of Type
@@ -80,6 +112,7 @@ type SliceType struct {
 
 func (t *SliceType) Known() bool    { return t.Of.Known() }
 func (t *SliceType) String() string { return "[]" + t.Of.String() }
+func (t *SliceType) Kind() Kind     { return KIND_SLICE }
 
 type MapType struct {
 	By, Of Type
@@ -87,6 +120,7 @@ type MapType struct {
 
 func (t *MapType) Known() bool    { return t.By.Known() && t.Of.Known() }
 func (t *MapType) String() string { return "map[" + t.By.String() + "]" + t.Of.String() }
+func (t *MapType) Kind() Kind     { return KIND_MAP }
 
 type PointerType struct {
 	To Type
@@ -94,6 +128,7 @@ type PointerType struct {
 
 func (t *PointerType) Known() bool    { return t.To.Known() }
 func (t *PointerType) String() string { return "*" + t.To.String() }
+func (t *PointerType) Kind() Kind     { return KIND_POINTER }
 
 type StructType struct {
 	Members map[string]Type
@@ -126,16 +161,26 @@ func (t *StructType) String() string {
 type CustomType struct {
 	Name    string
 	Package string // "" means local
+	Actual  Type
 }
 
 func (t *CustomType) Known() bool    { return true }
 func (t *CustomType) String() string { return t.Name }
+func (t *CustomType) Kind() Kind     { return KIND_CUSTOM }
+func (t *CustomType) RootType() Type {
+	current := t.Actual
+	for current.Kind() == KIND_CUSTOM {
+		current = current.(*CustomType).Actual
+	}
+	return current
+}
 
 type UnknownType struct {
 }
 
 func (t *UnknownType) Known() bool    { return false }
 func (t *UnknownType) String() string { return "_" }
+func (t *UnknownType) Kind() Kind     { return KIND_UNKNOWN }
 
 type TypeExpr struct {
 	expr
@@ -158,6 +203,7 @@ func NewBlankExpr() *BlankExpr { return &BlankExpr{expr{0}} }
 // implements Expr
 type BasicLit struct {
 	expr
+	typ Type
 
 	token *Token
 }
