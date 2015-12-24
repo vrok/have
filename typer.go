@@ -22,6 +22,8 @@ type TypedExpr interface {
 func (vd *VarDecl) NegotiateTypes() error {
 	typedInit := vd.Init.(TypedExpr)
 
+	fmt.Printf("ZZZ 1 %#v ---- %#v\n", vd, typedInit)
+
 	typ, err := NegotiateTypes(vd.Type, typedInit.Type())
 	if err != nil {
 		// Try guessing. Literals like "1", or "{1, 2}" can be used
@@ -49,22 +51,43 @@ func (vd *VarDecl) NegotiateTypes() error {
 	//return nil
 }
 
-// TODO NOW HERE: fill for Ident, then add more
-func (ex *Ident) Type() {
+func (ex *BlankExpr) Type() Type                     { panic("nope") }
+func (ex *BlankExpr) ApplyType(typ Type) error       { panic("nope") }
+func (ex *BlankExpr) GuessType() (ok bool, typ Type) { panic("nope") }
+
+func (ex *CompoundLit) Type() Type                     { panic("nope") }
+func (ex *CompoundLit) ApplyType(typ Type) error       { panic("nope") }
+func (ex *CompoundLit) GuessType() (ok bool, typ Type) { panic("nope") }
+
+func (ex *BinaryOp) Type() Type                     { panic("nope") }
+func (ex *BinaryOp) ApplyType(typ Type) error       { panic("nope") }
+func (ex *BinaryOp) GuessType() (ok bool, typ Type) { panic("nope") }
+
+func (ex *UnaryOp) Type() Type                     { panic("nope") }
+func (ex *UnaryOp) ApplyType(typ Type) error       { panic("nope") }
+func (ex *UnaryOp) GuessType() (ok bool, typ Type) { panic("nope") }
+
+func (ex *Ident) Type() Type {
+	if ex.varDecl != nil {
+		return ex.varDecl.Type
+	}
+	return nil
 }
 
 func (ex *Ident) ApplyType(typ Type) error {
+	return fmt.Errorf("Identifier %s is of type %s", ex.name, ex.varDecl.Name)
 }
 
 func (ex *Ident) GuessType() (ok bool, typ Type) {
+	return false, nil
 }
 
-func (ex *BasicLit) Type() {
+func (ex *BasicLit) Type() Type {
 	return ex.typ
 }
 
 func (ex *BasicLit) ApplyType(typ Type) error {
-	actualType = typ
+	actualType := typ
 	if typ.Kind() == KIND_CUSTOM {
 		actualType = typ.(*CustomType).RootType()
 	}
@@ -76,11 +99,11 @@ func (ex *BasicLit) ApplyType(typ Type) error {
 		fallthrough
 	case ex.token.Type == TOKEN_NUM &&
 		actualType.Kind() == KIND_SIMPLE &&
-		actualType.(*SimpeType).ID == SIMPLE_TYPE_INT:
+		actualType.(*SimpleType).ID == SIMPLE_TYPE_INT:
 		fallthrough
 	case (ex.token.Type == TOKEN_TRUE || ex.token.Type == TOKEN_FALSE) &&
 		actualType.Kind() == KIND_SIMPLE &&
-		actualType.(*SimpeType).ID == SIMPLE_TYPE_BOOL:
+		actualType.(*SimpleType).ID == SIMPLE_TYPE_BOOL:
 
 		ex.typ = typ
 	}
@@ -90,12 +113,12 @@ func (ex *BasicLit) ApplyType(typ Type) error {
 func (ex *BasicLit) GuessType() (ok bool, typ Type) {
 	switch ex.token.Type {
 	case TOKEN_STR:
-		return true, SimpleType{ID: SIMPLE_TYPE_STRING}
+		return true, &SimpleType{ID: SIMPLE_TYPE_STRING}
 	case TOKEN_NUM:
 		// TODO: handle anything else than just integers
-		return true, SimpleType{ID: SIMPLE_TYPE_INT}
+		return true, &SimpleType{ID: SIMPLE_TYPE_INT}
 	case TOKEN_TRUE, TOKEN_FALSE:
-		return true, SimpleType{ID: SIMPLE_TYPE_BOOL}
+		return true, &SimpleType{ID: SIMPLE_TYPE_BOOL}
 	}
 	return false, nil
 }
@@ -103,10 +126,11 @@ func (ex *BasicLit) GuessType() (ok bool, typ Type) {
 func (t *SimpleType) Negotiate(other Type) (Type, error) {
 	if other, ok := other.(*SimpleType); !ok {
 		return nil, fmt.Errorf("Not a simple type")
-	} else if t.Name == other.Name {
+	} else if t.ID == other.ID {
 		return t, nil
 	} else {
-		return nil, fmt.Errorf("Different simple types, %s and %s", t.Name, other.Name)
+		return nil, fmt.Errorf("Different simple types, %s and %s",
+			simpleTypeAsStr[t.ID], simpleTypeAsStr[other.ID])
 	}
 }
 
@@ -134,6 +158,26 @@ func (t *SliceType) Negotiate(other Type) (Type, error) {
 		}
 		return &SliceType{Of: typ}, nil
 	}
+}
+
+func (t *CustomType) Negotiate(other Type) (Type, error) {
+	panic("todo")
+}
+
+func (t *UnknownType) Negotiate(other Type) (Type, error) {
+	panic("todo")
+}
+
+func (t *PointerType) Negotiate(other Type) (Type, error) {
+	panic("todo")
+}
+
+func (t *MapType) Negotiate(other Type) (Type, error) {
+	panic("todo")
+}
+
+func (t *StructType) Negotiate(other Type) (Type, error) {
+	panic("todo")
 }
 
 func NegotiateTypes(t1, t2 Type) (Type, error) {

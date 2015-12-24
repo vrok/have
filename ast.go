@@ -89,6 +89,14 @@ var simpleTypeAsStr = map[SimpleTypeID]string{
 	SIMPLE_TYPE_BOOL:   "bool",
 }
 
+var simpleTypeStrToID = map[string]SimpleTypeID{}
+
+func init() {
+	for k, v := range simpleTypeAsStr {
+		simpleTypeStrToID[v] = k
+	}
+}
+
 type SimpleType struct {
 	ID SimpleTypeID
 }
@@ -157,6 +165,8 @@ func (t *StructType) String() string {
 	out.Write([]byte("}"))
 	return out.String()
 }
+
+func (t *StructType) Kind() Kind { return KIND_STRUCT }
 
 type CustomType struct {
 	Name    string

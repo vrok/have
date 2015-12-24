@@ -626,7 +626,7 @@ func (p *Parser) parseType() (Type, error) {
 		case "bool", "byte", "complex128", "complex64", "error", "float32",
 			"float64", "int", "int16", "int32", "int64", "int8", "rune",
 			"string", "uint", "uint16", "uint32", "uint64", "uint8", "uintptr":
-			return &SimpleType{Name: name}, nil
+			return &SimpleType{ID: simpleTypeStrToID[name]}, nil
 		default:
 			return &CustomType{Name: name}, nil
 		}
@@ -674,7 +674,7 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 		left = &Ident{expr: expr{token.Offset}, name: name}
 		//next := p.nextToken()
 	case TOKEN_STR, TOKEN_NUM, TOKEN_TRUE, TOKEN_FALSE:
-		return &BasicLit{expr{token.Offset}, token}, nil
+		return &BasicLit{expr{token.Offset}, nil, token}, nil
 	case TOKEN_MAP, TOKEN_STRUCT, TOKEN_LBRACKET:
 		p.putBack(token)
 		left, err = p.parseTypeExpr()

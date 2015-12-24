@@ -58,7 +58,7 @@ func TestPrimaryExpr(t *testing.T) {
 				expr:  expr{4},
 				Left:  &Ident{expr{0}, "test", nil},
 				Right: &Ident{expr{5}, "tere", nil}},
-			Index: &BasicLit{expr{10}, &Token{TOKEN_NUM, 10, 123}}})
+			Index: &BasicLit{expr{10}, nil, &Token{TOKEN_NUM, 10, 123}}})
 	testPrimaryExpr(t, "{1,2}", &CompoundLit{})
 	testPrimaryExpr(t, "{1:2}.bla", &DotSelector{expr: expr{5},
 		Left:  &CompoundLit{expr: expr{0}},
@@ -138,7 +138,7 @@ func testTypes(t *testing.T, code string, expected Type) {
 }
 
 func TestParseType(t *testing.T) {
-	testTypes(t, "int", &SimpleType{Name: "int"})
+	testTypes(t, "int", &SimpleType{ID: simpleTypeStrToID["int"]})
 	testTypes(t, "trelemorele", &CustomType{Name: "trelemorele"})
 	testTypes(t, "*trelemorele", &PointerType{To: &CustomType{Name: "trelemorele"}})
 	testTypes(t, "**trelemorele", &PointerType{To: &PointerType{To: &CustomType{Name: "trelemorele"}}})
@@ -172,9 +172,9 @@ func testArgs(t *testing.T, code string, expected []Expr) {
 func TestArgs(t *testing.T) {
 	testArgs(t, "", []Expr{})
 	testArgs(t, ")", []Expr{})
-	testArgs(t, "1,bla", []Expr{&BasicLit{expr{0}, &Token{TOKEN_NUM, 0, "1"}},
+	testArgs(t, "1,bla", []Expr{&BasicLit{expr{0}, nil, &Token{TOKEN_NUM, 0, "1"}},
 		&Ident{expr{2}, "bla", nil}})
-	testArgs(t, "1,bla)", []Expr{&BasicLit{expr{0}, &Token{TOKEN_NUM, 0, "1"}},
+	testArgs(t, "1,bla)", []Expr{&BasicLit{expr{0}, nil, &Token{TOKEN_NUM, 0, "1"}},
 		&Ident{expr{2}, "bla", nil}})
 }
 
@@ -401,7 +401,7 @@ func TestVarDecl(t *testing.T) {
 			Vars: []*VarDecl{
 				&VarDecl{
 					Name: "x",
-					Type: &SimpleType{Name: "int"},
+					Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 					Init: &BlankExpr{},
 				},
 			},
@@ -413,7 +413,7 @@ func TestVarDecl(t *testing.T) {
 				Vars: []*VarDecl{
 					&VarDecl{
 						Name: "x",
-						Type: &SimpleType{Name: "int"},
+						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BinaryOp{
 							expr: expr{pos: 14},
 							Left: &BasicLit{
@@ -438,7 +438,7 @@ func TestVarDecl(t *testing.T) {
 				Vars: []*VarDecl{
 					&VarDecl{
 						Name: "x",
-						Type: &SimpleType{Name: "int"},
+						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
 							expr:  expr{pos: 14},
 							token: &Token{Type: TOKEN_NUM, Offset: 14, Value: "1"},
@@ -446,7 +446,7 @@ func TestVarDecl(t *testing.T) {
 					},
 					&VarDecl{
 						Name: "y",
-						Type: &SimpleType{Name: "int"},
+						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
 							expr:  expr{pos: 17},
 							token: &Token{Type: TOKEN_NUM, Offset: 17, Value: "2"},
@@ -462,7 +462,7 @@ func TestVarDecl(t *testing.T) {
 				Vars: []*VarDecl{
 					&VarDecl{
 						Name: "x",
-						Type: &SimpleType{Name: "int"},
+						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
 							expr: expr{pos: 15},
 							token: &Token{
@@ -474,7 +474,7 @@ func TestVarDecl(t *testing.T) {
 					},
 					&VarDecl{
 						Name: "y",
-						Type: &SimpleType{Name: "int"},
+						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
 							expr: expr{pos: 18},
 							token: &Token{
@@ -506,7 +506,7 @@ func TestVarDecl(t *testing.T) {
 				Vars: []*VarDecl{
 					&VarDecl{
 						Name: "x",
-						Type: &SimpleType{Name: "int"},
+						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
 							expr: expr{pos: 15},
 							token: &Token{
@@ -518,7 +518,7 @@ func TestVarDecl(t *testing.T) {
 					},
 					&VarDecl{
 						Name: "y",
-						Type: &SimpleType{Name: "int"},
+						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
 							expr: expr{pos: 19},
 							token: &Token{
@@ -538,7 +538,7 @@ func TestVarDecl(t *testing.T) {
 				Vars: []*VarDecl{
 					&VarDecl{
 						Name: "x",
-						Type: &SimpleType{Name: "int"},
+						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: nil,
 					},
 					&VarDecl{
