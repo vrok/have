@@ -19,10 +19,24 @@ type TypedExpr interface {
 	GuessType() (ok bool, typ Type)
 }
 
+func unNilType(t *Type) Type {
+	if *t == nil {
+		*t = &UnknownType{}
+	}
+	return *t
+}
+
+func nonilTyp(t Type) Type {
+	if t == nil {
+		return &UnknownType{}
+	}
+	return t
+}
+
 func (vd *VarDecl) NegotiateTypes() error {
 	typedInit := vd.Init.(TypedExpr)
 
-	fmt.Printf("ZZZ 1 %#v ---- %#v\n", vd, typedInit)
+	vd.Type = nonilTyp(vd.Type)
 
 	typ, err := NegotiateTypes(vd.Type, typedInit.Type())
 	if err != nil {
@@ -41,6 +55,7 @@ func (vd *VarDecl) NegotiateTypes() error {
 		}
 	}
 
+	vd.Type = typ
 	return typedInit.ApplyType(typ)
 	//if !typedInit.CanBeOfType(typ) {
 	//	return fmt.Errorf("Couldn't infer type of %s", vd.Name)
@@ -83,7 +98,7 @@ func (ex *Ident) GuessType() (ok bool, typ Type) {
 }
 
 func (ex *BasicLit) Type() Type {
-	return ex.typ
+	return nonilTyp(ex.typ)
 }
 
 func (ex *BasicLit) ApplyType(typ Type) error {
@@ -106,6 +121,7 @@ func (ex *BasicLit) ApplyType(typ Type) error {
 		actualType.(*SimpleType).ID == SIMPLE_TYPE_BOOL:
 
 		ex.typ = typ
+		return nil
 	}
 	return fmt.Errorf("Can't use this literal for this type")
 }
@@ -165,7 +181,7 @@ func (t *CustomType) Negotiate(other Type) (Type, error) {
 }
 
 func (t *UnknownType) Negotiate(other Type) (Type, error) {
-	panic("todo")
+	return other, nil
 }
 
 func (t *PointerType) Negotiate(other Type) (Type, error) {
@@ -192,6 +208,9 @@ func NegotiateTypes(t1, t2 Type) (Type, error) {
 	}
 
 	if t1.Kind() == t2.Kind() {
+		if t1.Kind() == KIND_UNKNOWN { // && t2.Kind() == KIND_UNKNOWN
+			return nil, fmt.Errorf("Too little information to infer data types")
+		}
 		return t1.Negotiate(t2)
 	} else if t1.Kind() == KIND_UNKNOWN {
 		if !t2.Known() {

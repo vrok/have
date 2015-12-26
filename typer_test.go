@@ -6,16 +6,72 @@ import (
 )
 
 func TestSimple(t *testing.T) {
-	code := `var a int = 1`
-
-	parser := NewParser(NewLexer([]rune(code)))
-	result, err := parser.parseVarStmt()
-	if err != nil {
-		fmt.Println(err)
-		t.Fail()
+	var cases = []struct {
+		code       string
+		shouldPass bool
+		typ        string
+	}{
+		{`var a int = 1`,
+			true,
+			"int",
+		},
+		{`var a string = "reksio"`,
+			true,
+			"string",
+		},
+		{`var a bool = true`,
+			true,
+			"bool",
+		},
+		{`var a bool = false`,
+			true,
+			"bool",
+		},
+		{`var a = true`,
+			true,
+			"bool",
+		},
+		{`var a = "blabla"`,
+			true,
+			"string",
+		},
+		{`var a = 123`,
+			true,
+			"int",
+		},
+		{`var a string = 1`,
+			false,
+			"", // whatever, shouldn't pass anwyay
+		},
+		{`var a int = "123"`,
+			false,
+			"", // whatever, shouldn't pass anwyay
+		},
+		{`var a bool = 0`,
+			false,
+			"", // whatever, shouldn't pass anwyay
+		},
 	}
 
-	err = result.Vars[0].NegotiateTypes()
-	fmt.Printf("ZZZ err: %s\nresult: %#v\n", err, result)
-	t.Fail()
+	for i, c := range cases {
+		parser := NewParser(NewLexer([]rune(c.code)))
+		result, err := parser.parseVarStmt()
+		err = result.Vars[0].NegotiateTypes()
+
+		if (err == nil) != c.shouldPass {
+			t.Fail()
+			fmt.Printf("Case %d: Bad code accepted or good code parsed with an error for '%s'\nError: %s\n",
+				i, c.code, err)
+			continue
+		}
+
+		if err == nil {
+			firstVar := result.Vars[0]
+			if firstVar.Type.String() != c.typ || firstVar.Init.(TypedExpr).Type().String() != c.typ {
+				t.Fail()
+				fmt.Printf("Case %d: Bad type: %s, %s, %s\n", i, c.typ, firstVar.Type.String(),
+					firstVar.Init.(TypedExpr).Type().String())
+			}
+		}
+	}
 }
