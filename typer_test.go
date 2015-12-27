@@ -111,6 +111,31 @@ func TestSimple(t *testing.T) {
 			false,
 			"",
 		},
+		{
+			`var a map[int]string = {1: "a", 2: "b"}`,
+			true,
+			"map[int]string",
+		},
+		{
+			`var a = {1: "a", 2: "b"}`,
+			true,
+			"map[int]string",
+		},
+		{
+			`var a = {1: {"a"}, 2: {"b", "c"}}`,
+			true,
+			"map[int][]string",
+		},
+		{
+			`var a map[int]string = {1: "a", "2": "b"}`,
+			false,
+			"",
+		},
+		{
+			`var a map[int]string = {1: "a", 2: 3}`,
+			false,
+			"",
+		},
 	}
 
 	for i, c := range cases {

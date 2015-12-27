@@ -108,7 +108,25 @@ func (ex *CompoundLit) ApplyType(typ Type) error {
 	case KIND_STRUCT:
 		panic("todo")
 	case KIND_MAP:
-		panic("todo")
+		asMap := typ.(*MapType)
+
+		switch ex.kind {
+		case COMPOUND_EMPTY:
+			apply = true
+		case COMPOUND_MAPLIKE:
+			for i, el := range ex.elems {
+				if i%2 == 0 {
+					if err := el.(TypedExpr).ApplyType(asMap.By); err != nil {
+						return err
+					}
+				} else {
+					if err := el.(TypedExpr).ApplyType(asMap.Of); err != nil {
+						return err
+					}
+				}
+			}
+			apply = true
+		}
 	}
 
 	if apply {
@@ -123,6 +141,7 @@ func (ex *CompoundLit) GuessType() (ok bool, typ Type) {
 	case COMPOUND_EMPTY:
 		return false, nil
 	case COMPOUND_LISTLIKE:
+		var typ Type = nil
 		for _, el := range ex.elems {
 			ok, t := el.(TypedExpr).GuessType()
 			if !ok {
@@ -138,7 +157,30 @@ func (ex *CompoundLit) GuessType() (ok bool, typ Type) {
 		}
 		return true, &SliceType{Of: typ}
 	case COMPOUND_MAPLIKE:
-		panic("todo")
+		var keyType, valueType Type = nil, nil
+		for i, el := range ex.elems {
+			ok, t := el.(TypedExpr).GuessType()
+			if !ok {
+				return false, nil
+			}
+
+			if i%2 == 0 {
+				if keyType == nil {
+					keyType = nonilTyp(t)
+				}
+				if keyType.String() != t.String() {
+					return false, nil
+				}
+			} else {
+				if valueType == nil {
+					valueType = nonilTyp(t)
+				}
+				if valueType.String() != t.String() {
+					return false, nil
+				}
+			}
+		}
+		return true, &MapType{By: keyType, Of: valueType}
 	}
 	return false, nil
 }
