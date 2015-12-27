@@ -95,15 +95,13 @@ func (ex *CompoundLit) ApplyType(typ Type) error {
 		panic("todo")
 	case KIND_MAP:
 		panic("todo")
-	default:
-		return fmt.Errorf("Can't use a compound literal to initialize type %s", typ.String())
 	}
 
-	fmt.Printf("ZZZ tutej\n")
 	if apply {
 		ex.typ = typ
+		return nil
 	}
-	return nil
+	return fmt.Errorf("Can't use a compound literal to initialize type %s", typ.String())
 }
 
 func (ex *CompoundLit) GuessType() (ok bool, typ Type) {
