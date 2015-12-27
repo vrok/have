@@ -57,6 +57,16 @@ func TestSimple(t *testing.T) {
 			"[]int",
 		},
 		{
+			`var a [3]int = {1, 2, 3}`,
+			true,
+			"[3]int",
+		},
+		{
+			`var a [2]int = {1, 2, 3}`,
+			false,
+			"",
+		},
+		{
 			`var a []int = {1, "2", 3}`,
 			false,
 			"",

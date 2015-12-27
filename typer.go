@@ -90,7 +90,21 @@ func (ex *CompoundLit) ApplyType(typ Type) error {
 			apply = true
 		}
 	case KIND_ARRAY:
-		panic("todo")
+		asArray := typ.(*ArrayType)
+
+		switch ex.kind {
+		case COMPOUND_EMPTY:
+			apply = asArray.Size == 0
+		case COMPOUND_LISTLIKE:
+			if len(ex.elems) == asArray.Size {
+				for _, el := range ex.elems {
+					if err := el.(TypedExpr).ApplyType(asArray.Of); err != nil {
+						return err
+					}
+				}
+				apply = true
+			}
+		}
 	case KIND_STRUCT:
 		panic("todo")
 	case KIND_MAP:
