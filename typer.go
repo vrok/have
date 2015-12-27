@@ -70,9 +70,66 @@ func (ex *BlankExpr) Type() Type                     { panic("nope") }
 func (ex *BlankExpr) ApplyType(typ Type) error       { panic("nope") }
 func (ex *BlankExpr) GuessType() (ok bool, typ Type) { panic("nope") }
 
-func (ex *CompoundLit) Type() Type                     { panic("nope") }
-func (ex *CompoundLit) ApplyType(typ Type) error       { panic("nope") }
-func (ex *CompoundLit) GuessType() (ok bool, typ Type) { panic("nope") }
+func (ex *CompoundLit) Type() Type { return nonilTyp(ex.typ) }
+func (ex *CompoundLit) ApplyType(typ Type) error {
+	var apply = false
+
+	switch typ.Kind() {
+	case KIND_SLICE:
+		asSlice := typ.(*SliceType)
+
+		switch ex.kind {
+		case COMPOUND_EMPTY:
+			apply = true
+		case COMPOUND_LISTLIKE:
+			for _, el := range ex.elems {
+				if err := el.(TypedExpr).ApplyType(asSlice.Of); err != nil {
+					return err
+				}
+			}
+			apply = true
+		}
+	case KIND_ARRAY:
+		panic("todo")
+	case KIND_STRUCT:
+		panic("todo")
+	case KIND_MAP:
+		panic("todo")
+	default:
+		return fmt.Errorf("Can't use a compound literal to initialize type %s", typ.String())
+	}
+
+	fmt.Printf("ZZZ tutej\n")
+	if apply {
+		ex.typ = typ
+	}
+	return nil
+}
+
+func (ex *CompoundLit) GuessType() (ok bool, typ Type) {
+	switch ex.kind {
+	case COMPOUND_EMPTY:
+		return false, nil
+	case COMPOUND_LISTLIKE:
+		for _, el := range ex.elems {
+			ok, t := el.(TypedExpr).GuessType()
+			if !ok {
+				//return fmt.Errorf("Can't guess the type of the compound literal, because can't guess the type of %#v", el)
+				return false, nil
+			}
+			if typ == nil {
+				typ = nonilTyp(t)
+			}
+			if typ.String() != t.String() {
+				return false, nil
+			}
+		}
+		return true, &SliceType{Of: typ}
+	case COMPOUND_MAPLIKE:
+		panic("todo")
+	}
+	return false, nil
+}
 
 func (ex *BinaryOp) Type() Type                     { panic("nope") }
 func (ex *BinaryOp) ApplyType(typ Type) error       { panic("nope") }

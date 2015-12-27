@@ -51,6 +51,56 @@ func TestSimple(t *testing.T) {
 			false,
 			"", // whatever, shouldn't pass anwyay
 		},
+		{
+			`var a []int = {1, 2, 3}`,
+			true,
+			"[]int",
+		},
+		{
+			`var a []int = {1, "2", 3}`,
+			false,
+			"",
+		},
+		{
+			`var a []int = {}`,
+			true,
+			"[]int",
+		},
+		{
+			`var a [][]int = {{1}, {1,2}, {}}`,
+			true,
+			"[][]int",
+		},
+		{
+			`var a [][]int = {{1}, {1,2}, {"1"}}`,
+			false,
+			"",
+		},
+		{
+			`var a = {1, 2, 3}`,
+			true,
+			"[]int",
+		},
+		{
+			`var a = {"bla", "2", "3"}`,
+			true,
+			"[]string",
+		},
+		{
+			`var a = {"bla", "2", 3}`,
+			false,
+			"",
+		},
+		{
+			`var a = {{"bla", "2"}, {"3"}}`,
+			true,
+			"[][]string",
+		},
+		{
+			`var a = {{"bla", "2"}, {3}}`,
+			false,
+			"",
+		},
 	}
 
 	for i, c := range cases {
