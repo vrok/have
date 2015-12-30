@@ -185,9 +185,46 @@ func (ex *CompoundLit) GuessType() (ok bool, typ Type) {
 	return false, nil
 }
 
-func (ex *BinaryOp) Type() Type                     { panic("nope") }
-func (ex *BinaryOp) ApplyType(typ Type) error       { panic("nope") }
-func (ex *BinaryOp) GuessType() (ok bool, typ Type) { panic("nope") }
+func (ex *BinaryOp) Type() Type {
+	// for now, assume Left and Right have the same types
+	return ex.Left.(TypedExpr).Type()
+}
+
+func (ex *BinaryOp) ApplyType(typ Type) error {
+	// TODO: Validate concrete operators and types (logical operators only for bools,
+	// numeric operators for numeric types, etc.)
+
+	if err := ex.Left.(TypedExpr).ApplyType(typ); err != nil {
+		return err
+	}
+	return ex.Right.(TypedExpr).ApplyType(typ)
+}
+
+func (ex *BinaryOp) GuessType() (ok bool, typ Type) {
+	leftOk, leftType := ex.Left.(TypedExpr).GuessType()
+	rightOk, rightType := ex.Right.(TypedExpr).GuessType()
+
+	switch {
+	case leftOk && rightOk && leftType.String() == rightType.String():
+		// The clearest situation - both expressions were able to guess their types
+		// and they are the same.
+		return true, leftType
+	case leftOk:
+		err := ex.Right.(TypedExpr).ApplyType(leftType)
+		if err == nil {
+			return true, leftType
+		}
+		fallthrough
+	case rightOk:
+		err := ex.Left.(TypedExpr).ApplyType(rightType)
+		if err == nil {
+			return true, rightType
+		}
+		fallthrough
+	default:
+		return false, nil
+	}
+}
 
 func (ex *UnaryOp) Type() Type                     { panic("nope") }
 func (ex *UnaryOp) ApplyType(typ Type) error       { panic("nope") }
