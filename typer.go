@@ -192,7 +192,7 @@ func (ex *BinaryOp) Type() Type {
 
 func (ex *BinaryOp) ApplyType(typ Type) error {
 	// TODO: Validate concrete operators and types (logical operators only for bools,
-	// numeric operators for numeric types, etc.)
+	// numeric operators for numeric types, no tuple types, etc).
 
 	if err := ex.Left.(TypedExpr).ApplyType(typ); err != nil {
 		return err
@@ -226,9 +226,21 @@ func (ex *BinaryOp) GuessType() (ok bool, typ Type) {
 	}
 }
 
-func (ex *UnaryOp) Type() Type                     { panic("nope") }
-func (ex *UnaryOp) ApplyType(typ Type) error       { panic("nope") }
-func (ex *UnaryOp) GuessType() (ok bool, typ Type) { panic("nope") }
+func (ex *UnaryOp) Type() Type {
+	return ex.Right.(TypedExpr).Type()
+}
+
+func (ex *UnaryOp) ApplyType(typ Type) error {
+	// TODO: Validate concrete operators and types (logical operators only for bools,
+	// numeric operators for numeric types, no tuple types, etc).
+	// The way it should be implemented is to reuse as much as possible with BinaryOp.
+
+	return ex.Right.(TypedExpr).ApplyType(typ)
+}
+
+func (ex *UnaryOp) GuessType() (ok bool, typ Type) {
+	return ex.Right.(TypedExpr).GuessType()
+}
 
 func (ex *Ident) Type() Type {
 	if ex.varDecl != nil {

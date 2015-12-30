@@ -156,6 +156,16 @@ func TestSimple(t *testing.T) {
 			false,
 			"",
 		},
+		{
+			`var a int = +2`,
+			true,
+			"int",
+		},
+		{
+			`var a = +2`,
+			true,
+			"int",
+		},
 	}
 
 	for i, c := range cases {
