@@ -33,6 +33,16 @@ func nonilTyp(t Type) Type {
 	return t
 }
 
+func (vs *VarStmt) NegotiateTypes() error {
+	for _, v := range vs.Vars {
+		err := v.NegotiateTypes()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (vd *VarDecl) NegotiateTypes() error {
 	typedInit := vd.Init.(TypedExpr)
 
@@ -246,11 +256,15 @@ func (ex *Ident) Type() Type {
 	if ex.varDecl != nil {
 		return ex.varDecl.Type
 	}
+	//fmt.Printf("ZZZ ret nil\n")
 	return nil
 }
 
 func (ex *Ident) ApplyType(typ Type) error {
-	return fmt.Errorf("Identifier %s is of type %s", ex.name, ex.varDecl.Name)
+	if ex.varDecl.Type.String() != typ.String() {
+		return fmt.Errorf("Identifier %s is of type %s", ex.name, ex.varDecl.Type.String())
+	}
+	return nil
 }
 
 func (ex *Ident) GuessType() (ok bool, typ Type) {

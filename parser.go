@@ -399,7 +399,7 @@ groupsLoop:
 		var inits []Expr
 		// Parse a list of initializers in parentheses.
 		if t := p.nextToken(); t.Type == TOKEN_LPARENTH {
-			inits, err = p.parseArgs()
+			inits, err = p.parseArgs(0)
 			if err != nil {
 				return nil, err
 			}
@@ -416,7 +416,7 @@ groupsLoop:
 					return nil, fmt.Errorf("Expected `)`")
 				}
 				if t := p.nextToken(); t.Type == TOKEN_COMMA {
-					restInits, err := p.parseArgs()
+					restInits, err := p.parseArgs(0)
 					if err != nil {
 						return nil, err
 					}
@@ -429,7 +429,7 @@ groupsLoop:
 			}
 		} else {
 			p.putBack(t)
-			inits, err = p.parseArgs()
+			inits, err = p.parseArgs(len(vars))
 			if err != nil {
 				return nil, err
 			}
@@ -668,10 +668,16 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 		}
 	case TOKEN_WORD:
 		name := token.Value.(string)
-		if v := p.identStack.findVar(name); v == nil && !p.ignoreUnknowns {
-			return nil, fmt.Errorf("Unknown identifier: %s", name)
+		ident := &Ident{expr: expr{token.Offset}, name: name}
+
+		if !p.ignoreUnknowns {
+			if v := p.identStack.findVar(name); v == nil && !p.ignoreUnknowns {
+				return nil, fmt.Errorf("Unknown identifier: %s", name)
+			} else {
+				ident.varDecl = v
+			}
 		}
-		left = &Ident{expr: expr{token.Offset}, name: name}
+		left = ident
 		//next := p.nextToken()
 	case TOKEN_STR, TOKEN_NUM, TOKEN_TRUE, TOKEN_FALSE:
 		return &BasicLit{expr{token.Offset}, nil, token}, nil
@@ -701,7 +707,7 @@ loop:
 			selector := p.expect(TOKEN_WORD)
 			left = &DotSelector{expr{token.Offset}, left, &Ident{expr{selector.Offset}, selector.Value.(string), nil}}
 		case TOKEN_LPARENTH:
-			args, err := p.parseArgs()
+			args, err := p.parseArgs(0)
 			if err != nil {
 				return nil, err
 			}
@@ -827,7 +833,8 @@ func (p *Parser) parseExpr() (Expr, error) {
 	return nil, fmt.Errorf("Error parsing expression, couldn't reduce primary/unary expression stack")
 }
 
-func (p *Parser) parseArgs() ([]Expr, error) {
+// Use max=0 for unbounded number of arguments.
+func (p *Parser) parseArgs(max int) ([]Expr, error) {
 	result := []Expr{}
 	for {
 		token := p.nextToken()
@@ -844,6 +851,9 @@ func (p *Parser) parseArgs() ([]Expr, error) {
 				return nil, err
 			}
 			result = append(result, expr)
+			if max > 0 && len(result) == max {
+				return result, nil
+			}
 		}
 	}
 	return result, nil
@@ -980,24 +990,39 @@ func (p *Parser) parseFunc() (Expr, error) {
 }
 
 func (p *Parser) parseStmt() (Stmt, error) {
-	token := p.nextToken()
-	switch token.Type {
-	case TOKEN_VAR:
-		p.putBack(token)
-		return p.parseVarStmt()
-	case TOKEN_IF:
-		p.putBack(token)
-		return p.parseIf()
+	for {
+		token := p.nextToken()
+		switch token.Type {
+		case TOKEN_VAR:
+			p.putBack(token)
+			return p.parseVarStmt()
+		case TOKEN_IF:
+			p.putBack(token)
+			return p.parseIf()
+		case TOKEN_FUNC:
+			p.putBack(token)
+			return p.parseFunc()
+		case TOKEN_INDENT:
+			if token.Value.(string) != "" {
+				return nil, fmt.Errorf("Unexpected indent")
+			}
+		case TOKEN_EOF:
+			return nil, nil
+		default:
+			return nil, fmt.Errorf("Unexpected token: %#v", token)
+		}
 	}
-	return nil, nil
 }
 
-func (p *Parser) Parse() (Node, error) {
-	token := p.nextToken()
-	switch token.Type {
-	//case TOKEN_VAR:
-	//	return p.parseVarDecl()
-	default:
-		return p.parseExpr()
+func (p *Parser) Parse() ([]Stmt, error) {
+	var result = []Stmt{}
+	for t := p.nextToken(); t.Type != TOKEN_EOF; t = p.nextToken() {
+		p.putBack(t)
+		stmt, err := p.parseStmt()
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, stmt)
 	}
+	return result, nil
 }

@@ -5,6 +5,90 @@ import (
 	"testing"
 )
 
+func TestWithLookups(t *testing.T) {
+	var cases = []struct {
+		code       string
+		shouldPass bool
+		typ        string
+	}{
+		{`var b int = 2		
+var a int = b`,
+			true,
+			"int",
+		},
+		{`var b = 2
+var a int = b`,
+			true,
+			"int",
+		},
+		{`var b = 2
+var a int = b * 2`,
+			true,
+			"int",
+		},
+		{`var b int = 2, c int = 30, d int = 40
+var a int = b * c + d + 10`,
+			true,
+			"int",
+		},
+		{`var b = 2, c = 30, d = 40
+var a int = b * c + d + 10`,
+			true,
+			"int",
+		},
+		{`var b, c, d = 2, 30, 40
+var a int = b * c + d + 10`,
+			true,
+			"int",
+		},
+		{`var b int = 2		
+var a string = b`,
+			false,
+			"",
+		},
+		{`var b = 2		
+var a string = b`,
+			false,
+			"",
+		},
+	}
+
+	for i, c := range cases {
+		parser := NewParser(NewLexer([]rune(c.code)))
+		result, err := parser.Parse()
+		if err != nil {
+			t.Fail()
+			fmt.Printf("Failed parsing: %s\n", err)
+		}
+
+		var varStmt *VarStmt = nil
+
+		for _, stmt := range result {
+			varStmt = stmt.(*VarStmt)
+			err = varStmt.NegotiateTypes()
+			if err != nil {
+				break
+			}
+		}
+
+		if (err == nil) != c.shouldPass {
+			t.Fail()
+			fmt.Printf("Case %d: Bad code accepted or good code parsed with an error for '%s'\nError: %s\n",
+				i, c.code, err)
+			return
+		}
+
+		if c.shouldPass {
+			firstVar := varStmt.Vars[0]
+			if firstVar.Type.String() != c.typ || firstVar.Init.(TypedExpr).Type().String() != c.typ {
+				t.Fail()
+				fmt.Printf("Case %d: Bad type: %s, %s, %s\n", i, c.typ, firstVar.Type.String(),
+					firstVar.Init.(TypedExpr).Type().String())
+			}
+		}
+	}
+}
+
 func TestSimple(t *testing.T) {
 	var cases = []struct {
 		code       string

@@ -151,7 +151,7 @@ func testArgs(t *testing.T, code string, expected []Expr) {
 	in := []rune(code)
 	parser := NewParser(NewLexer(in))
 	parser.ignoreUnknowns = true
-	result, err := parser.parseArgs()
+	result, err := parser.parseArgs(0)
 	if err != nil {
 		fmt.Print(err)
 		t.Fail()
