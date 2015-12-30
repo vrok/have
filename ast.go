@@ -63,6 +63,7 @@ const (
 	KIND_POINTER
 	KIND_CUSTOM
 	KIND_STRUCT
+	KIND_TUPLE
 	KIND_UNKNOWN
 )
 
@@ -138,6 +139,34 @@ func (t *PointerType) Known() bool    { return t.To.Known() }
 func (t *PointerType) String() string { return "*" + t.To.String() }
 func (t *PointerType) Kind() Kind     { return KIND_POINTER }
 
+type TupleType struct {
+	Members []Type
+}
+
+func (t *TupleType) Known() bool {
+	for _, t := range t.Members {
+		if !t.Known() {
+			return false
+		}
+	}
+	return true
+}
+
+func (t *TupleType) String() string {
+	out := &bytes.Buffer{}
+	out.WriteByte('(')
+	for c, v := range t.Members {
+		fmt.Fprintf(out, v.String())
+		if c < len(t.Members) {
+			out.Write([]byte(", "))
+		}
+	}
+	out.WriteByte(')')
+	return out.String()
+}
+
+func (t *TupleType) Kind() Kind { return KIND_TUPLE }
+
 type StructType struct {
 	Members map[string]Type
 }
@@ -153,7 +182,7 @@ func (t *StructType) Known() bool {
 
 func (t *StructType) String() string {
 	out := &bytes.Buffer{}
-	out.Write([]byte("{"))
+	out.WriteByte('{')
 	c := 0
 	for k, v := range t.Members {
 		fmt.Fprintf(out, "%s: %s", k, v.String())
@@ -162,7 +191,7 @@ func (t *StructType) String() string {
 			out.Write([]byte(", "))
 		}
 	}
-	out.Write([]byte("}"))
+	out.WriteByte('}')
 	return out.String()
 }
 
