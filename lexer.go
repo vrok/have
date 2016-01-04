@@ -13,6 +13,7 @@ type Token struct {
 	Value  interface{}
 }
 
+//go:generate stringer -type=TokenType
 const (
 	TOKEN_EOF          TokenType = iota + 1
 	TOKEN_INDENT                 // indent - []rune of whitespace characters
@@ -57,6 +58,7 @@ const (
 	TOKEN_COMMA                  // ,
 	TOKEN_COLON                  // :
 	TOKEN_SEMICOLON              // ;
+	TOKEN_AMP                    // &
 )
 
 type Lexer struct {
@@ -319,6 +321,9 @@ func (l *Lexer) Next() (*Token, error) {
 	case ch == ':':
 		l.skip()
 		return l.retNewToken(TOKEN_COLON, nil)
+	case ch == '&':
+		l.skip()
+		return l.retNewToken(TOKEN_AMP, nil)
 	}
 
 	return nil, fmt.Errorf("Don't know what to do, '%c'", ch)

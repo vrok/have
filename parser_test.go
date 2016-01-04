@@ -36,7 +36,7 @@ func compareExpr(a, b Expr) (equal bool, msg string) {
 func testPrimaryExpr(t *testing.T, code string, expected Expr) {
 	in := []rune(code)
 	parser := NewParser(NewLexer(in))
-	parser.ignoreUnknowns = true
+	parser.dontLookup = true
 	result, err := parser.parsePrimaryExpr()
 	if err != nil {
 		fmt.Printf("Parsing primary expr failed: %s", err)
@@ -81,7 +81,7 @@ func TestPrimaryExpr(t *testing.T) {
 func testExpr(t *testing.T, code string, expected Expr) {
 	in := []rune(code)
 	parser := NewParser(NewLexer(in))
-	parser.ignoreUnknowns = true
+	parser.dontLookup = true
 	result, err := parser.parseExpr()
 	if eq, msg := compareExpr(result, expected); !eq || err != nil {
 		fmt.Printf("Error, expected:\n   %#v\nbut got:\n   %#v\nMSG: %s\n", expected, result, msg)
@@ -150,7 +150,7 @@ func TestParseType(t *testing.T) {
 func testArgs(t *testing.T, code string, expected []Expr) {
 	in := []rune(code)
 	parser := NewParser(NewLexer(in))
-	parser.ignoreUnknowns = true
+	parser.dontLookup = true
 	result, err := parser.parseArgs(0)
 	if err != nil {
 		fmt.Print(err)
@@ -275,7 +275,7 @@ func TestParseCompoundLiterals(t *testing.T) {
 	}
 	for _, c := range cases {
 		parser := NewParser(NewLexer([]rune(c.code)))
-		parser.ignoreUnknowns = true
+		parser.dontLookup = true
 		result, err := parser.parseCompoundLit()
 
 		// TODO: better assertions, more test cases.

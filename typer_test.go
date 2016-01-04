@@ -41,6 +41,37 @@ var a int = b * c + d + 10`,
 			true,
 			"int",
 		},
+		{`var b = struct:
+	x int
+var y int = b.x`,
+			true,
+			"int",
+		},
+		{`var b = struct:
+	x int
+var y = b.x`,
+			true,
+			"int",
+		},
+		{`var b = struct:
+	c struct:
+		d string
+var f = b.c.d`,
+			true,
+			"string",
+		},
+		{`var b = ((*struct:
+	c string)(&{c: "ech"}))
+var f = b.c`,
+			true,
+			"int",
+		},
+		{`var b = struct:
+	x int
+var y string = b.x`,
+			false,
+			"",
+		},
 		{`var b int = 2		
 var a string = b`,
 			false,
@@ -98,6 +129,26 @@ func TestSimple(t *testing.T) {
 		{`var a int = 1`,
 			true,
 			"int",
+		},
+		{`var a *int = &1`,
+			true,
+			"*int",
+		},
+		{`var a int = *&1`,
+			true,
+			"int",
+		},
+		{`var a = &*&1`,
+			true,
+			"*int",
+		},
+		{`var a *int = *1`,
+			false,
+			"",
+		},
+		{`var a = &1`,
+			true,
+			"*int",
 		},
 		{`var a string = "reksio"`,
 			true,
@@ -253,8 +304,13 @@ func TestSimple(t *testing.T) {
 	}
 
 	for i, c := range cases {
+		fmt.Printf("DOING CASE ---\n%s\n---\n", c.code)
 		parser := NewParser(NewLexer([]rune(c.code)))
 		result, err := parser.parseVarStmt()
+		if err != nil {
+			t.Fail()
+			fmt.Printf("Case %d: Failed parsing: %s\n", i, err)
+		}
 		err = result.Vars[0].NegotiateTypes()
 
 		if (err == nil) != c.shouldPass {

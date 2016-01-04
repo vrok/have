@@ -13,7 +13,7 @@ type Parser struct {
 	indentStack []string
 	identStack  *IdentStack
 
-	ignoreUnknowns bool
+	ignoreUnknowns, dontLookup bool
 }
 
 type IdentStack []map[string]*VarDecl
@@ -473,7 +473,10 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 	for i := 0; true; i++ {
 		p.skipWhiteSpace()
 
+		// FIXME: ideas to do it concisely without parser-wide variables?
+		p.ignoreUnknowns = true
 		el, err := p.parseExpr()
+		p.ignoreUnknowns = false
 		if err != nil {
 			return nil, err
 		}
@@ -565,6 +568,7 @@ func (p *Parser) parseType() (Type, error) {
 		if err != nil {
 			return nil, err
 		}
+		fmt.Printf("Heyooo %s\n", ptrTo.String())
 		return &PointerType{ptrTo}, nil
 	case TOKEN_MAP:
 		if p.expect(TOKEN_LBRACKET) == nil {
@@ -670,8 +674,9 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 		name := token.Value.(string)
 		ident := &Ident{expr: expr{token.Offset}, name: name}
 
-		if !p.ignoreUnknowns {
+		if !p.dontLookup {
 			if v := p.identStack.findVar(name); v == nil && !p.ignoreUnknowns {
+				panic(fmt.Errorf("ZZZ Unknown identifier: %s", name))
 				return nil, fmt.Errorf("Unknown identifier: %s", name)
 			} else {
 				ident.varDecl = v
@@ -695,7 +700,7 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 			return nil, err
 		}
 	default:
-		return nil, fmt.Errorf("Unexpected token (expected a primary expression): %c", token)
+		return nil, fmt.Errorf("Unexpected token (expected a primary expression): %s", token)
 	}
 
 loop:
@@ -711,7 +716,11 @@ loop:
 			if err != nil {
 				return nil, err
 			}
+			if t := p.expect(TOKEN_RPARENTH); t == nil {
+				return nil, fmt.Errorf("Expected `)`")
+			}
 			left = &FuncCall{expr{token.Offset}, left, args}
+			fmt.Printf("ZZZ oks %#v\n", left)
 		case TOKEN_LBRACKET:
 			index, err := p.parseExpr()
 			if err != nil {
@@ -747,8 +756,9 @@ loop:
 func (p *Parser) parseMaybeUnaryExpr() (Expr, error) {
 	token := p.nextToken()
 	isOp, _ := opSet[token.Type] // FIXME we should create another set with just unary operators
+	fmt.Printf("ZZZ czek for op %s\n", token.Type)
 	if isOp {
-		primaryExpr, err := p.parsePrimaryExpr()
+		primaryExpr, err := p.parseMaybeUnaryExpr()
 		if err != nil {
 			return nil, err
 		}
@@ -760,7 +770,7 @@ func (p *Parser) parseMaybeUnaryExpr() (Expr, error) {
 }
 
 var hierarchy [][]TokenType = [][]TokenType{
-	{TOKEN_MUL, TOKEN_DIV},
+	{TOKEN_MUL, TOKEN_DIV, TOKEN_AMP},
 	{TOKEN_PLUS, TOKEN_MINUS},
 	{TOKEN_SHL, TOKEN_SHR},
 	{TOKEN_LT, TOKEN_GT, TOKEN_EQ_GT, TOKEN_EQ_LT},
@@ -1009,7 +1019,8 @@ func (p *Parser) parseStmt() (Stmt, error) {
 		case TOKEN_EOF:
 			return nil, nil
 		default:
-			return nil, fmt.Errorf("Unexpected token: %#v", token)
+			panic(fmt.Errorf("Unexpected token: %s, %#v", token.Type, token))
+			return nil, fmt.Errorf("Unexpected token: %s, %#v", token.Type, token)
 		}
 	}
 }

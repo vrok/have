@@ -48,14 +48,17 @@ func (vd *VarDecl) NegotiateTypes() error {
 
 	vd.Type = nonilTyp(vd.Type)
 
+	fmt.Printf("ZZZ MOM TYPY %s oraz %s\n", vd.Type, typedInit.Type())
+
 	typ, err := NegotiateTypes(vd.Type, typedInit.Type())
-	if err != nil {
+	if err != nil || !typ.Known() {
 		// Try guessing. Literals like "1", or "{1, 2}" can be used
 		// to initialize variables of many types (int/double/etc,
 		// array/slice/struct), but if the type of the variable is
 		// unknown, we try to guess the type (for these examples
 		// it would be "int" and "[]int").
 		ok, guessedType := typedInit.GuessType()
+		fmt.Printf("ZZZ ZGODUJA %s %s\n", ok, guessedType)
 		if ok {
 			typ, err = NegotiateTypes(vd.Type, guessedType)
 		}
@@ -79,6 +82,48 @@ func (vd *VarDecl) NegotiateTypes() error {
 func (ex *BlankExpr) Type() Type                     { panic("nope") }
 func (ex *BlankExpr) ApplyType(typ Type) error       { panic("nope") }
 func (ex *BlankExpr) GuessType() (ok bool, typ Type) { panic("nope") }
+
+func (ex *TypeExpr) Type() Type { return ex.typ }
+func (ex *TypeExpr) ApplyType(typ Type) error {
+	if ex.typ.String() != typ.String() {
+		return fmt.Errorf("Different types, %s and %s", ex.typ.String(), typ.String())
+	}
+	return nil
+}
+func (ex *TypeExpr) GuessType() (ok bool, typ Type) { return false, nil }
+
+func (ex *DotSelector) Type() Type {
+	leftType := ex.Left.(TypedExpr).Type()
+	switch leftType.Kind() {
+	case KIND_STRUCT:
+		asStruct := leftType.(*StructType)
+		member, ok := asStruct.Members[ex.Right.name]
+		if !ok {
+			// no such member
+			return &UnknownType{}
+		}
+		return member
+	case KIND_POINTER:
+		panic("todo")
+	case KIND_UNKNOWN:
+		panic("todo")
+	case KIND_CUSTOM:
+		panic("todo")
+	default:
+		return &UnknownType{}
+	}
+}
+
+func (ex *DotSelector) ApplyType(typ Type) error {
+	if ex.Type().String() != typ.String() {
+		return fmt.Errorf("Type %s has no member named %s", ex.Left.(TypedExpr).Type().String(), ex.Right.name)
+	}
+	return nil
+}
+
+func (ex *DotSelector) GuessType() (ok bool, typ Type) {
+	return false, nil
+}
 
 func (ex *CompoundLit) Type() Type { return nonilTyp(ex.typ) }
 func (ex *CompoundLit) ApplyType(typ Type) error {
@@ -237,7 +282,21 @@ func (ex *BinaryOp) GuessType() (ok bool, typ Type) {
 }
 
 func (ex *UnaryOp) Type() Type {
-	return ex.Right.(TypedExpr).Type()
+	switch right := ex.Right.(TypedExpr); ex.op.Type {
+	case TOKEN_PLUS, TOKEN_MINUS, TOKEN_SHR, TOKEN_SHL:
+		return right.Type()
+	case TOKEN_MUL:
+		subType := right.Type()
+		if subType.Kind() != KIND_POINTER {
+			// underlying type is not a pointer
+			return &UnknownType{}
+		}
+		return subType.(*PointerType).To
+	case TOKEN_AMP:
+		return &PointerType{To: right.Type()}
+	default:
+		panic("todo")
+	}
 }
 
 func (ex *UnaryOp) ApplyType(typ Type) error {
@@ -245,11 +304,46 @@ func (ex *UnaryOp) ApplyType(typ Type) error {
 	// numeric operators for numeric types, no tuple types, etc).
 	// The way it should be implemented is to reuse as much as possible with BinaryOp.
 
-	return ex.Right.(TypedExpr).ApplyType(typ)
+	switch right := ex.Right.(TypedExpr); ex.op.Type {
+	case TOKEN_PLUS, TOKEN_MINUS, TOKEN_SHR, TOKEN_SHL:
+		return right.ApplyType(typ)
+	case TOKEN_MUL:
+		return right.ApplyType(&PointerType{To: typ})
+	case TOKEN_AMP:
+		if typ.Kind() != KIND_POINTER {
+			return fmt.Errorf("Not a pointer type")
+		}
+		to := typ.(*PointerType).To
+		return right.ApplyType(to)
+	default:
+		panic("todo")
+	}
 }
 
 func (ex *UnaryOp) GuessType() (ok bool, typ Type) {
-	return ex.Right.(TypedExpr).GuessType()
+	switch right := ex.Right.(TypedExpr); ex.op.Type {
+	case TOKEN_PLUS, TOKEN_MINUS, TOKEN_SHR, TOKEN_SHL:
+		//return right.ApplyType(typ)
+		return right.GuessType()
+	case TOKEN_MUL:
+		ok, typ := right.GuessType()
+		if !ok {
+			return false, nil
+		}
+		if typ.Kind() != KIND_POINTER {
+			return false, nil
+		}
+		return true, typ.(*PointerType).To
+	case TOKEN_AMP:
+		ok, typ := right.GuessType()
+		if !ok {
+			return false, nil
+		}
+		return true, &PointerType{To: typ}
+	default:
+		panic("todo")
+	}
+	//return ex.Right.(TypedExpr).GuessType()
 }
 
 func (ex *Ident) Type() Type {
@@ -385,7 +479,9 @@ func NegotiateTypes(t1, t2 Type) (Type, error) {
 		if t1.Kind() == KIND_UNKNOWN { // && t2.Kind() == KIND_UNKNOWN
 			return nil, fmt.Errorf("Too little information to infer data types")
 		}
-		return t1.Negotiate(t2)
+		// TODO: Maybe Negotiate() for types won't be needed at all?
+		//return t1.Negotiate(t2)
+		return nil, fmt.Errorf("Too little information to infer data types")
 	} else if t1.Kind() == KIND_UNKNOWN {
 		if !t2.Known() {
 			// If one type is completely unknown, the other has to be fully known.
