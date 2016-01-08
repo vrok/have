@@ -299,7 +299,7 @@ type DotSelector struct {
 }
 
 // implements PrimaryExpr
-type FuncCall struct {
+type FuncCallExpr struct {
 	expr
 
 	Left Expr

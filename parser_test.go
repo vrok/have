@@ -50,7 +50,7 @@ func testPrimaryExpr(t *testing.T, code string, expected Expr) {
 
 func TestPrimaryExpr(t *testing.T) {
 	testPrimaryExpr(t, "test", &Ident{expr{0}, "test", nil})
-	testPrimaryExpr(t, "test(arg)", &FuncCall{expr: expr{4}, Left: &Ident{expr{0}, "test", nil}, Args: nil}) // TODO: fill args
+	testPrimaryExpr(t, "test(arg)", &FuncCallExpr{expr: expr{4}, Left: &Ident{expr{0}, "test", nil}, Args: nil}) // TODO: fill args
 	testPrimaryExpr(t, "test.tere[123]",
 		&ArrayExpr{
 			expr: expr{9},

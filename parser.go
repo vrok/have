@@ -676,7 +676,7 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 
 		if !p.dontLookup {
 			if v := p.identStack.findVar(name); v == nil && !p.ignoreUnknowns {
-				panic(fmt.Errorf("ZZZ Unknown identifier: %s", name))
+				//panic(fmt.Errorf("ZZZ Unknown identifier: %s", name))
 				return nil, fmt.Errorf("Unknown identifier: %s", name)
 			} else {
 				ident.varDecl = v
@@ -719,7 +719,7 @@ loop:
 			if t := p.expect(TOKEN_RPARENTH); t == nil {
 				return nil, fmt.Errorf("Expected `)`")
 			}
-			left = &FuncCall{expr{token.Offset}, left, args}
+			left = &FuncCallExpr{expr{token.Offset}, left, args}
 			fmt.Printf("ZZZ oks %#v\n", left)
 		case TOKEN_LBRACKET:
 			index, err := p.parseExpr()
