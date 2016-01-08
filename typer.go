@@ -83,6 +83,16 @@ func (ex *BlankExpr) Type() Type                     { panic("nope") }
 func (ex *BlankExpr) ApplyType(typ Type) error       { panic("nope") }
 func (ex *BlankExpr) GuessType() (ok bool, typ Type) { panic("nope") }
 
+func (ex *FuncCallExpr) Type() Type {
+	/*callee := ex.Left
+	switch t := callee.(type) {
+			*TypeExpr:
+	}*/
+	panic("nope")
+}
+func (ex *FuncCallExpr) ApplyType(typ Type) error       { panic("nope") }
+func (ex *FuncCallExpr) GuessType() (ok bool, typ Type) { panic("nope") }
+
 func (ex *TypeExpr) Type() Type { return ex.typ }
 func (ex *TypeExpr) ApplyType(typ Type) error {
 	if ex.typ.String() != typ.String() {
@@ -347,16 +357,20 @@ func (ex *UnaryOp) GuessType() (ok bool, typ Type) {
 }
 
 func (ex *Ident) Type() Type {
-	if ex.varDecl != nil {
-		return ex.varDecl.Type
+	if ex.object != nil && ex.object.ObjectType() == OBJECT_VAR {
+		return ex.object.(*VarDecl).Type
 	}
 	//fmt.Printf("ZZZ ret nil\n")
 	return nil
 }
 
 func (ex *Ident) ApplyType(typ Type) error {
-	if ex.varDecl.Type.String() != typ.String() {
-		return fmt.Errorf("Identifier %s is of type %s", ex.name, ex.varDecl.Type.String())
+	if ex.object.ObjectType() != OBJECT_VAR {
+		return fmt.Errorf("Identifier %s is not a variable", ex.name)
+	}
+
+	if ex.object.(*VarDecl).Type.String() != typ.String() {
+		return fmt.Errorf("Identifier %s is of type %s", ex.name, ex.object.(*VarDecl).Type.String())
 	}
 	return nil
 }

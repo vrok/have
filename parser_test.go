@@ -126,6 +126,7 @@ func TestParseExpr(t *testing.T) {
 func testTypes(t *testing.T, code string, expected Type) {
 	in := []rune(code)
 	parser := NewParser(NewLexer(in))
+	parser.dontLookup = true
 	result, err := parser.parseType()
 	if err != nil {
 		fmt.Print(err)
@@ -400,7 +401,7 @@ func TestVarDecl(t *testing.T) {
 			expr: expr{},
 			Vars: []*VarDecl{
 				&VarDecl{
-					Name: "x",
+					name: "x",
 					Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 					Init: &BlankExpr{},
 				},
@@ -412,7 +413,7 @@ func TestVarDecl(t *testing.T) {
 				expr: expr{},
 				Vars: []*VarDecl{
 					&VarDecl{
-						Name: "x",
+						name: "x",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BinaryOp{
 							expr: expr{pos: 14},
@@ -437,7 +438,7 @@ func TestVarDecl(t *testing.T) {
 				expr: expr{pos: 0},
 				Vars: []*VarDecl{
 					&VarDecl{
-						Name: "x",
+						name: "x",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
 							expr:  expr{pos: 14},
@@ -445,7 +446,7 @@ func TestVarDecl(t *testing.T) {
 						},
 					},
 					&VarDecl{
-						Name: "y",
+						name: "y",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
 							expr:  expr{pos: 17},
@@ -461,7 +462,7 @@ func TestVarDecl(t *testing.T) {
 				expr: expr{},
 				Vars: []*VarDecl{
 					&VarDecl{
-						Name: "x",
+						name: "x",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
 							expr: expr{pos: 15},
@@ -473,7 +474,7 @@ func TestVarDecl(t *testing.T) {
 						},
 					},
 					&VarDecl{
-						Name: "y",
+						name: "y",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
 							expr: expr{pos: 18},
@@ -485,7 +486,7 @@ func TestVarDecl(t *testing.T) {
 						},
 					},
 					&VarDecl{
-						Name: "z",
+						name: "z",
 						Type: &UnknownType{},
 						Init: &BasicLit{
 							expr: expr{pos: 26},
@@ -505,7 +506,7 @@ func TestVarDecl(t *testing.T) {
 				expr: expr{},
 				Vars: []*VarDecl{
 					&VarDecl{
-						Name: "x",
+						name: "x",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
 							expr: expr{pos: 15},
@@ -517,7 +518,7 @@ func TestVarDecl(t *testing.T) {
 						},
 					},
 					&VarDecl{
-						Name: "y",
+						name: "y",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
 							expr: expr{pos: 19},
@@ -537,12 +538,12 @@ func TestVarDecl(t *testing.T) {
 				expr: expr{},
 				Vars: []*VarDecl{
 					&VarDecl{
-						Name: "x",
+						name: "x",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: nil,
 					},
 					&VarDecl{
-						Name: "y",
+						name: "y",
 						Type: &UnknownType{},
 						Init: &BasicLit{
 							expr: expr{pos: 15},

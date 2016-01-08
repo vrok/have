@@ -48,6 +48,7 @@ const (
 	TOKEN_STRUCT                 // the "struct" keyword
 	TOKEN_MAP                    // the "map" keyword
 	TOKEN_FUNC                   // the "func" keyword
+	TOKEN_TYPE                   // the "type" keyword
 	TOKEN_GT                     // >
 	TOKEN_LT                     // <
 	TOKEN_MUL                    // *
@@ -223,6 +224,8 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.retNewToken(TOKEN_MAP, nil)
 		case "func":
 			return l.retNewToken(TOKEN_FUNC, nil)
+		case "type":
+			return l.retNewToken(TOKEN_TYPE, nil)
 		default:
 			return l.retNewToken(TOKEN_WORD, s)
 		}

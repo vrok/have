@@ -17,11 +17,39 @@ type Stmt interface {
 	Expr
 }
 
+type ObjectType int
+
+const (
+	OBJECT_VAR = ObjectType(iota + 1)
+	OBJECT_TYPE
+)
+
+// This serves a similar purpose to Go's types.Object
+type Object interface {
+	Name() string
+	ObjectType() ObjectType
+}
+
+// Implements Object
 type VarDecl struct {
-	Name string
+	name string
 	Type Type
 	Init Expr
 }
+
+func (o *VarDecl) Name() string           { return o.name }
+func (o *VarDecl) ObjectType() ObjectType { return OBJECT_VAR }
+
+// Implements Object
+type TypeDecl struct {
+	expr
+
+	name string
+	Type Type
+}
+
+func (o *TypeDecl) Name() string           { return o.name }
+func (o *TypeDecl) ObjectType() ObjectType { return OBJECT_TYPE }
 
 type CodeBlock struct {
 	Statements []Stmt
@@ -200,16 +228,16 @@ func (t *StructType) Kind() Kind { return KIND_STRUCT }
 type CustomType struct {
 	Name    string
 	Package string // "" means local
-	Actual  Type
+	Decl    *TypeDecl
 }
 
 func (t *CustomType) Known() bool    { return true }
 func (t *CustomType) String() string { return t.Name }
 func (t *CustomType) Kind() Kind     { return KIND_CUSTOM }
 func (t *CustomType) RootType() Type {
-	current := t.Actual
+	current := t.Decl.Type
 	for current.Kind() == KIND_CUSTOM {
-		current = current.(*CustomType).Actual
+		current = current.(*CustomType).Decl.Type
 	}
 	return current
 }
@@ -320,8 +348,8 @@ type FuncDecl struct {
 type Ident struct {
 	expr
 
-	name    string
-	varDecl *VarDecl
+	name   string
+	object Object
 	//token *Token
 }
 

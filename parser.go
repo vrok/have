@@ -16,10 +16,10 @@ type Parser struct {
 	ignoreUnknowns, dontLookup bool
 }
 
-type IdentStack []map[string]*VarDecl
+type IdentStack []map[string]Object
 
 func (is *IdentStack) pushScope() {
-	*is = append(*is, map[string]*VarDecl{})
+	*is = append(*is, map[string]Object{})
 }
 
 func (is *IdentStack) popScope() {
@@ -30,14 +30,25 @@ func (is *IdentStack) empty() bool {
 	return len(*is) == 0
 }
 
-func (is *IdentStack) addVar(v *VarDecl) {
-	(*is)[len(*is)-1][v.Name] = v
+func (is *IdentStack) addObject(v Object) {
+	(*is)[len(*is)-1][v.Name()] = v
 }
 
-func (is *IdentStack) findVar(name string) *VarDecl {
+// Returns nil when not found
+func (is *IdentStack) findObject(name string) Object {
 	for i := len(*is) - 1; i >= 0; i-- {
 		if v, ok := (*is)[i][name]; ok {
 			return v
+		}
+	}
+	return nil
+}
+
+// Returns nil when not found
+func (is *IdentStack) findTypeDecl(name string) *TypeDecl {
+	for i := len(*is) - 1; i >= 0; i-- {
+		if v, ok := (*is)[i][name]; ok && v.ObjectType() == OBJECT_TYPE {
+			return v.(*TypeDecl)
 		}
 	}
 	return nil
@@ -57,7 +68,7 @@ func (p *Parser) nextToken() *Token {
 }
 
 func NewParser(lex *Lexer) *Parser {
-	return &Parser{lex: lex, identStack: &IdentStack{map[string]*VarDecl{}}}
+	return &Parser{lex: lex, identStack: &IdentStack{map[string]Object{}}}
 }
 
 // Put back a token.
@@ -312,7 +323,7 @@ func (p *Parser) parseVarStmt() (*VarStmt, error) {
 	}
 
 	for _, v := range vars {
-		p.identStack.addVar(v)
+		p.identStack.addObject(v)
 	}
 
 	return &VarStmt{expr{ident.Offset}, vars}, nil
@@ -338,7 +349,7 @@ groupsLoop:
 			token := p.nextToken()
 			switch token.Type {
 			case TOKEN_WORD:
-				decl.Name = token.Value.(string)
+				decl.name = token.Value.(string)
 			case TOKEN_ASSIGN:
 				break loop
 			default:
@@ -632,7 +643,14 @@ func (p *Parser) parseType() (Type, error) {
 			"string", "uint", "uint16", "uint32", "uint64", "uint8", "uintptr":
 			return &SimpleType{ID: simpleTypeStrToID[name]}, nil
 		default:
-			return &CustomType{Name: name}, nil
+			var decl *TypeDecl = nil
+			if !p.dontLookup {
+				decl = p.identStack.findTypeDecl(name)
+				if !p.ignoreUnknowns && decl == nil {
+					return nil, fmt.Errorf("Type %s is unknown", name)
+				}
+			}
+			return &CustomType{Name: name, Decl: decl}, nil
 		}
 	case TOKEN_STRUCT:
 		p.putBack(token)
@@ -675,11 +693,11 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 		ident := &Ident{expr: expr{token.Offset}, name: name}
 
 		if !p.dontLookup {
-			if v := p.identStack.findVar(name); v == nil && !p.ignoreUnknowns {
+			if v := p.identStack.findObject(name); v == nil && !p.ignoreUnknowns {
 				//panic(fmt.Errorf("ZZZ Unknown identifier: %s", name))
 				return nil, fmt.Errorf("Unknown identifier: %s", name)
 			} else {
-				ident.varDecl = v
+				ident.object = v
 			}
 		}
 		left = ident
@@ -906,7 +924,7 @@ func (p *Parser) parseResultDecl() ([]*VarDecl, error) {
 				return nil, err
 			}
 			result = append(result, &VarDecl{
-				Name: "",
+				name: "",
 				Type: typ,
 				Init: NewBlankExpr(),
 			})
@@ -957,7 +975,7 @@ func (p *Parser) parseFunc() (Expr, error) {
 
 	// Make arguments accessiable within the function body.
 	for _, arg := range args {
-		p.identStack.addVar(arg)
+		p.identStack.addObject(arg)
 	}
 
 	if t := p.expect(TOKEN_RPARENTH); t == nil {
@@ -977,7 +995,7 @@ func (p *Parser) parseFunc() (Expr, error) {
 
 		// Make named results accessiable within the function body.
 		for _, r := range results {
-			p.identStack.addVar(r)
+			p.identStack.addObject(r)
 		}
 
 		if t := p.expect(TOKEN_COLON); t == nil {
@@ -999,6 +1017,29 @@ func (p *Parser) parseFunc() (Expr, error) {
 	}, nil
 }
 
+func (p *Parser) parseTypeDecl() (*TypeDecl, error) {
+	startTok := p.expect(TOKEN_TYPE)
+	if startTok == nil {
+		return nil, fmt.Errorf("Type declaration needs to start with 'type' keyword")
+	}
+
+	name := p.expect(TOKEN_WORD)
+	if name == nil {
+		return nil, fmt.Errorf("Type name expected")
+	}
+
+	realType, err := p.parseType()
+	if err != nil {
+		return nil, err
+	}
+
+	return &TypeDecl{
+		expr: expr{startTok.Offset},
+		name: name.Value.(string),
+		Type: realType,
+	}, nil
+}
+
 func (p *Parser) parseStmt() (Stmt, error) {
 	for {
 		token := p.nextToken()
@@ -1012,6 +1053,9 @@ func (p *Parser) parseStmt() (Stmt, error) {
 		case TOKEN_FUNC:
 			p.putBack(token)
 			return p.parseFunc()
+		case TOKEN_TYPE:
+			p.putBack(token)
+			return p.parseTypeDecl()
 		case TOKEN_INDENT:
 			if token.Value.(string) != "" {
 				return nil, fmt.Errorf("Unexpected indent")
