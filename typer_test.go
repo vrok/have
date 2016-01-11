@@ -36,6 +36,117 @@ var a int = b * c + d + 10`,
 			true,
 			"int",
 		},
+		{`type number int
+var a number = 1`,
+			true,
+			"number",
+		},
+		{`type text string
+var a text = "trele morele"`,
+			true,
+			"text",
+		},
+		{`type number int
+var a number = "trele morele"`,
+			false,
+			"",
+		},
+		{`type text string
+type scribble text
+var a scribble= "trele morele"`,
+			true,
+			"scribble",
+		},
+		{`type pint *int
+var x = 1
+var a pint = &x`,
+			true,
+			"pint",
+		},
+		{`type text string
+var x string = "1"
+var a text = x`,
+			false,
+			"",
+		},
+		{`type hash map[int]string
+var b hash = {1: "aaa"}
+var a hash = b`,
+			true,
+			"hash",
+		},
+		{`type hash map[int]string
+var b hash = {1: "aaa"}
+var a map[int]string = b`,
+			true,
+			"map[int]string",
+		},
+		{`type hash map[int]string
+var b map[int]string = {1: "aaa"}
+var a hash = b`,
+			true,
+			"hash",
+		},
+		{`type chain []string
+var b []string = {"aaa"}
+var a chain = b`,
+			true,
+			"chain",
+		},
+		{`type hash map[int]string
+var b hash = {1: "aaa"}
+var a map[string]string = b`,
+			false,
+			"",
+		},
+		{`type point struct:
+	x int
+	y int
+var a point = {}
+var b point = a`,
+			true,
+			"point",
+		},
+		{`type point struct:
+	x int
+	y int
+var a point = {1, 2}
+var b point = a`,
+			true,
+			"point",
+		},
+		{`type point struct:
+	x int
+	y int
+var a point = {x: 1, y: 2}`,
+			true,
+			"point",
+		},
+		{`type point struct:
+	x int
+	y int
+var a point = {x: 1, z: 2}`,
+			false,
+			"",
+		},
+		{`type point struct:
+	x int
+	y int
+var a point = {x: 1, y: "2"}`,
+			false,
+			"",
+		},
+		/* TODO: make it pass
+		{`type point struct:
+			x int
+			y int
+		var a struct:
+			x int
+			y int = {}
+		var b point = a`,
+					false,
+					"point",
+				},*/
 		{`var b, c, d = 2, 30, 40
 var a int = b * c + d + 10`,
 			true,
@@ -59,13 +170,13 @@ var y = b.x`,
 var f = b.c.d`,
 			true,
 			"string",
-		},
-		{`var b = ((*struct:
-	c string)(&{c: "ech"}))
-var f = b.c`,
-			true,
-			"int",
-		},
+		}, /*
+					{`var b = ((*struct:
+				c string)(&{c: "ech"}))
+			var f = b.c`,
+						true,
+						"int",
+					},*/
 		{`var b = struct:
 	x int
 var y string = b.x`,
@@ -89,31 +200,34 @@ var a string = b`,
 		result, err := parser.Parse()
 		if err != nil {
 			t.Fail()
-			fmt.Printf("Failed parsing: %s\n", err)
+			fmt.Printf("FAIL: Failed parsing: %s\n", err)
 		}
 
 		var varStmt *VarStmt = nil
+		var ok = false
 
 		for _, stmt := range result {
-			varStmt = stmt.(*VarStmt)
-			err = varStmt.NegotiateTypes()
-			if err != nil {
-				break
+			varStmt, ok = stmt.(*VarStmt)
+			if ok {
+				err = varStmt.NegotiateTypes()
+				if err != nil {
+					break
+				}
 			}
 		}
 
 		if (err == nil) != c.shouldPass {
 			t.Fail()
-			fmt.Printf("Case %d: Bad code accepted or good code parsed with an error for '%s'\nError: %s\n",
+			fmt.Printf("FAIL: Case %d: Bad code accepted or good code parsed with an error for '%s'\nError: %s\n",
 				i, c.code, err)
 			return
 		}
 
 		if c.shouldPass {
 			firstVar := varStmt.Vars[0]
-			if firstVar.Type.String() != c.typ || firstVar.Init.(TypedExpr).Type().String() != c.typ {
+			if firstVar.Type.String() != c.typ || !IsAssignable(firstVar.Init.(TypedExpr).Type(), firstVar.Type) {
 				t.Fail()
-				fmt.Printf("Case %d: Bad type: %s, %s, %s\n", i, c.typ, firstVar.Type.String(),
+				fmt.Printf("FAIL: Case %d: Bad type: %s, %s, %s\n", i, c.typ, firstVar.Type.String(),
 					firstVar.Init.(TypedExpr).Type().String())
 			}
 		}

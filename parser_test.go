@@ -364,7 +364,7 @@ func TestFuncDecl(t *testing.T) {
 		{`func abc(x, y int, z int = 5) int:
 		  var x = 1
 		`, true},
-		{`func abc() int, float:
+		{`func abc() int, float64:
   var x = 1
 `, true},
 		{`func abc() (x int):
@@ -372,7 +372,7 @@ func TestFuncDecl(t *testing.T) {
 `, true},
 		{`func abc() int, struct:
     x int
-    y float:
+    y float64:
   var x = 1
 `, true},
 	}

@@ -541,7 +541,7 @@ func (p *Parser) parseStruct() (*StructType, error) {
 		return nil, err
 	}
 
-	result := &StructType{Members: map[string]Type{}}
+	result := &StructType{Members: map[string]Type{}, Keys: []string{}}
 	for {
 		token := p.nextToken()
 
@@ -553,6 +553,7 @@ func (p *Parser) parseStruct() (*StructType, error) {
 				return nil, err
 			}
 			result.Members[name] = typ
+			result.Keys = append(result.Keys, name)
 		case TOKEN_INDENT:
 			p.putBack(token)
 			end, err := p.checkIndentEndOrNoToken(TOKEN_WORD)
@@ -1033,11 +1034,13 @@ func (p *Parser) parseTypeDecl() (*TypeDecl, error) {
 		return nil, err
 	}
 
-	return &TypeDecl{
+	result := &TypeDecl{
 		expr: expr{startTok.Offset},
 		name: name.Value.(string),
 		Type: realType,
-	}, nil
+	}
+	p.identStack.addObject(result)
+	return result, nil
 }
 
 func (p *Parser) parseStmt() (Stmt, error) {

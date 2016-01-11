@@ -33,6 +33,33 @@ func nonilTyp(t Type) Type {
 	return t
 }
 
+// Implements the definition of underlying types from the Go spec.
+func UnderlyingType(t Type) Type {
+	if t.Kind() == KIND_CUSTOM {
+		return t.(*CustomType).Decl.Type
+	}
+	return t
+}
+
+// Implements the definition of named types from the Go spec.
+func IsNamed(t Type) bool {
+	return t.Kind() == KIND_CUSTOM || t.Kind() == KIND_SIMPLE
+}
+
+// Implements the definition of unnamed types from the Go spec.
+func IsUnnamed(t Type) bool {
+	return !IsNamed(t)
+}
+
+// Implements the definition of assignability from the Go spec.
+func IsAssignable(to, what Type) bool {
+	if IsNamed(to) && IsNamed(what) {
+		return to.String() == what.String()
+	}
+	// TODO: handle other cases (nils, interfaces, etc.)
+	return UnderlyingType(to).String() == UnderlyingType(what).String()
+}
+
 func (vs *VarStmt) NegotiateTypes() error {
 	for _, v := range vs.Vars {
 		err := v.NegotiateTypes()
@@ -139,6 +166,10 @@ func (ex *CompoundLit) Type() Type { return nonilTyp(ex.typ) }
 func (ex *CompoundLit) ApplyType(typ Type) error {
 	var apply = false
 
+	if typ.Kind() == KIND_CUSTOM {
+		typ = typ.(*CustomType).RootType()
+	}
+
 	switch typ.Kind() {
 	case KIND_SLICE:
 		asSlice := typ.(*SliceType)
@@ -171,7 +202,44 @@ func (ex *CompoundLit) ApplyType(typ Type) error {
 			}
 		}
 	case KIND_STRUCT:
-		panic("todo")
+		asStruct := typ.(*StructType)
+
+		switch ex.kind {
+		case COMPOUND_EMPTY:
+			apply = true
+		case COMPOUND_LISTLIKE:
+			if len(ex.elems) != len(asStruct.Members) {
+				return fmt.Errorf("Type has %d members, but literal has just %d",
+					len(asStruct.Members), len(ex.elems))
+			}
+
+			for i, el := range ex.elems {
+				if err := el.(TypedExpr).ApplyType(asStruct.GetTypeN(i)); err != nil {
+					return err
+				}
+			}
+			apply = true
+		case COMPOUND_MAPLIKE:
+			// TODO: check for duplicates in the literal
+			for i := 0; i < len(ex.elems)/2; i++ {
+				elName, elType := ex.elems[2*i], ex.elems[2*i+1]
+
+				ident, ok := elName.(*Ident)
+				if !ok {
+					return fmt.Errorf("Expected a member name")
+				}
+				name := ident.name
+				memb, ok := asStruct.Members[name]
+				if !ok {
+					return fmt.Errorf("No member named %s", name)
+				}
+				if err := elType.(TypedExpr).ApplyType(memb); err != nil {
+					return err
+				}
+			}
+			apply = true
+		}
+		//panic("todo")
 	case KIND_MAP:
 		asMap := typ.(*MapType)
 
@@ -320,6 +388,7 @@ func (ex *UnaryOp) ApplyType(typ Type) error {
 	case TOKEN_MUL:
 		return right.ApplyType(&PointerType{To: typ})
 	case TOKEN_AMP:
+		typ = UnderlyingType(typ)
 		if typ.Kind() != KIND_POINTER {
 			return fmt.Errorf("Not a pointer type")
 		}
@@ -369,7 +438,8 @@ func (ex *Ident) ApplyType(typ Type) error {
 		return fmt.Errorf("Identifier %s is not a variable", ex.name)
 	}
 
-	if ex.object.(*VarDecl).Type.String() != typ.String() {
+	//if ex.object.(*VarDecl).Type.String() != typ.String() {
+	if !IsAssignable(typ, ex.object.(*VarDecl).Type) {
 		return fmt.Errorf("Identifier %s is of type %s", ex.name, ex.object.(*VarDecl).Type.String())
 	}
 	return nil
@@ -478,11 +548,15 @@ func (t *StructType) Negotiate(other Type) (Type, error) {
 	panic("todo")
 }
 
+func (t *TupleType) Negotiate(other Type) (Type, error) {
+	panic("todo")
+}
+
 func NegotiateTypes(t1, t2 Type) (Type, error) {
 	if t1.Known() && t2.Known() {
 		// Both types are fully known, no negotiation needed, just
 		// check if they are the same.
-		if t1.String() != t2.String() {
+		if !IsAssignable(t1, t2) {
 			return nil, fmt.Errorf("Wanted type %s, but got type %s",
 				t1.String(), t2.String())
 		}
