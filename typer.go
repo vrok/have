@@ -75,8 +75,6 @@ func (vd *VarDecl) NegotiateTypes() error {
 
 	vd.Type = nonilTyp(vd.Type)
 
-	fmt.Printf("ZZZ MOM TYPY %s oraz %s\n", vd.Type, typedInit.Type())
-
 	typ, err := NegotiateTypes(vd.Type, typedInit.Type())
 	if err != nil || !typ.Known() {
 		// Try guessing. Literals like "1", or "{1, 2}" can be used
@@ -85,7 +83,6 @@ func (vd *VarDecl) NegotiateTypes() error {
 		// unknown, we try to guess the type (for these examples
 		// it would be "int" and "[]int").
 		ok, guessedType := typedInit.GuessType()
-		fmt.Printf("ZZZ ZGODUJA %s %s\n", ok, guessedType)
 		if ok {
 			typ, err = NegotiateTypes(vd.Type, guessedType)
 		}
@@ -429,7 +426,6 @@ func (ex *Ident) Type() Type {
 	if ex.object != nil && ex.object.ObjectType() == OBJECT_VAR {
 		return ex.object.(*VarDecl).Type
 	}
-	//fmt.Printf("ZZZ ret nil\n")
 	return nil
 }
 
@@ -440,7 +436,7 @@ func (ex *Ident) ApplyType(typ Type) error {
 
 	//if ex.object.(*VarDecl).Type.String() != typ.String() {
 	if !IsAssignable(typ, ex.object.(*VarDecl).Type) {
-		return fmt.Errorf("Identifier %s is of type %s", ex.name, ex.object.(*VarDecl).Type.String())
+		return fmt.Errorf("Identifier %s is of type %s, can't assign type %s to it", ex.name, ex.object.(*VarDecl).Type, typ)
 	}
 	return nil
 }

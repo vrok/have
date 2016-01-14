@@ -580,7 +580,6 @@ func (p *Parser) parseType() (Type, error) {
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("Heyooo %s\n", ptrTo.String())
 		return &PointerType{ptrTo}, nil
 	case TOKEN_MAP:
 		if p.expect(TOKEN_LBRACKET) == nil {
@@ -695,7 +694,6 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 
 		if !p.dontLookup {
 			if v := p.identStack.findObject(name); v == nil && !p.ignoreUnknowns {
-				//panic(fmt.Errorf("ZZZ Unknown identifier: %s", name))
 				return nil, fmt.Errorf("Unknown identifier: %s", name)
 			} else {
 				ident.object = v
@@ -739,7 +737,6 @@ loop:
 				return nil, fmt.Errorf("Expected `)`")
 			}
 			left = &FuncCallExpr{expr{token.Offset}, left, args}
-			fmt.Printf("ZZZ oks %#v\n", left)
 		case TOKEN_LBRACKET:
 			index, err := p.parseExpr()
 			if err != nil {
@@ -775,7 +772,6 @@ loop:
 func (p *Parser) parseMaybeUnaryExpr() (Expr, error) {
 	token := p.nextToken()
 	isOp, _ := opSet[token.Type] // FIXME we should create another set with just unary operators
-	fmt.Printf("ZZZ czek for op %s\n", token.Type)
 	if isOp {
 		primaryExpr, err := p.parseMaybeUnaryExpr()
 		if err != nil {

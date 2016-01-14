@@ -136,17 +136,16 @@ var a point = {x: 1, y: "2"}`,
 			false,
 			"",
 		},
-		/* TODO: make it pass
 		{`type point struct:
-			x int
-			y int
-		var a struct:
-			x int
-			y int = {}
-		var b point = a`,
-					false,
-					"point",
-				},*/
+	x int
+	y int
+var a struct:
+	x int
+	y int = {}
+var b point = a`,
+			true,
+			"point",
+		},
 		{`var b, c, d = 2, 30, 40
 var a int = b * c + d + 10`,
 			true,
@@ -418,7 +417,6 @@ func TestSimple(t *testing.T) {
 	}
 
 	for i, c := range cases {
-		fmt.Printf("DOING CASE ---\n%s\n---\n", c.code)
 		parser := NewParser(NewLexer([]rune(c.code)))
 		result, err := parser.parseVarStmt()
 		if err != nil {

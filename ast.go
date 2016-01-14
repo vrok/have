@@ -231,11 +231,9 @@ func (t *StructType) Known() bool {
 func (t *StructType) String() string {
 	out := &bytes.Buffer{}
 	out.WriteByte('{')
-	c := 0
-	for k, v := range t.Members {
-		fmt.Fprintf(out, "%s: %s", k, v.String())
-		c++
-		if c < len(t.Members) {
+	for i, k := range t.Keys {
+		fmt.Fprintf(out, "%s: %s", k, t.Members[k].String())
+		if (i + 1) < len(t.Members) {
 			out.Write([]byte(", "))
 		}
 	}
