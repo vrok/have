@@ -169,13 +169,13 @@ var y = b.x`,
 var f = b.c.d`,
 			true,
 			"string",
-		}, /*
-					{`var b = ((*struct:
-				c string)(&{c: "ech"}))
-			var f = b.c`,
-						true,
-						"int",
-					},*/
+		},
+		{`var b = ((*struct:
+	c string)(&{c: "ech"}))
+var f = b.c`,
+			true,
+			"string",
+		},
 		{`var b = struct:
 	x int
 var y string = b.x`,

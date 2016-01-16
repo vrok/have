@@ -107,15 +107,106 @@ func (ex *BlankExpr) Type() Type                     { panic("nope") }
 func (ex *BlankExpr) ApplyType(typ Type) error       { panic("nope") }
 func (ex *BlankExpr) GuessType() (ok bool, typ Type) { panic("nope") }
 
-func (ex *FuncCallExpr) Type() Type {
-	/*callee := ex.Left
-	switch t := callee.(type) {
-			*TypeExpr:
-	}*/
-	panic("nope")
+// Implements convertability definition from Go spec
+// https://golang.org/ref/spec#Conversions
+func IsConvertable(what TypedExpr, to Type) bool {
+	wt := what.Type()
+
+	if IsAssignable(to, wt) {
+		return true
+	}
+
+	if UnderlyingType(to).String() == UnderlyingType(wt).String() {
+		return true
+	}
+
+	if to.Kind() == KIND_POINTER && wt.Kind() == KIND_POINTER &&
+		UnderlyingType(wt.(*PointerType).To).String() == UnderlyingType(to.(*PointerType).To).String() {
+		return true
+	}
+
+	// TODO cases:
+	// x's type and T are both integer or floating point types.
+	// x's type and T are both complex types.
+	// x is an integer or a slice of bytes or runes and T is a string type.
+	// x is a string and T is a slice of bytes or runes.
+
+	return false
 }
-func (ex *FuncCallExpr) ApplyType(typ Type) error       { panic("nope") }
-func (ex *FuncCallExpr) GuessType() (ok bool, typ Type) { panic("nope") }
+
+func (ex *FuncCallExpr) Type() Type {
+	//var typ Type = nil
+	//var fun *FuncDecl = nil
+
+	callee := ex.Left
+	switch t := callee.(type) {
+	case *UnaryOp:
+		if t, ok := t.CheckForTypeName(); ok {
+			return t
+		} else {
+			// TODO:
+			// fun = ...
+			panic("todo")
+		}
+	case *TypeExpr:
+		if len(ex.Args) != 1 {
+			panic("todo - report error")
+		}
+		if IsConvertable(ex.Args[0].(TypedExpr), t.typ) {
+			return t.typ
+		}
+	default:
+		panic(fmt.Errorf("todo, %#v", t))
+	}
+	return &UnknownType{}
+}
+func (ex *FuncCallExpr) ApplyType(typ Type) error {
+
+	var conversion Type = nil
+
+	callee := ex.Left
+	switch t := callee.(type) {
+	case *UnaryOp:
+		if p, ok := t.CheckForTypeName(); ok {
+			conversion = p
+		} else {
+			// TODO:
+			// fun = ...
+			panic("todo")
+		}
+	case *TypeExpr:
+		conversion = t.typ
+	default:
+		panic("todo")
+	}
+
+	if conversion != nil {
+		if len(ex.Args) != 1 {
+			return fmt.Errorf("Type conversion takes exactly one argument")
+		}
+		// Just try applying, ignore error - even if it fails if might still be convertible.
+		ex.Args[0].(TypedExpr).ApplyType(conversion)
+		if !IsConvertable(ex.Args[0].(TypedExpr), conversion) {
+			return fmt.Errorf("Impossible conversion from %s to %s", ex.Args[0].(TypedExpr).Type(), conversion)
+		}
+		if !IsAssignable(typ, conversion) {
+			return fmt.Errorf("Cannot assign %s to %s", conversion, typ)
+		}
+		return nil
+	}
+
+	// TODO: funcion calls
+	panic("todo")
+}
+func (ex *FuncCallExpr) GuessType() (ok bool, typ Type) {
+	callee := ex.Left
+	switch t := callee.(type) {
+	case *TypeExpr:
+		return true, t.typ
+	default:
+		panic("todo")
+	}
+}
 
 func (ex *TypeExpr) Type() Type { return ex.typ }
 func (ex *TypeExpr) ApplyType(typ Type) error {
@@ -129,6 +220,13 @@ func (ex *TypeExpr) GuessType() (ok bool, typ Type) { return false, nil }
 func (ex *DotSelector) Type() Type {
 	leftType := ex.Left.(TypedExpr).Type()
 	switch leftType.Kind() {
+	case KIND_POINTER:
+		asPtr := leftType.(*PointerType)
+		if asPtr.To.Kind() != KIND_STRUCT {
+			return &UnknownType{}
+		}
+		leftType = asPtr.To
+		fallthrough
 	case KIND_STRUCT:
 		asStruct := leftType.(*StructType)
 		member, ok := asStruct.Members[ex.Right.name]
@@ -137,8 +235,6 @@ func (ex *DotSelector) Type() Type {
 			return &UnknownType{}
 		}
 		return member
-	case KIND_POINTER:
-		panic("todo")
 	case KIND_UNKNOWN:
 		panic("todo")
 	case KIND_CUSTOM:

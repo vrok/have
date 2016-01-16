@@ -338,6 +338,27 @@ type UnaryOp struct {
 	op    *Token
 }
 
+// When UnaryOp's operator is `*`, it can have twofold meaning, it can:
+//   - be a pointer dereference
+//   - be a beginning of a type name
+// This function checks if the latter is true and returns the type if so.
+func (uo *UnaryOp) CheckForTypeName() (typ Type, ok bool) {
+	if uo.op.Type != TOKEN_MUL {
+		return nil, false
+	}
+	if te, ok := uo.Right.(*UnaryOp); ok {
+		subType, ok := te.CheckForTypeName()
+		if !ok {
+			return nil, false
+		}
+		return &PointerType{To: subType}, true
+	}
+	if te, ok := uo.Right.(*TypeExpr); ok {
+		return &PointerType{To: te.typ}, true
+	}
+	return nil, false
+}
+
 type PrimaryExpr interface {
 	Expr
 }
