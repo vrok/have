@@ -51,6 +51,27 @@ type TypeDecl struct {
 func (o *TypeDecl) Name() string           { return o.name }
 func (o *TypeDecl) ObjectType() ObjectType { return OBJECT_TYPE }
 
+var builtinTypeNames []string = []string{"bool", "byte", "complex128", "complex64", "error", "float32",
+	"float64", "int", "int16", "int32", "int64", "int8", "rune",
+	"string", "uint", "uint16", "uint32", "uint64", "uint8", "uintptr"}
+
+var builtinTypes map[string]*TypeDecl = map[string]*TypeDecl{}
+
+func initVarDecls() {
+	for _, name := range builtinTypeNames {
+		builtinTypes[name] = &TypeDecl{
+			name: name,
+			//Type: &SimpleType{ID: simpleTypeStrToID[name]},
+			Type: nil, // Simple types aren't aliases
+		}
+	}
+}
+
+func GetBuiltinType(name string) (*TypeDecl, bool) {
+	t, ok := builtinTypes[name]
+	return t, ok
+}
+
 type CodeBlock struct {
 	Statements []Stmt
 }
@@ -122,7 +143,7 @@ var simpleTypeAsStr = map[SimpleTypeID]string{
 
 var simpleTypeStrToID = map[string]SimpleTypeID{}
 
-func init() {
+func initSimpleTypeIDs() {
 	for k, v := range simpleTypeAsStr {
 		simpleTypeStrToID[v] = k
 	}
@@ -407,4 +428,9 @@ type Ident struct {
 type Node interface {
 	//Pos() int // TODO
 	//End() int // TODO
+}
+
+func init() {
+	initSimpleTypeIDs()
+	initVarDecls()
 }

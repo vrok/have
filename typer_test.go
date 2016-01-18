@@ -176,6 +176,10 @@ var f = b.c`,
 			true,
 			"string",
 		},
+		{`var b = ((int)(1))`,
+			true,
+			"int",
+		},
 		{`var b = struct:
 	x int
 var y string = b.x`,

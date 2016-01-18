@@ -36,6 +36,9 @@ func (is *IdentStack) addObject(v Object) {
 
 // Returns nil when not found
 func (is *IdentStack) findObject(name string) Object {
+	if decl, ok := GetBuiltinType(name); ok {
+		return decl
+	}
 	for i := len(*is) - 1; i >= 0; i-- {
 		if v, ok := (*is)[i][name]; ok {
 			return v
@@ -46,6 +49,9 @@ func (is *IdentStack) findObject(name string) Object {
 
 // Returns nil when not found
 func (is *IdentStack) findTypeDecl(name string) *TypeDecl {
+	if decl, ok := GetBuiltinType(name); ok {
+		return decl
+	}
 	for i := len(*is) - 1; i >= 0; i-- {
 		if v, ok := (*is)[i][name]; ok && v.ObjectType() == OBJECT_TYPE {
 			return v.(*TypeDecl)
@@ -637,18 +643,20 @@ func (p *Parser) parseType() (Type, error) {
 		}
 	case TOKEN_WORD:
 		name := token.Value.(string)
-		switch name {
-		case "bool", "byte", "complex128", "complex64", "error", "float32",
-			"float64", "int", "int16", "int32", "int64", "int8", "rune",
-			"string", "uint", "uint16", "uint32", "uint64", "uint8", "uintptr":
-			return &SimpleType{ID: simpleTypeStrToID[name]}, nil
-		default:
-			var decl *TypeDecl = nil
-			if !p.dontLookup {
-				decl = p.identStack.findTypeDecl(name)
-				if !p.ignoreUnknowns && decl == nil {
-					return nil, fmt.Errorf("Type %s is unknown", name)
-				}
+		var decl *TypeDecl = nil
+		if !p.dontLookup {
+			decl = p.identStack.findTypeDecl(name)
+			if !p.ignoreUnknowns && decl == nil {
+				return nil, fmt.Errorf("Type %s is unknown", name)
+			}
+			if decl.Type == nil {
+				return &SimpleType{ID: simpleTypeStrToID[name]}, nil
+			}
+			return &CustomType{Name: name, Decl: decl}, nil
+		} else {
+			// TODO: we don't want so much code which is mostly used just for tests
+			if _, ok := GetBuiltinType(name); ok {
+				return &SimpleType{ID: simpleTypeStrToID[name]}, nil
 			}
 			return &CustomType{Name: name, Decl: decl}, nil
 		}
@@ -799,7 +807,6 @@ func init() {
 			opSet[op] = true
 		}
 	}
-	fmt.Printf("\n")
 }
 
 func hierarchyNum(typ TokenType) int {
