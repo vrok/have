@@ -44,12 +44,19 @@ func (o *VarDecl) ObjectType() ObjectType { return OBJECT_VAR }
 type TypeDecl struct {
 	expr
 
-	name string
-	Type Type
+	name        string
+	AliasedType Type
 }
 
 func (o *TypeDecl) Name() string           { return o.name }
 func (o *TypeDecl) ObjectType() ObjectType { return OBJECT_TYPE }
+func (o *TypeDecl) Type() Type {
+	// TODO: cache this thing, don't produce new instances every time
+	if o.AliasedType == nil {
+		return &SimpleType{simpleTypeStrToID[o.name]}
+	}
+	return &CustomType{Name: o.name, Decl: o}
+}
 
 var builtinTypeNames []string = []string{"bool", "byte", "complex128", "complex64", "error", "float32",
 	"float64", "int", "int16", "int32", "int64", "int8", "rune",
@@ -62,7 +69,7 @@ func initVarDecls() {
 		builtinTypes[name] = &TypeDecl{
 			name: name,
 			//Type: &SimpleType{ID: simpleTypeStrToID[name]},
-			Type: nil, // Simple types aren't aliases
+			AliasedType: nil, // Simple types aren't aliases
 		}
 	}
 }
@@ -282,14 +289,14 @@ func (t *CustomType) Known() bool    { return true }
 func (t *CustomType) String() string { return t.Name }
 func (t *CustomType) Kind() Kind     { return KIND_CUSTOM }
 func (t *CustomType) RootType() Type {
-	current := t.Decl.Type
+	current := t.Decl.AliasedType
 	for current.Kind() == KIND_CUSTOM {
-		current = current.(*CustomType).Decl.Type
+		current = current.(*CustomType).Decl.AliasedType
 	}
 	return current
 }
 func (t *CustomType) UnderType() Type {
-	return t.Decl.Type.UnderType()
+	return t.Decl.AliasedType.UnderType()
 }
 
 type UnknownType struct {

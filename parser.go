@@ -649,7 +649,7 @@ func (p *Parser) parseType() (Type, error) {
 			if !p.ignoreUnknowns && decl == nil {
 				return nil, fmt.Errorf("Type %s is unknown", name)
 			}
-			if decl.Type == nil {
+			if decl.AliasedType == nil {
 				return &SimpleType{ID: simpleTypeStrToID[name]}, nil
 			}
 			return &CustomType{Name: name, Decl: decl}, nil
@@ -1038,9 +1038,9 @@ func (p *Parser) parseTypeDecl() (*TypeDecl, error) {
 	}
 
 	result := &TypeDecl{
-		expr: expr{startTok.Offset},
-		name: name.Value.(string),
-		Type: realType,
+		expr:        expr{startTok.Offset},
+		name:        name.Value.(string),
+		AliasedType: realType,
 	}
 	p.identStack.addObject(result)
 	return result, nil

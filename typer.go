@@ -36,7 +36,7 @@ func nonilTyp(t Type) Type {
 // Implements the definition of underlying types from the Go spec.
 func UnderlyingType(t Type) Type {
 	if t.Kind() == KIND_CUSTOM {
-		return t.(*CustomType).Decl.Type
+		return t.(*CustomType).Decl.AliasedType
 	}
 	return t
 }
@@ -134,76 +134,70 @@ func IsConvertable(what TypedExpr, to Type) bool {
 	return false
 }
 
-func (ex *FuncCallExpr) Type() Type {
-	//var typ Type = nil
-	//var fun *FuncDecl = nil
-
-	callee := ex.Left
-	switch t := callee.(type) {
-	case *UnaryOp:
-		if t, ok := t.CheckForTypeName(); ok {
-			return t
-		} else {
-			// TODO:
-			// fun = ...
-			panic("todo")
-		}
+// Sometimes it is not immediately obvious if a piece of code is
+// an actual expression or a name of a type.
+// That can happen during during type conversions, for example in
+// the line below we don't know whether 'blah' is a type name or
+// a function during parsing:
+//
+// 	blah(123)
+//
+// This function tells if an expression is really a type name, and
+// returns that type if the answer was yes.
+func ExprToTypeName(e Expr) (t Type, ok bool) {
+	// TODO: dot operator for packages in below switch:
+	switch e := e.(type) {
 	case *TypeExpr:
+		return e.typ, true
+	case *UnaryOp:
+		if subType, ok := ExprToTypeName(e.Right); ok {
+			return &PointerType{To: subType}, true
+		}
+	case *Ident:
+		if e.object.ObjectType() == OBJECT_TYPE {
+			return e.object.(*TypeDecl).Type(), true
+		}
+	}
+	return nil, false
+}
+
+func (ex *FuncCallExpr) Type() Type {
+	if castType, cast := ExprToTypeName(ex.Left); cast {
 		if len(ex.Args) != 1 {
 			panic("todo - report error")
 		}
-		if IsConvertable(ex.Args[0].(TypedExpr), t.typ) {
-			return t.typ
+		if IsConvertable(ex.Args[0].(TypedExpr), castType) {
+			return castType
 		}
-	default:
-		panic(fmt.Errorf("todo, %#v", t))
+	} else {
+		panic("todo")
 	}
 	return &UnknownType{}
 }
+
 func (ex *FuncCallExpr) ApplyType(typ Type) error {
-
-	var conversion Type = nil
-
-	callee := ex.Left
-	switch t := callee.(type) {
-	case *UnaryOp:
-		if p, ok := t.CheckForTypeName(); ok {
-			conversion = p
-		} else {
-			// TODO:
-			// fun = ...
-			panic("todo")
-		}
-	case *TypeExpr:
-		conversion = t.typ
-	default:
-		panic("todo")
-	}
-
-	if conversion != nil {
+	if castType, cast := ExprToTypeName(ex.Left); cast {
 		if len(ex.Args) != 1 {
 			return fmt.Errorf("Type conversion takes exactly one argument")
 		}
 		// Just try applying, ignore error - even if it fails if might still be convertible.
-		ex.Args[0].(TypedExpr).ApplyType(conversion)
-		if !IsConvertable(ex.Args[0].(TypedExpr), conversion) {
-			return fmt.Errorf("Impossible conversion from %s to %s", ex.Args[0].(TypedExpr).Type(), conversion)
+		ex.Args[0].(TypedExpr).ApplyType(castType)
+		if !IsConvertable(ex.Args[0].(TypedExpr), castType) {
+			return fmt.Errorf("Impossible conversion from %s to %s", ex.Args[0].(TypedExpr).Type(), castType)
 		}
-		if !IsAssignable(typ, conversion) {
-			return fmt.Errorf("Cannot assign %s to %s", conversion, typ)
+		if !IsAssignable(typ, castType) {
+			return fmt.Errorf("Cannot assign %s to %s", castType, typ)
 		}
 		return nil
+	} else {
+		panic("todo")
 	}
-
-	// TODO: funcion calls
-	panic("todo")
 }
+
 func (ex *FuncCallExpr) GuessType() (ok bool, typ Type) {
-	callee := ex.Left
-	switch t := callee.(type) {
-	case *TypeExpr:
-		return true, t.typ
-	default:
+	if castType, cast := ExprToTypeName(ex.Left); cast {
+		return true, castType
+	} else {
 		panic("todo")
 	}
 }
