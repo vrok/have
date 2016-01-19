@@ -128,8 +128,6 @@ type Type interface {
 	Known() bool
 	String() string
 	Kind() Kind
-	// Underlying type. See Go docs for specification.
-	UnderType() Type
 	Negotiate(other Type) (Type, error)
 }
 
@@ -160,47 +158,42 @@ type SimpleType struct {
 	ID SimpleTypeID
 }
 
-func (t *SimpleType) Known() bool     { return true }
-func (t *SimpleType) String() string  { return simpleTypeAsStr[t.ID] }
-func (t *SimpleType) Kind() Kind      { return KIND_SIMPLE }
-func (t *SimpleType) UnderType() Type { return t }
+func (t *SimpleType) Known() bool    { return true }
+func (t *SimpleType) String() string { return simpleTypeAsStr[t.ID] }
+func (t *SimpleType) Kind() Kind     { return KIND_SIMPLE }
 
 type ArrayType struct {
 	Size int
 	Of   Type
 }
 
-func (t *ArrayType) Known() bool     { return t.Of.Known() }
-func (t *ArrayType) String() string  { return fmt.Sprintf("[%d]%s", t.Size, t.Of.String()) }
-func (t *ArrayType) Kind() Kind      { return KIND_ARRAY }
-func (t *ArrayType) UnderType() Type { return t }
+func (t *ArrayType) Known() bool    { return t.Of.Known() }
+func (t *ArrayType) String() string { return fmt.Sprintf("[%d]%s", t.Size, t.Of.String()) }
+func (t *ArrayType) Kind() Kind     { return KIND_ARRAY }
 
 type SliceType struct {
 	Of Type
 }
 
-func (t *SliceType) Known() bool     { return t.Of.Known() }
-func (t *SliceType) String() string  { return "[]" + t.Of.String() }
-func (t *SliceType) Kind() Kind      { return KIND_SLICE }
-func (t *SliceType) UnderType() Type { return t }
+func (t *SliceType) Known() bool    { return t.Of.Known() }
+func (t *SliceType) String() string { return "[]" + t.Of.String() }
+func (t *SliceType) Kind() Kind     { return KIND_SLICE }
 
 type MapType struct {
 	By, Of Type
 }
 
-func (t *MapType) Known() bool     { return t.By.Known() && t.Of.Known() }
-func (t *MapType) String() string  { return "map[" + t.By.String() + "]" + t.Of.String() }
-func (t *MapType) Kind() Kind      { return KIND_MAP }
-func (t *MapType) UnderType() Type { return t }
+func (t *MapType) Known() bool    { return t.By.Known() && t.Of.Known() }
+func (t *MapType) String() string { return "map[" + t.By.String() + "]" + t.Of.String() }
+func (t *MapType) Kind() Kind     { return KIND_MAP }
 
 type PointerType struct {
 	To Type
 }
 
-func (t *PointerType) Known() bool     { return t.To.Known() }
-func (t *PointerType) String() string  { return "*" + t.To.String() }
-func (t *PointerType) Kind() Kind      { return KIND_POINTER }
-func (t *PointerType) UnderType() Type { return &PointerType{To: t.To.UnderType()} }
+func (t *PointerType) Known() bool    { return t.To.Known() }
+func (t *PointerType) String() string { return "*" + t.To.String() }
+func (t *PointerType) Kind() Kind     { return KIND_POINTER }
 
 type TupleType struct {
 	Members []Type
@@ -229,13 +222,6 @@ func (t *TupleType) String() string {
 }
 
 func (t *TupleType) Kind() Kind { return KIND_TUPLE }
-func (t *TupleType) UnderType() Type {
-	members := make([]Type, len(t.Members))
-	for i, mem := range t.Members {
-		members[i] = mem.UnderType()
-	}
-	return &TupleType{Members: members}
-}
 
 type StructType struct {
 	Members map[string]Type
@@ -271,14 +257,6 @@ func (t *StructType) String() string {
 
 func (t *StructType) Kind() Kind { return KIND_STRUCT }
 
-func (t *StructType) UnderType() Type {
-	members := make(map[string]Type)
-	for name, mem := range t.Members {
-		members[name] = mem.UnderType()
-	}
-	return &StructType{Members: members}
-}
-
 type CustomType struct {
 	Name    string
 	Package string // "" means local
@@ -295,17 +273,13 @@ func (t *CustomType) RootType() Type {
 	}
 	return current
 }
-func (t *CustomType) UnderType() Type {
-	return t.Decl.AliasedType.UnderType()
-}
 
 type UnknownType struct {
 }
 
-func (t *UnknownType) Known() bool     { return false }
-func (t *UnknownType) String() string  { return "_" }
-func (t *UnknownType) Kind() Kind      { return KIND_UNKNOWN }
-func (t *UnknownType) UnderType() Type { return t }
+func (t *UnknownType) Known() bool    { return false }
+func (t *UnknownType) String() string { return "_" }
+func (t *UnknownType) Kind() Kind     { return KIND_UNKNOWN }
 
 type TypeExpr struct {
 	expr
@@ -364,27 +338,6 @@ type UnaryOp struct {
 
 	Right Expr
 	op    *Token
-}
-
-// When UnaryOp's operator is `*`, it can have twofold meaning, it can:
-//   - be a pointer dereference
-//   - be a beginning of a type name
-// This function checks if the latter is true and returns the type if so.
-func (uo *UnaryOp) CheckForTypeName() (typ Type, ok bool) {
-	if uo.op.Type != TOKEN_MUL {
-		return nil, false
-	}
-	if te, ok := uo.Right.(*UnaryOp); ok {
-		subType, ok := te.CheckForTypeName()
-		if !ok {
-			return nil, false
-		}
-		return &PointerType{To: subType}, true
-	}
-	if te, ok := uo.Right.(*TypeExpr); ok {
-		return &PointerType{To: te.typ}, true
-	}
-	return nil, false
 }
 
 type PrimaryExpr interface {
