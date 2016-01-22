@@ -1,7 +1,11 @@
 // Negotiate and validate types in an AST.
 package have
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/davecgh/go-spew/spew"
+)
 
 type ExprToProcess interface {
 	Expr
@@ -170,6 +174,12 @@ func (ex *FuncCallExpr) Type() Type {
 			return castType
 		}
 	} else {
+		callee := ex.Left.(TypedExpr)
+		fmt.Printf("ZZZ DEBUG %s, %#v\n", spew.Sdump(ex.Left), callee)
+		calleeType := UnderlyingType(callee.Type())
+		if calleeType.Kind() != KIND_FUNC {
+			return &UnknownType{}
+		}
 		panic("todo")
 	}
 	return &UnknownType{}
@@ -201,6 +211,12 @@ func (ex *FuncCallExpr) GuessType() (ok bool, typ Type) {
 		panic("todo")
 	}
 }
+
+func (ex *FuncDecl) Type() Type {
+	return ex.typ
+}
+func (ex *FuncDecl) ApplyType(typ Type) error       { panic("todo") }
+func (ex *FuncDecl) GuessType() (ok bool, typ Type) { panic("todo") }
 
 func (ex *TypeExpr) Type() Type { return ex.typ }
 func (ex *TypeExpr) ApplyType(typ Type) error {
@@ -635,6 +651,10 @@ func (t *StructType) Negotiate(other Type) (Type, error) {
 }
 
 func (t *TupleType) Negotiate(other Type) (Type, error) {
+	panic("todo")
+}
+
+func (t *FuncType) Negotiate(other Type) (Type, error) {
 	panic("todo")
 }
 

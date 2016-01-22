@@ -196,6 +196,12 @@ var a string = b`,
 			false,
 			"",
 		},
+		{`func f() int:
+	var x = 1
+var a int = f()`,
+			true,
+			"int",
+		},
 	}
 
 	for i, c := range cases {

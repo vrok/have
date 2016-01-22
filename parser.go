@@ -317,13 +317,21 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 	}, nil
 }
 
-func (p *Parser) parseFuncStmt() (*FuncDecl, error) {
+func (p *Parser) parseFuncStmt() (*VarStmt, error) {
+	ident := p.expect(TOKEN_FUNC)
+	if ident == nil {
+		return nil, fmt.Errorf("Impossible happened")
+	}
+	p.putBack(ident)
+
 	fun, err := p.parseFunc()
 	if err != nil {
 		return nil, err
 	}
-	p.identStack.addObject(fun)
-	return fun, err
+	decl := &VarDecl{name: fun.name, Type: fun.typ, Init: fun}
+	// TODO: mark as final/not changeable
+	p.identStack.addObject(decl)
+	return &VarStmt{expr{ident.Offset}, []*VarDecl{decl}}, nil
 }
 
 func (p *Parser) parseVarStmt() (*VarStmt, error) {
@@ -1034,7 +1042,7 @@ func (p *Parser) parseFunc() (*FuncDecl, error) {
 		name:    funcName,
 		Args:    args,
 		Results: results,
-		Type: &FuncType{
+		typ: &FuncType{
 			Args:    typesFromVars(args),
 			Results: typesFromVars(results),
 		},

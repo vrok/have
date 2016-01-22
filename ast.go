@@ -22,7 +22,6 @@ type ObjectType int
 const (
 	OBJECT_VAR = ObjectType(iota + 1)
 	OBJECT_TYPE
-	OBJECT_FUNC
 )
 
 // This serves a similar purpose to Go's types.Object
@@ -421,13 +420,10 @@ type FuncDecl struct {
 	expr
 
 	name          string
-	Type          *FuncType
+	typ           *FuncType
 	Args, Results []*VarDecl
 	Code          *CodeBlock
 }
-
-func (fd *FuncDecl) Name() string           { return fd.name }
-func (fd *FuncDecl) ObjectType() ObjectType { return OBJECT_FUNC }
 
 // implements PrimaryExpr
 type Ident struct {
