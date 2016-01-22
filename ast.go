@@ -22,6 +22,7 @@ type ObjectType int
 const (
 	OBJECT_VAR = ObjectType(iota + 1)
 	OBJECT_TYPE
+	OBJECT_FUNC
 )
 
 // This serves a similar purpose to Go's types.Object
@@ -120,6 +121,7 @@ const (
 	KIND_CUSTOM
 	KIND_STRUCT
 	KIND_TUPLE
+	KIND_FUNC
 	KIND_UNKNOWN
 )
 
@@ -186,6 +188,53 @@ type MapType struct {
 func (t *MapType) Known() bool    { return t.By.Known() && t.Of.Known() }
 func (t *MapType) String() string { return "map[" + t.By.String() + "]" + t.Of.String() }
 func (t *MapType) Kind() Kind     { return KIND_MAP }
+
+type FuncType struct {
+	Args, Results []Type
+}
+
+func (t *FuncType) Known() bool {
+	for _, a := range t.Args {
+		if !a.Known() {
+			return false
+		}
+	}
+	for _, r := range t.Results {
+		if !r.Known() {
+			return false
+		}
+	}
+	return true
+}
+
+func (t *FuncType) String() string {
+	out := &bytes.Buffer{}
+	out.WriteString("func(")
+	for c, a := range t.Args {
+		out.WriteString(a.String())
+		if (c + 1) < len(t.Args) {
+			out.WriteString(", ")
+		}
+	}
+	out.WriteString(")")
+	switch len(t.Results) {
+	case 0:
+	case 1:
+		out.WriteString(" " + t.Results[0].String())
+	default:
+		out.WriteString(" (")
+		for c, r := range t.Results {
+			out.WriteString(r.String())
+			if (c + 1) < len(t.Results) {
+				out.WriteString(", ")
+			}
+		}
+		out.WriteString(")")
+	}
+	return out.String()
+}
+
+func (t *FuncType) Kind() Kind { return KIND_FUNC }
 
 type PointerType struct {
 	To Type
@@ -371,10 +420,14 @@ type FuncCallExpr struct {
 type FuncDecl struct {
 	expr
 
-	Name          string
+	name          string
+	Type          *FuncType
 	Args, Results []*VarDecl
 	Code          *CodeBlock
 }
+
+func (fd *FuncDecl) Name() string           { return fd.name }
+func (fd *FuncDecl) ObjectType() ObjectType { return OBJECT_FUNC }
 
 // implements PrimaryExpr
 type Ident struct {

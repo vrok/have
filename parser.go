@@ -317,6 +317,15 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 	}, nil
 }
 
+func (p *Parser) parseFuncStmt() (*FuncDecl, error) {
+	fun, err := p.parseFunc()
+	if err != nil {
+		return nil, err
+	}
+	p.identStack.addObject(fun)
+	return fun, err
+}
+
 func (p *Parser) parseVarStmt() (*VarStmt, error) {
 	ident := p.expect(TOKEN_VAR)
 	if ident == nil {
@@ -947,7 +956,15 @@ func (p *Parser) parseResultDecl() ([]*VarDecl, error) {
 	}
 }
 
-func (p *Parser) parseFunc() (Expr, error) {
+func typesFromVars(vd []*VarDecl) []Type {
+	result := make([]Type, len(vd))
+	for i, d := range vd {
+		result[i] = d.Type
+	}
+	return result
+}
+
+func (p *Parser) parseFunc() (*FuncDecl, error) {
 	startTok := p.expect(TOKEN_FUNC)
 	if startTok == nil {
 		return nil, fmt.Errorf("Function declaration needs to start with 'func' keyword")
@@ -1014,10 +1031,14 @@ func (p *Parser) parseFunc() (Expr, error) {
 
 	return &FuncDecl{
 		expr:    expr{startTok.Offset},
-		Name:    funcName,
+		name:    funcName,
 		Args:    args,
 		Results: results,
-		Code:    block,
+		Type: &FuncType{
+			Args:    typesFromVars(args),
+			Results: typesFromVars(results),
+		},
+		Code: block,
 	}, nil
 }
 
@@ -1058,7 +1079,7 @@ func (p *Parser) parseStmt() (Stmt, error) {
 			return p.parseIf()
 		case TOKEN_FUNC:
 			p.putBack(token)
-			return p.parseFunc()
+			return p.parseFuncStmt()
 		case TOKEN_TYPE:
 			p.putBack(token)
 			return p.parseTypeDecl()
