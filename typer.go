@@ -1,11 +1,7 @@
 // Negotiate and validate types in an AST.
 package have
 
-import (
-	"fmt"
-
-	"github.com/davecgh/go-spew/spew"
-)
+import "fmt"
 
 type ExprToProcess interface {
 	Expr
@@ -74,21 +70,20 @@ func (vs *VarStmt) NegotiateTypes() error {
 	return nil
 }
 
-func (vd *VarDecl) NegotiateTypes() error {
-	typedInit := vd.Init.(TypedExpr)
+// This will overwrite the type pointer by varType.
+func NegotiateExprType(varType *Type, value TypedExpr) error {
+	*varType = nonilTyp(*varType)
 
-	vd.Type = nonilTyp(vd.Type)
-
-	typ, err := NegotiateTypes(vd.Type, typedInit.Type())
+	typ, err := NegotiateTypes(*varType, value.Type())
 	if err != nil || !typ.Known() {
 		// Try guessing. Literals like "1", or "{1, 2}" can be used
 		// to initialize variables of many types (int/double/etc,
 		// array/slice/struct), but if the type of the variable is
 		// unknown, we try to guess the type (for these examples
 		// it would be "int" and "[]int").
-		ok, guessedType := typedInit.GuessType()
+		ok, guessedType := value.GuessType()
 		if ok {
-			typ, err = NegotiateTypes(vd.Type, guessedType)
+			typ, err = NegotiateTypes(*varType, guessedType)
 		}
 
 		if err != nil {
@@ -96,15 +91,12 @@ func (vd *VarDecl) NegotiateTypes() error {
 		}
 	}
 
-	vd.Type = typ
-	return typedInit.ApplyType(typ)
-	//if !typedInit.CanBeOfType(typ) {
-	//	return fmt.Errorf("Couldn't infer type of %s", vd.Name)
-	//}
+	*varType = typ
+	return value.ApplyType(typ)
+}
 
-	//// TODO: we've got the type, now apply it
-
-	//return nil
+func (vd *VarDecl) NegotiateTypes() error {
+	return NegotiateExprType(&vd.Type, vd.Init.(TypedExpr))
 }
 
 func (ex *BlankExpr) Type() Type                     { panic("nope") }
@@ -175,12 +167,19 @@ func (ex *FuncCallExpr) Type() Type {
 		}
 	} else {
 		callee := ex.Left.(TypedExpr)
-		fmt.Printf("ZZZ DEBUG %s, %#v\n", spew.Sdump(ex.Left), callee)
 		calleeType := UnderlyingType(callee.Type())
 		if calleeType.Kind() != KIND_FUNC {
 			return &UnknownType{}
 		}
-		panic("todo")
+		asFunc := calleeType.(*FuncType)
+		switch {
+		case len(asFunc.Results) == 0:
+			return &UnknownType{}
+		case len(asFunc.Results) == 1:
+			return asFunc.Results[0]
+		default:
+			return &TupleType{Members: asFunc.Results}
+		}
 	}
 	return &UnknownType{}
 }
@@ -196,11 +195,38 @@ func (ex *FuncCallExpr) ApplyType(typ Type) error {
 			return fmt.Errorf("Impossible conversion from %s to %s", ex.Args[0].(TypedExpr).Type(), castType)
 		}
 		if !IsAssignable(typ, castType) {
-			return fmt.Errorf("Cannot assign %s to %s", castType, typ)
+			return fmt.Errorf("Cannot assign `%s` to `%s`", castType, typ)
 		}
 		return nil
 	} else {
-		panic("todo")
+		callee := ex.Left.(TypedExpr)
+		calleeType := UnderlyingType(callee.Type())
+		if calleeType.Kind() != KIND_FUNC {
+			return fmt.Errorf("Only functions can be called, not %s", calleeType)
+		}
+
+		if typ.Kind() == KIND_TUPLE {
+			panic("todo")
+		}
+
+		asFunc := calleeType.(*FuncType)
+		switch {
+		case len(asFunc.Results) == 0:
+			return fmt.Errorf("Function `%s` doesn't return anything", asFunc)
+		case len(asFunc.Results) == 1:
+			if !IsAssignable(asFunc.Results[0], typ) {
+				return fmt.Errorf("Can't assign `%s` to `%s`", asFunc.Results[0], typ)
+			}
+		default:
+			return fmt.Errorf("Function `%s` returns more than one result", asFunc)
+		}
+
+		for i, arg := range asFunc.Args {
+			if err := NegotiateExprType(&arg, ex.Args[i].(TypedExpr)); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 }
 
@@ -208,15 +234,23 @@ func (ex *FuncCallExpr) GuessType() (ok bool, typ Type) {
 	if castType, cast := ExprToTypeName(ex.Left); cast {
 		return true, castType
 	} else {
-		panic("todo")
+		// No guessing needed for now
+		return false, nil
 	}
 }
 
 func (ex *FuncDecl) Type() Type {
 	return ex.typ
 }
-func (ex *FuncDecl) ApplyType(typ Type) error       { panic("todo") }
-func (ex *FuncDecl) GuessType() (ok bool, typ Type) { panic("todo") }
+func (ex *FuncDecl) ApplyType(typ Type) error {
+	if !IsAssignable(typ, ex.typ) {
+		return fmt.Errorf("Cannot assign `%s` to `%s`", ex.typ, typ)
+	}
+	return nil
+}
+func (ex *FuncDecl) GuessType() (ok bool, typ Type) {
+	return false, nil
+}
 
 func (ex *TypeExpr) Type() Type { return ex.typ }
 func (ex *TypeExpr) ApplyType(typ Type) error {

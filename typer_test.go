@@ -202,6 +202,44 @@ var a int = f()`,
 			true,
 			"int",
 		},
+		{`func f() string:
+	var x = 1
+var a int = f()`,
+			false,
+			"",
+		},
+		{`func f():
+	var x = 1
+var a int = f()`,
+			false,
+			"",
+		},
+		{`func f(x int) int:
+	var x = 1
+var a int = f(4)`,
+			true,
+			"int",
+		},
+		{`func f(x string) int:
+	var x = 1
+var a int = f(4)`,
+			false,
+			"",
+		},
+		{`func f(x string, y int) int:
+	var x = 1
+var b int = 5
+var a int = f("las", b)`,
+			true,
+			"int",
+		},
+		{`func f(x string, y int) int:
+	var x = 1
+var b string = "5"
+var a int = f("las", b)`,
+			false,
+			"",
+		},
 	}
 
 	for i, c := range cases {
