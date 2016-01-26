@@ -2,9 +2,9 @@ func main():
     for i := 1; i <= 100; i++:
         if i % 3 == 0 && i % 5 == 0:
             print("Fizz Buzz")
-        elif i % 3 == 0
+        elif i % 3 == 0:
             print("Fizz")
-        elif i % 5 == 0
+        elif i % 5 == 0:
             print("Buzz")
-        else
+        else:
             print(i)
