@@ -22,6 +22,7 @@ type ObjectType int
 const (
 	OBJECT_VAR = ObjectType(iota + 1)
 	OBJECT_TYPE
+	OBJECT_PACKAGE
 )
 
 // This serves a similar purpose to Go's types.Object
@@ -438,6 +439,17 @@ type Node interface {
 	//Pos() int // TODO
 	//End() int // TODO
 }
+
+type Package struct {
+	name string
+}
+
+func (p *Package) Get(name string) Object {
+	panic("todo")
+}
+
+func (o *Package) Name() string           { return o.name }
+func (o *Package) ObjectType() ObjectType { return OBJECT_PACKAGE }
 
 func init() {
 	initSimpleTypeIDs()
