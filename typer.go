@@ -246,10 +246,21 @@ func (ex *FuncDecl) ApplyType(typ Type) error {
 	if !IsAssignable(typ, ex.typ) {
 		return fmt.Errorf("Cannot assign `%s` to `%s`", ex.typ, typ)
 	}
-	return nil
+	return ex.CheckTypes()
 }
 func (ex *FuncDecl) GuessType() (ok bool, typ Type) {
 	return false, nil
+}
+
+// Typechecks contents of a function.
+func (ex *FuncDecl) CheckTypes() error {
+	for _, stmt := range ex.Code.Statements {
+		typedStmt := stmt.(ExprToProcess)
+		if err := typedStmt.NegotiateTypes(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (ex *TypeExpr) Type() Type { return ex.typ }

@@ -202,6 +202,12 @@ var a int = f()`,
 			true,
 			"int",
 		},
+		{`func f() int:
+	var x int = "a"
+var a = f()`,
+			false,
+			"",
+		},
 		{`func f() string:
 	var x = 1
 var a int = f()`,
