@@ -79,6 +79,9 @@ func NewParser(lex *Lexer) *Parser {
 
 // Put back a token.
 func (p *Parser) putBack(tok *Token) {
+	if tok == nil {
+		panic(fmt.Errorf("NIL tok %s", tok))
+	}
 	p.tokensBuf = append([]*Token{tok}, p.tokensBuf...)
 }
 
@@ -93,6 +96,7 @@ func (p *Parser) expect(typ TokenType) *Token {
 	token := p.nextToken()
 	if token.Type != typ {
 		// TODO: error msg here maybe?
+		p.putBack(token)
 		return nil
 	}
 	return token
@@ -142,29 +146,41 @@ func (p *Parser) expectNewIndent() (*Token, error) {
 	return indent, nil
 }
 
+func (p *Parser) isIndentEnd() (end bool, err error) {
+	token := p.expect(TOKEN_INDENT)
+	if token == nil {
+		return false, fmt.Errorf("Indent expected, got %s", token)
+	}
+	defer p.putBack(token)
+
+	ident := token.Value.(string)
+	curIdent := ""
+	if len(p.indentStack) > 0 {
+		curIdent = p.indentStack[len(p.indentStack)-1]
+	}
+	if curIdent != ident {
+		if len(ident) >= len(curIdent) {
+			return false, fmt.Errorf("Unexpected indent")
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
 // Use it in a place where you expect another line of an indented
 // block of code.
 // If `end` is true then this indented block ends here, and parser
 // will be pointed to the beginning of the next line.
 // `err` not being nil indicates some indent mismatch.
 func (p *Parser) checkIndentEnd() (end bool, err error) {
-	token := p.expect(TOKEN_INDENT)
-	if token == nil {
-		p.putBack(token)
-		return false, fmt.Errorf("Indent expected")
-	}
-	curIdent := p.indentStack[len(p.indentStack)-1]
-	ident := token.Value.(string)
-	if curIdent != ident {
-		if len(ident) >= len(curIdent) {
-			return false, fmt.Errorf("Unexpected indent")
-		}
-
+	end, err = p.isIndentEnd()
+	if end {
+		// Pop current indent
 		p.indentStack = p.indentStack[:len(p.indentStack)-1]
-		p.putBack(token)
-		return true, nil
+		return
 	}
-	return false, nil
+	p.expect(TOKEN_INDENT)
+	return
 }
 
 // This is very similar to checkIndentEnd, but the indented block
@@ -206,6 +222,49 @@ func (p *Parser) checkIndentEndOrNoToken(tokenType TokenType) (end bool, err err
 		return true, nil
 	}
 	return false, err
+}
+
+// Use this to check for the beginning of a statement branch (part of a statement
+// on the same indent level as the statement itself). Examples: 'else' and 'elif'
+// blocks.
+func (p *Parser) checkForBranch(branchTokens ...TokenType) (ok bool, token *Token) {
+	tokens := map[TokenType]bool{}
+	for _, t := range branchTokens {
+		tokens[t] = true
+	}
+
+	// TODO: refactor:
+	if t := p.nextToken(); t.Type == TOKEN_EOF {
+		p.putBack(t)
+		return false, nil
+	} else {
+		p.putBack(t)
+	}
+
+	end, err := p.isIndentEnd()
+	if end || err != nil {
+		return false, nil
+	}
+
+	indent := p.expect(TOKEN_INDENT)
+	if indent == nil {
+		// checkIndentEnd() always leaves TOKEN_INDENT.
+		panic("Impossible happened")
+	}
+	p.putBack(indent)
+
+	if end2, err2 := p.checkIndentEnd(); end != end2 || err != err2 {
+		// We know that isIndentEnd() was false, so this just pops current indent
+		panic("Impossible happened")
+	}
+
+	if t := p.nextToken(); tokens[t.Type] {
+		return true, t
+	} else {
+		p.putBack(indent)
+		p.putBack(t)
+	}
+	return false, nil
 }
 
 func (p *Parser) forceIndentEnd() {
@@ -289,31 +348,82 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 		}
 	}
 
-	condition, err := p.parseExpr()
-	if err != nil {
-		return nil, fmt.Errorf("Couldn't parse the condition expression: %s", err)
+	getCondAndBlock := func() (condition Expr, block *CodeBlock, err error) {
+		condition, err = p.parseExpr()
+		if err != nil {
+			return nil, nil, fmt.Errorf("Couldn't parse the condition expression: %s", err)
+		}
+
+		colon := p.expect(TOKEN_COLON)
+		if colon == nil {
+			return nil, nil, fmt.Errorf("Expected `:` at the end of `if` condition")
+		}
+
+		block, err = p.parseCodeBlock()
+		if err != nil {
+			return nil, nil, err
+		}
+		return
 	}
 
-	colon := p.expect(TOKEN_COLON)
-	if colon == nil {
-		return nil, fmt.Errorf("Expected `:` at the end of `if` condition")
-	}
-
-	block, err := p.parseCodeBlock()
+	condition, block, err := getCondAndBlock()
 	if err != nil {
 		return nil, err
+	}
+
+	branches := []*IfBranch{
+		&IfBranch{
+			expr{ident.Offset},
+			scopedVarDecl,
+			condition,
+			block,
+		}}
+
+loop:
+	for {
+		isBranch, t := p.checkForBranch(TOKEN_ELIF, TOKEN_ELSE)
+		if !isBranch {
+			break loop
+		}
+
+		switch t.Type {
+		case TOKEN_ELIF:
+			condition, block, err := getCondAndBlock()
+			if err != nil {
+				return nil, err
+			}
+			branches = append(branches, &IfBranch{
+				expr{t.Offset},
+				nil,
+				condition,
+				block,
+			})
+		case TOKEN_ELSE:
+			if colon := p.expect(TOKEN_COLON); colon == nil {
+				return nil, fmt.Errorf("Expected `:` after `else`")
+			}
+			block, err := p.parseCodeBlock()
+			if err != nil {
+				return nil, err
+			}
+			branches = append(branches, &IfBranch{
+				expr{t.Offset},
+				nil,
+				nil,
+				block,
+			})
+			break loop
+		default:
+			p.putBack(t)
+			break loop
+		}
 	}
 
 	// TODO: else, elsif statements
 
 	return &IfStmt{
 		expr{ident.Offset},
-		[]*IfBranch{&IfBranch{
-			expr{ident.Offset},
-			scopedVarDecl,
-			condition,
-			block,
-		}},
+		branches,
 	}, nil
 }
 

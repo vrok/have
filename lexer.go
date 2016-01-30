@@ -40,6 +40,8 @@ const (
 	TOKEN_DECREMENT              // --
 	TOKEN_VAR                    // the "var" keyword
 	TOKEN_IF                     // the "if" keyword
+	TOKEN_ELSE                   // the "else" keyword
+	TOKEN_ELIF                   // the "elif" keyword
 	TOKEN_SWITCH                 // the "switch" keyword
 	TOKEN_CASE                   // the "case" keyword
 	TOKEN_RETURN                 // the "return" keyword
@@ -208,6 +210,10 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.retNewToken(TOKEN_VAR, nil)
 		case "if":
 			return l.retNewToken(TOKEN_IF, nil)
+		case "else":
+			return l.retNewToken(TOKEN_ELSE, nil)
+		case "elif":
+			return l.retNewToken(TOKEN_ELIF, nil)
 		case "switch":
 			return l.retNewToken(TOKEN_SWITCH, nil)
 		case "case":

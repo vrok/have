@@ -215,6 +215,10 @@ func TestIfStmt(t *testing.T) {
     var y = 3`,
 		`if var x int; false:
   var y = 3`,
+		`if var x int; false:
+  var y = 3
+else:
+  var x = 3`,
 	}
 	for _, c := range cases {
 		parser := NewParser(NewLexer([]rune(c)))
