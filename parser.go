@@ -16,6 +16,11 @@ type Parser struct {
 	ignoreUnknowns, dontLookup bool
 }
 
+// Stack of scopes available to the piece of code that is currently
+// being parsed. It is a living stack, scopes are pushed to and popped
+// from it as new blocks of code start and end.
+// It is used for initial bonding of names and objects (packages,
+// variables, types), which later helps the type checker.
 type IdentStack []map[string]Object
 
 func (is *IdentStack) pushScope() {
@@ -71,6 +76,13 @@ func (p *Parser) nextToken() *Token {
 		panic(err) // TODO: not panic, return error
 	}
 	return tok
+}
+
+// See the next token without changing the parser state.
+func (p *Parser) peek() *Token {
+	t := p.nextToken()
+	p.putBack(t)
+	return t
 }
 
 func NewParser(lex *Lexer) *Parser {
@@ -146,6 +158,9 @@ func (p *Parser) expectNewIndent() (*Token, error) {
 	return indent, nil
 }
 
+// Tells if the current indent block ends here. Additionally,
+// returns a parse error if it notices something wrong.
+// It doesn't change the parser state (as opposed to handleIndentEnd).
 func (p *Parser) isIndentEnd() (end bool, err error) {
 	token := p.expect(TOKEN_INDENT)
 	if token == nil {
@@ -172,7 +187,7 @@ func (p *Parser) isIndentEnd() (end bool, err error) {
 // If `end` is true then this indented block ends here, and parser
 // will be pointed to the beginning of the next line.
 // `err` not being nil indicates some indent mismatch.
-func (p *Parser) checkIndentEnd() (end bool, err error) {
+func (p *Parser) handleIndentEnd() (end bool, err error) {
 	end, err = p.isIndentEnd()
 	if end {
 		// Pop current indent
@@ -183,7 +198,7 @@ func (p *Parser) checkIndentEnd() (end bool, err error) {
 	return
 }
 
-// This is very similar to checkIndentEnd, but the indented block
+// This is very similar to handleIndentEnd, but the indented block
 // of code can also be ended by an occurence of a token (not necessarily
 // preceded by an end of indentation, or precended by an unmatched indent).
 // Example:
@@ -196,8 +211,8 @@ func (p *Parser) checkIndentEnd() (end bool, err error) {
 //   {x: 1}  // <- unmatched indent, but it's all right
 // The special character is put back to the tokenizer, so that things
 // like compount initializers of nested structures work.
-func (p *Parser) checkIndentEndOrToken(tokenType TokenType) (end bool, err error) {
-	end, err = p.checkIndentEnd()
+func (p *Parser) handleIndentEndOrToken(tokenType TokenType) (end bool, err error) {
+	end, err = p.handleIndentEnd()
 	if end {
 		return end, err
 	}
@@ -209,10 +224,10 @@ func (p *Parser) checkIndentEndOrToken(tokenType TokenType) (end bool, err error
 	return false, err
 }
 
-// Very similar to checkIndentEndOrToken, but checks if the next token
+// Very similar to handleIndentEndOrToken, but checks if the next token
 // is NOT of tokenType type.
-func (p *Parser) checkIndentEndOrNoToken(tokenType TokenType) (end bool, err error) {
-	end, err = p.checkIndentEnd()
+func (p *Parser) handleIndentEndOrNoToken(tokenType TokenType) (end bool, err error) {
+	end, err = p.handleIndentEnd()
 	if end {
 		return end, err
 	}
@@ -233,12 +248,9 @@ func (p *Parser) checkForBranch(branchTokens ...TokenType) (ok bool, token *Toke
 		tokens[t] = true
 	}
 
-	// TODO: refactor:
-	if t := p.nextToken(); t.Type == TOKEN_EOF {
-		p.putBack(t)
+	indTok := p.peek()
+	if indTok.Type == TOKEN_EOF {
 		return false, nil
-	} else {
-		p.putBack(t)
 	}
 
 	end, err := p.isIndentEnd()
@@ -246,31 +258,29 @@ func (p *Parser) checkForBranch(branchTokens ...TokenType) (ok bool, token *Toke
 		return false, nil
 	}
 
-	indent := p.expect(TOKEN_INDENT)
-	if indent == nil {
-		// checkIndentEnd() always leaves TOKEN_INDENT.
-		panic("Impossible happened")
-	}
-	p.putBack(indent)
-
-	if end2, err2 := p.checkIndentEnd(); end != end2 || err != err2 {
-		// We know that isIndentEnd() was false, so this just pops current indent
+	if end2, err2 := p.handleIndentEnd(); end != end2 || err != err2 {
+		// We know that isIndentEnd() was false, so the result of
+		// handleIndentEnd() has to be the same. It is called here
+		// only to update the parser state
 		panic("Impossible happened")
 	}
 
 	if t := p.nextToken(); tokens[t.Type] {
 		return true, t
 	} else {
-		p.putBack(indent)
+		p.putBack(indTok)
 		p.putBack(t)
 	}
 	return false, nil
 }
 
+// Forces end of the current indent, can be used to end it
+// in the middle of a line.
 func (p *Parser) forceIndentEnd() {
 	p.indentStack = p.indentStack[:len(p.indentStack)-1]
 }
 
+// Parse an indented block of code.
 func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
 	indent, err := p.expectNewIndent()
 	if err != nil {
@@ -284,8 +294,8 @@ func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
 	defer p.identStack.popScope()
 
 	for t := p.nextToken(); t.Type != TOKEN_EOF; t = p.nextToken() {
-		p.putBack(t) // So that we can use checkIndentEnd
-		end, err := p.checkIndentEnd()
+		p.putBack(t) // So that we can use handleIndentEnd
+		end, err := p.handleIndentEnd()
 		if err != nil {
 			return nil, err
 		}
@@ -689,7 +699,7 @@ func (p *Parser) parseStruct() (*StructType, error) {
 			result.Keys = append(result.Keys, name)
 		case TOKEN_INDENT:
 			p.putBack(token)
-			end, err := p.checkIndentEndOrNoToken(TOKEN_WORD)
+			end, err := p.handleIndentEndOrNoToken(TOKEN_WORD)
 			if err != nil {
 				return nil, err
 			}
@@ -1208,7 +1218,6 @@ func (p *Parser) parseStmt() (Stmt, error) {
 		case TOKEN_EOF:
 			return nil, nil
 		default:
-			panic(fmt.Errorf("Unexpected token: %s, %#v", token.Type, token))
 			return nil, fmt.Errorf("Unexpected token: %s, %#v", token.Type, token)
 		}
 	}

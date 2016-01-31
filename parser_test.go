@@ -207,28 +207,48 @@ var y = 2`, 1},
 }
 
 func TestIfStmt(t *testing.T) {
-	cases := []string{
-		`if var x = 0; x == 1:
-	var y = 3`,
-		`if var x = 100; x > 10:
+	cases := []struct {
+		code       string
+		shouldPass bool
+	}{
+		{`if var x = 0; x == 1:
+	var y = 3`, true},
+		{`if var x = 100; x > 10:
   if true:
-    var y = 3`,
-		`if var x int; false:
-  var y = 3`,
-		`if var x int; false:
+    var y = 3`, true},
+		{`if var x int; false:
+  var y = 3`, true},
+		{`if var x int; false:
   var y = 3
 else:
-  var x = 3`,
+  var x = 3`, true},
+		{`if var x int; false:
+  var y = 3
+  else:
+    var x = 3`, false},
+		{`if var x int; false:
+  var y = 3
+else:`, false},
+		{`if var x int; false:
+  var y = 3
+else:
+var x = 3`, false},
+		{`if var x int; false:
+  var y = 3
+else
+  var x = 3`, false},
 	}
 	for _, c := range cases {
-		parser := NewParser(NewLexer([]rune(c)))
+		parser := NewParser(NewLexer([]rune(c.code)))
 		result, err := parser.parseIf()
+
+		passed := err == nil
 
 		// TODO: better assertions, more test cases.
 		// We'll need something more succint than comparing whole ASTs.
-		if err != nil {
+		if passed != c.shouldPass {
 			t.Fail()
-			fmt.Printf("Error parsing `if` %s %s\n", err, spew.Sdump(result))
+			fmt.Printf("Error parsing `if`, shouldPass=%v, %s %s\n", c.shouldPass, err, spew.Sdump(result))
 		}
 	}
 }
