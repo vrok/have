@@ -314,21 +314,19 @@ func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
 	return &CodeBlock{Statements: result}, nil
 }
 
-func (p *Parser) parseIf() (*IfStmt, error) {
-	ident := p.expect(TOKEN_IF)
-	if ident == nil {
-		return nil, fmt.Errorf("Impossible happened")
-	}
-
-	// Scan for ";" to see if there's a scoped variable declaration.
-	// We could also always initially assume scoped variable and backtrack
-	// on parse error, but this seems simpler.
+// Scan for ";" to see which version of statement will be parsed.
+// For 'if' that can mean if there's a scoped variable declaration,
+// for 'for' that can be a range/foreach loop or 3-expression one.
+// We could also always initially assume scoped variable and backtrack
+// on parse error, but this seems simpler.
+// It restores intitial state of the parser before returning.
+func (p *Parser) scanForSemicolon() bool {
 	nopeStack := []*Token{}
 	token := p.nextToken()
-	scopedVar := false
+	semicolon := false
 	for token.Type != TOKEN_COLON && token.Type != TOKEN_EOF {
 		if token.Type == TOKEN_SEMICOLON {
-			scopedVar = true
+			semicolon = true
 			break
 		}
 		nopeStack = append(nopeStack, token)
@@ -337,6 +335,88 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 	nopeStack = append(nopeStack, token)
 
 	p.putBackStack(nopeStack)
+	return semicolon
+}
+
+// Expects the keyword "for" to be already consumed.
+func (p *Parser) parse3ClauseForStmt() (*ForStmt, error) {
+	var err error
+
+	result := ForStmt{}
+
+	if p.peek().Type != TOKEN_SEMICOLON {
+		p.identStack.pushScope()
+		defer p.identStack.popScope()
+
+		result.ScopedVarDecls, err = p.parseVarDecl()
+		if err != nil {
+			return nil, err
+		}
+
+		for _, v := range result.ScopedVarDecls {
+			p.identStack.addObject(v)
+		}
+	}
+
+	// Consume first semicolon
+	if t := p.expect(TOKEN_SEMICOLON); t == nil {
+		return nil, fmt.Errorf("Expected semicolon")
+	}
+
+	if p.peek().Type != TOKEN_SEMICOLON {
+		result.Condition, err = p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Consume second semicolon
+	if t := p.expect(TOKEN_SEMICOLON); t == nil {
+		return nil, fmt.Errorf("Expected semicolon")
+	}
+
+	if p.peek().Type != TOKEN_COLON {
+		result.RepeatExpr, err = p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Consume the colon
+	if t := p.expect(TOKEN_COLON); t == nil {
+		return nil, fmt.Errorf("Expected `:` at the end of `for` statement")
+	}
+
+	result.Code, err = p.parseCodeBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+func (p *Parser) parseForStmt() (*ForStmt, error) {
+	ident := p.expect(TOKEN_FOR)
+	if ident == nil {
+		return nil, fmt.Errorf("Impossible happened")
+	}
+
+	threeClause := p.scanForSemicolon()
+
+	if threeClause {
+		return p.parse3ClauseForStmt()
+	} else {
+		panic("todo")
+	}
+}
+
+func (p *Parser) parseIf() (*IfStmt, error) {
+	ident := p.expect(TOKEN_IF)
+	if ident == nil {
+		return nil, fmt.Errorf("Impossible happened")
+	}
+
+	scopedVar := p.scanForSemicolon()
 
 	var (
 		err           error
