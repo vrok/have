@@ -247,12 +247,20 @@ var a int = f("las", b)`,
 			"",
 		},
 		{`func f() int:
-	if 3 == 2:
+	if true:
 		var y = 2
 	var x = 1
 var a int = f()`,
 			true,
 			"int",
+		},
+		{`func f() int:
+	if 1:
+		var y = 2
+	var x = 1
+var a int = f()`,
+			false,
+			"",
 		},
 	}
 

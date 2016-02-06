@@ -95,6 +95,29 @@ func NegotiateExprType(varType *Type, value TypedExpr) error {
 	return value.ApplyType(typ)
 }
 
+func (is *IfStmt) NegotiateTypes() error {
+	for _, b := range is.Branches {
+		if b.ScopedVarDecl != nil {
+			err := b.ScopedVarDecl.NegotiateTypes()
+			if err != nil {
+				return err
+			}
+		}
+
+		if b.Condition != nil {
+			err := b.Condition.(TypedExpr).ApplyType(&SimpleType{SIMPLE_TYPE_BOOL})
+			if err != nil {
+				return err
+			}
+		}
+
+		if err := b.Code.CheckTypes(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (vd *VarDecl) NegotiateTypes() error {
 	return NegotiateExprType(&vd.Type, vd.Init.(TypedExpr))
 }
@@ -246,15 +269,14 @@ func (ex *FuncDecl) ApplyType(typ Type) error {
 	if !IsAssignable(typ, ex.typ) {
 		return fmt.Errorf("Cannot assign `%s` to `%s`", ex.typ, typ)
 	}
-	return ex.CheckTypes()
+	return ex.Code.CheckTypes()
 }
 func (ex *FuncDecl) GuessType() (ok bool, typ Type) {
 	return false, nil
 }
 
-// Typechecks contents of a function.
-func (ex *FuncDecl) CheckTypes() error {
-	for _, stmt := range ex.Code.Statements {
+func (cb *CodeBlock) CheckTypes() error {
+	for _, stmt := range cb.Statements {
 		typedStmt := stmt.(ExprToProcess)
 		if err := typedStmt.NegotiateTypes(); err != nil {
 			return err
