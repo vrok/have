@@ -51,6 +51,7 @@ const (
 	TOKEN_MAP                    // the "map" keyword
 	TOKEN_FUNC                   // the "func" keyword
 	TOKEN_TYPE                   // the "type" keyword
+	TOKEN_IN                     // the "in" keyword
 	TOKEN_GT                     // >
 	TOKEN_LT                     // <
 	TOKEN_MUL                    // *

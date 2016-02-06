@@ -246,6 +246,14 @@ var a int = f("las", b)`,
 			false,
 			"",
 		},
+		{`func f() int:
+	if 3 == 2:
+		var y = 2
+	var x = 1
+var a int = f()`,
+			true,
+			"int",
+		},
 	}
 
 	for i, c := range cases {

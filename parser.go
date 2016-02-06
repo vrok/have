@@ -258,18 +258,14 @@ func (p *Parser) checkForBranch(branchTokens ...TokenType) (ok bool, token *Toke
 		return false, nil
 	}
 
-	if end2, err2 := p.handleIndentEnd(); end != end2 || err != err2 {
-		// We know that isIndentEnd() was false, so the result of
-		// handleIndentEnd() has to be the same. It is called here
-		// only to update the parser state
-		panic("Impossible happened")
-	}
+	// Consume it so that we can access next token
+	p.expect(TOKEN_INDENT)
 
 	if t := p.nextToken(); tokens[t.Type] {
 		return true, t
 	} else {
-		p.putBack(indTok)
 		p.putBack(t)
+		p.putBack(indTok)
 	}
 	return false, nil
 }
@@ -314,18 +310,14 @@ func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
 	return &CodeBlock{Statements: result}, nil
 }
 
-// Scan for ";" to see which version of statement will be parsed.
-// For 'if' that can mean if there's a scoped variable declaration,
-// for 'for' that can be a range/foreach loop or 3-expression one.
-// We could also always initially assume scoped variable and backtrack
-// on parse error, but this seems simpler.
+// Check if token `forWhat` is present before `untilWhat.
 // It restores intitial state of the parser before returning.
-func (p *Parser) scanForSemicolon() bool {
+func (p *Parser) scanForToken(forWhat, untilWhat TokenType) bool {
 	nopeStack := []*Token{}
 	token := p.nextToken()
 	semicolon := false
-	for token.Type != TOKEN_COLON && token.Type != TOKEN_EOF {
-		if token.Type == TOKEN_SEMICOLON {
+	for token.Type != untilWhat && token.Type != TOKEN_EOF {
+		if token.Type == forWhat {
 			semicolon = true
 			break
 		}
@@ -336,6 +328,16 @@ func (p *Parser) scanForSemicolon() bool {
 
 	p.putBackStack(nopeStack)
 	return semicolon
+}
+
+// Scan for ";" to see which version of statement will be parsed.
+// For 'if' that can mean if there's a scoped variable declaration,
+// for 'for' that can be a range/foreach loop or 3-expression one.
+// We could also always initially assume scoped variable and backtrack
+// on parse error, but this seems simpler.
+// It restores intitial state of the parser before returning.
+func (p *Parser) scanForSemicolon() bool {
+	return p.scanForToken(TOKEN_SEMICOLON, TOKEN_COLON)
 }
 
 // Expects the keyword "for" to be already consumed.
