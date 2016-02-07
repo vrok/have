@@ -523,7 +523,7 @@ func TestVarDecl(t *testing.T) {
 						Init: &BasicLit{
 							expr: expr{pos: 15},
 							token: &Token{
-								Type:   9,
+								Type:   TOKEN_NUM,
 								Offset: 15,
 								Value:  "1",
 							},
@@ -535,7 +535,7 @@ func TestVarDecl(t *testing.T) {
 						Init: &BasicLit{
 							expr: expr{pos: 18},
 							token: &Token{
-								Type:   9,
+								Type:   TOKEN_NUM,
 								Offset: 18,
 								Value:  "2",
 							},
@@ -547,7 +547,7 @@ func TestVarDecl(t *testing.T) {
 						Init: &BasicLit{
 							expr: expr{pos: 26},
 							token: &Token{
-								Type:   9,
+								Type:   TOKEN_NUM,
 								Offset: 26,
 								Value:  "3",
 							},
@@ -567,7 +567,7 @@ func TestVarDecl(t *testing.T) {
 						Init: &BasicLit{
 							expr: expr{pos: 15},
 							token: &Token{
-								Type:   9,
+								Type:   TOKEN_NUM,
 								Offset: 15,
 								Value:  "1",
 							},
@@ -579,7 +579,7 @@ func TestVarDecl(t *testing.T) {
 						Init: &BasicLit{
 							expr: expr{pos: 19},
 							token: &Token{
-								Type:   9,
+								Type:   TOKEN_NUM,
 								Offset: 19,
 								Value:  "2",
 							},
@@ -604,7 +604,7 @@ func TestVarDecl(t *testing.T) {
 						Init: &BasicLit{
 							expr: expr{pos: 15},
 							token: &Token{
-								Type:   9,
+								Type:   TOKEN_NUM,
 								Offset: 15,
 								Value:  "1",
 							},

@@ -21,8 +21,12 @@ const (
 	TOKEN_WORD                   // alphanumeric word, starts witn a letter
 	TOKEN_ASSIGN                 // =
 	TOKEN_EQUALS                 // ==
+	TOKEN_NEQUALS                // !=
+	TOKEN_GT                     // >
+	TOKEN_LT                     // <
 	TOKEN_EQ_LT                  // =<
 	TOKEN_EQ_GT                  // =>
+	TOKEN_NEGATE                 // !
 	TOKEN_NUM                    // general token for all number literals
 	TOKEN_STR                    // string literal
 	TOKEN_DOT                    // .
@@ -52,8 +56,6 @@ const (
 	TOKEN_FUNC                   // the "func" keyword
 	TOKEN_TYPE                   // the "type" keyword
 	TOKEN_IN                     // the "in" keyword
-	TOKEN_GT                     // >
-	TOKEN_LT                     // <
 	TOKEN_MUL                    // *
 	TOKEN_DIV                    // /
 	TOKEN_SHL                    // <<
@@ -247,6 +249,14 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.retNewToken(TOKEN_EQ_LT, nil)
 		case "=>":
 			return l.retNewToken(TOKEN_EQ_GT, nil)
+		}
+	case ch == '!':
+		alt, _ := l.checkAlt("!=", "!")
+		switch alt {
+		case "!=":
+			return l.retNewToken(TOKEN_NEQUALS, nil)
+		case "!":
+			return l.retNewToken(TOKEN_NEGATE, nil)
 		}
 	case ch == '+':
 		alt, _ := l.checkAlt("++", "+=", "+")
