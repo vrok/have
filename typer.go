@@ -12,9 +12,7 @@ type TypedExpr interface {
 	//ExprToProcess
 	Expr
 
-	//TypeFullyKnown() bool
 	Type() Type
-	//CanBeOfType(typ Type) bool
 	ApplyType(typ Type) error
 	GuessType() (ok bool, typ Type)
 }
@@ -105,9 +103,15 @@ func (is *IfStmt) NegotiateTypes() error {
 		}
 
 		if b.Condition != nil {
-			err := b.Condition.(TypedExpr).ApplyType(&SimpleType{SIMPLE_TYPE_BOOL})
+			var boolTyp Type = &SimpleType{SIMPLE_TYPE_BOOL}
+
+			err := NegotiateExprType(&boolTyp, b.Condition.(TypedExpr))
 			if err != nil {
 				return err
+			}
+
+			if boolTyp.Kind() != KIND_SIMPLE || boolTyp.(*SimpleType).ID != SIMPLE_TYPE_BOOL {
+				fmt.Errorf("Error while negotiating types")
 			}
 		}
 
@@ -490,17 +494,100 @@ func (ex *CompoundLit) GuessType() (ok bool, typ Type) {
 
 func (ex *BinaryOp) Type() Type {
 	// for now, assume Left and Right have the same types
+	if ex.op.IsCompOp() {
+		return &SimpleType{SIMPLE_TYPE_BOOL}
+	}
 	return ex.Left.(TypedExpr).Type()
+}
+
+// Implements the definition of comparable operands from the Go spec.
+func AreComparable(t1, t2 Type) bool {
+	if t1.Kind() == KIND_UNKNOWN || t2.Kind() == KIND_UNKNOWN {
+		// This still might be eventually work after we run GuessType on the
+		// parent expression and underlying types will be set.
+		return false
+	}
+
+	if !IsAssignable(t1, t2) || !IsAssignable(t2, t1) {
+		return false
+	}
+
+	return true
+}
+
+// Implements the definition of ordered operands from the Go spec.
+func AreOrdered(t1, t2 Type) bool {
+	if !AreComparable(t1, t2) {
+		return false
+	}
+
+	if t1.Kind() == KIND_SIMPLE && t2.Kind() == KIND_SIMPLE {
+		if t1.(*SimpleType).ID != t2.(*SimpleType).ID {
+			return false
+		}
+
+		switch t1.(*SimpleType).ID {
+		case SIMPLE_TYPE_INT, SIMPLE_TYPE_STRING:
+			return true
+		}
+		return false
+	}
+
+	// TODO: other cases
+	panic("todo")
+}
+
+func (ex *BinaryOp) applyTypeForComparisonOp(typ Type) error {
+	leftExpr, rightExpr := ex.Left.(TypedExpr), ex.Right.(TypedExpr)
+
+	if typ.Kind() != KIND_SIMPLE || typ.(*SimpleType).ID != SIMPLE_TYPE_BOOL {
+		return fmt.Errorf("Comparison operators return bools, not %s", typ)
+	}
+
+	t1 := leftExpr.Type()
+	if !t1.Known() {
+		var ok bool
+		ok, t1 = leftExpr.GuessType()
+		if !ok {
+			return fmt.Errorf("Couldn't infer type of the left operand")
+		}
+	}
+
+	t2 := rightExpr.Type()
+	if !t2.Known() {
+		var ok bool
+		ok, t2 = rightExpr.GuessType()
+		if !ok {
+			return fmt.Errorf("Couldn't infer type of the operand on the right")
+		}
+	}
+
+	if ex.op.IsOrderOp() {
+		if !AreOrdered(t1, t2) {
+			return fmt.Errorf("Operands of types %s and %s can't be ordered", t1, t2)
+		}
+	} else {
+		if !AreComparable(t1, t2) {
+			return fmt.Errorf("Types %s and %s aren't comparable", t1, t2)
+		}
+	}
+	return nil
 }
 
 func (ex *BinaryOp) ApplyType(typ Type) error {
 	// TODO: Validate concrete operators and types (logical operators only for bools,
 	// numeric operators for numeric types, no tuple types, etc).
 
-	if err := ex.Left.(TypedExpr).ApplyType(typ); err != nil {
+	if ex.op.IsCompOp() {
+		// Comparison operators have different rules and need to be treated separately.
+		return ex.applyTypeForComparisonOp(typ)
+	}
+
+	leftExpr, rightExpr := ex.Left.(TypedExpr), ex.Right.(TypedExpr)
+	if err := leftExpr.ApplyType(typ); err != nil {
 		return err
 	}
-	return ex.Right.(TypedExpr).ApplyType(typ)
+	return rightExpr.ApplyType(typ)
 }
 
 func (ex *BinaryOp) GuessType() (ok bool, typ Type) {

@@ -5,12 +5,54 @@ import (
 	"testing"
 )
 
+type typeTestCase struct {
+	code       string
+	shouldPass bool
+	typ        string
+}
+
+func testVarTypes(t *testing.T, cases []typeTestCase) {
+	for i, c := range cases {
+		parser := NewParser(NewLexer([]rune(c.code)))
+		result, err := parser.Parse()
+		if err != nil {
+			t.Fail()
+			fmt.Printf("FAIL: Failed parsing: %s\n", err)
+		}
+
+		var varStmt *VarStmt = nil
+		var ok = false
+
+		for _, stmt := range result {
+			varStmt, ok = stmt.(*VarStmt)
+			if ok {
+				err = varStmt.NegotiateTypes()
+				if err != nil {
+					break
+				}
+			}
+		}
+
+		if (err == nil) != c.shouldPass {
+			t.Fail()
+			fmt.Printf("FAIL: Case %d: Bad code accepted or good code parsed with an error for '%s'\nError: %s\n",
+				i, c.code, err)
+			return
+		}
+
+		if c.shouldPass {
+			firstVar := varStmt.Vars[0]
+			if firstVar.Type.String() != c.typ || !IsAssignable(firstVar.Init.(TypedExpr).Type(), firstVar.Type) {
+				t.Fail()
+				fmt.Printf("FAIL: Case %d: Bad type: %s, %s, %s\n", i, c.typ, firstVar.Type.String(),
+					firstVar.Init.(TypedExpr).Type().String())
+			}
+		}
+	}
+}
+
 func TestWithLookups(t *testing.T) {
-	var cases = []struct {
-		code       string
-		shouldPass bool
-		typ        string
-	}{
+	var cases = []typeTestCase{
 		{`var b int = 2		
 var a int = b`,
 			true,
@@ -264,43 +306,20 @@ var a int = f()`,
 		},
 	}
 
-	for i, c := range cases {
-		parser := NewParser(NewLexer([]rune(c.code)))
-		result, err := parser.Parse()
-		if err != nil {
-			t.Fail()
-			fmt.Printf("FAIL: Failed parsing: %s\n", err)
-		}
+	testVarTypes(t, cases)
+}
 
-		var varStmt *VarStmt = nil
-		var ok = false
-
-		for _, stmt := range result {
-			varStmt, ok = stmt.(*VarStmt)
-			if ok {
-				err = varStmt.NegotiateTypes()
-				if err != nil {
-					break
-				}
-			}
-		}
-
-		if (err == nil) != c.shouldPass {
-			t.Fail()
-			fmt.Printf("FAIL: Case %d: Bad code accepted or good code parsed with an error for '%s'\nError: %s\n",
-				i, c.code, err)
-			return
-		}
-
-		if c.shouldPass {
-			firstVar := varStmt.Vars[0]
-			if firstVar.Type.String() != c.typ || !IsAssignable(firstVar.Init.(TypedExpr).Type(), firstVar.Type) {
-				t.Fail()
-				fmt.Printf("FAIL: Case %d: Bad type: %s, %s, %s\n", i, c.typ, firstVar.Type.String(),
-					firstVar.Init.(TypedExpr).Type().String())
-			}
-		}
-	}
+func TestTypesIfStmt(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`func f() int:
+	if 1 == 2:
+		var y = 2
+	var x = 1
+var a int = f()`,
+			true,
+			"int",
+		},
+	})
 }
 
 func TestSimple(t *testing.T) {

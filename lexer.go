@@ -13,6 +13,27 @@ type Token struct {
 	Value  interface{}
 }
 
+// Tells if a token is any of the comparison operators.
+func (t *Token) IsCompOp() bool {
+	switch t.Type {
+	case TOKEN_EQUALS, TOKEN_NEQUALS,
+		TOKEN_LT, TOKEN_GT,
+		TOKEN_EQ_LT, TOKEN_EQ_GT:
+		return true
+	}
+	return false
+}
+
+// Tells if a token is any of the order operators.
+func (t *Token) IsOrderOp() bool {
+	switch t.Type {
+	case TOKEN_LT, TOKEN_GT,
+		TOKEN_EQ_LT, TOKEN_EQ_GT:
+		return true
+	}
+	return false
+}
+
 //go:generate stringer -type=TokenType
 const (
 	TOKEN_EOF          TokenType = iota + 1
