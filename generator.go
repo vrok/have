@@ -98,12 +98,12 @@ func (lit *BasicLit) Generate(current *CodeChunk) {
 
 func (op *UnaryOp) Generate(current *CodeChunk) {
 	// TODO: Put the right operator in
-	current.AddChprintf("(%s(%C))", "+", op.Right.(Generable))
+	current.AddChprintf("(%s(%C))", op.op.Value.(string), op.Right.(Generable))
 }
 
 func (op *BinaryOp) Generate(current *CodeChunk) {
 	// TODO: Put the right operator in
-	current.AddChprintf("((%C)%s(%C))", op.Left.(Generable), "+", op.Right.(Generable))
+	current.AddChprintf("((%C)%s(%C))", op.Left.(Generable), op.op.Value.(string), op.Right.(Generable))
 }
 
 func (vd *VarDecl) Generate(current *CodeChunk) {
