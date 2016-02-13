@@ -481,7 +481,7 @@ func TestVarDecl(t *testing.T) {
 								expr:  expr{pos: 16},
 								token: &Token{Type: TOKEN_NUM, Offset: 16, Value: "2"},
 							},
-							op: &Token{Type: TOKEN_PLUS, Offset: 14, Value: nil},
+							op: &Token{Type: TOKEN_PLUS, Offset: 14, Value: "+"},
 						},
 					},
 				},

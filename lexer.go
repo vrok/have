@@ -79,6 +79,8 @@ const (
 	TOKEN_IN                     // the "in" keyword
 	TOKEN_MUL                    // *
 	TOKEN_DIV                    // /
+	TOKEN_MUL_ASSIGN             // *=
+	TOKEN_DIV_ASSIGN             // /=
 	TOKEN_SHL                    // <<
 	TOKEN_SHR                    // >>
 	TOKEN_SEND                   // <-
@@ -263,59 +265,59 @@ func (l *Lexer) Next() (*Token, error) {
 		alt, _ := l.checkAlt("==", "=<", "=>", "=")
 		switch alt {
 		case "=":
-			return l.retNewToken(TOKEN_ASSIGN, nil)
+			return l.retNewToken(TOKEN_ASSIGN, alt)
 		case "==":
-			return l.retNewToken(TOKEN_EQUALS, nil)
+			return l.retNewToken(TOKEN_EQUALS, alt)
 		case "=<":
-			return l.retNewToken(TOKEN_EQ_LT, nil)
+			return l.retNewToken(TOKEN_EQ_LT, alt)
 		case "=>":
-			return l.retNewToken(TOKEN_EQ_GT, nil)
+			return l.retNewToken(TOKEN_EQ_GT, alt)
 		}
 	case ch == '!':
 		alt, _ := l.checkAlt("!=", "!")
 		switch alt {
 		case "!=":
-			return l.retNewToken(TOKEN_NEQUALS, nil)
+			return l.retNewToken(TOKEN_NEQUALS, alt)
 		case "!":
-			return l.retNewToken(TOKEN_NEGATE, nil)
+			return l.retNewToken(TOKEN_NEGATE, alt)
 		}
 	case ch == '+':
 		alt, _ := l.checkAlt("++", "+=", "+")
 		switch alt {
 		case "+":
-			return l.retNewToken(TOKEN_PLUS, nil)
+			return l.retNewToken(TOKEN_PLUS, alt)
 		case "+=":
-			return l.retNewToken(TOKEN_PLUS_ASSIGN, nil)
+			return l.retNewToken(TOKEN_PLUS_ASSIGN, alt)
 		case "++":
-			return l.retNewToken(TOKEN_INCREMENT, nil)
+			return l.retNewToken(TOKEN_INCREMENT, alt)
 		}
 	case ch == '-':
 		alt, _ := l.checkAlt("--", "-=", "-")
 		switch alt {
 		case "-":
-			return l.retNewToken(TOKEN_MINUS, nil)
+			return l.retNewToken(TOKEN_MINUS, alt)
 		case "-=":
-			return l.retNewToken(TOKEN_MINUS_ASSIGN, nil)
+			return l.retNewToken(TOKEN_MINUS_ASSIGN, alt)
 		case "--":
-			return l.retNewToken(TOKEN_DECREMENT, nil)
+			return l.retNewToken(TOKEN_DECREMENT, alt)
 		}
 	case ch == '<':
 		alt, _ := l.checkAlt("<<", "<-", "<")
 		switch alt {
 		case "<":
-			return l.retNewToken(TOKEN_LT, nil)
+			return l.retNewToken(TOKEN_LT, alt)
 		case "<-":
-			return l.retNewToken(TOKEN_SEND, nil)
+			return l.retNewToken(TOKEN_SEND, alt)
 		case "<<":
-			return l.retNewToken(TOKEN_SHL, nil)
+			return l.retNewToken(TOKEN_SHL, alt)
 		}
 	case ch == '>':
 		alt, _ := l.checkAlt(">>", ">")
 		switch alt {
 		case ">":
-			return l.retNewToken(TOKEN_GT, nil)
+			return l.retNewToken(TOKEN_GT, alt)
 		case ">>":
-			return l.retNewToken(TOKEN_SHR, nil)
+			return l.retNewToken(TOKEN_SHR, alt)
 		}
 	case unicode.IsNumber(ch):
 		word := l.scanWord()
@@ -347,12 +349,22 @@ func (l *Lexer) Next() (*Token, error) {
 	case ch == '.':
 		l.skip()
 		return l.retNewToken(TOKEN_DOT, nil)
-	case ch == '.':
-		l.skip()
-		return l.retNewToken(TOKEN_DOT, nil)
-	case ch == '*': // TODO: use checkAlt, "*=", etc
-		l.skip()
-		return l.retNewToken(TOKEN_MUL, nil)
+	case ch == '*':
+		alt, _ := l.checkAlt("*=", "*")
+		switch alt {
+		case "*":
+			return l.retNewToken(TOKEN_MUL, alt)
+		case "*=":
+			return l.retNewToken(TOKEN_MUL_ASSIGN, alt)
+		}
+	case ch == '/':
+		alt, _ := l.checkAlt("/=", "/")
+		switch alt {
+		case "/":
+			return l.retNewToken(TOKEN_DIV, alt)
+		case "/=":
+			return l.retNewToken(TOKEN_DIV_ASSIGN, alt)
+		}
 	case ch == ',':
 		l.skip()
 		return l.retNewToken(TOKEN_COMMA, nil)
@@ -364,7 +376,7 @@ func (l *Lexer) Next() (*Token, error) {
 		return l.retNewToken(TOKEN_COLON, nil)
 	case ch == '&':
 		l.skip()
-		return l.retNewToken(TOKEN_AMP, nil)
+		return l.retNewToken(TOKEN_AMP, "&")
 	}
 
 	return nil, fmt.Errorf("Don't know what to do, '%c'", ch)

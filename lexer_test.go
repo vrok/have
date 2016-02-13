@@ -58,10 +58,10 @@ func TestIndents(t *testing.T) {
 func TestEquals(t *testing.T) {
 	testTokens(t, []rune("for == = =< =>"), []*Token{
 		&Token{TOKEN_FOR, 0, nil},
-		&Token{TOKEN_EQUALS, 4, nil},
-		&Token{TOKEN_ASSIGN, 7, nil},
-		&Token{TOKEN_EQ_LT, 9, nil},
-		&Token{TOKEN_EQ_GT, 12, nil},
+		&Token{TOKEN_EQUALS, 4, "=="},
+		&Token{TOKEN_ASSIGN, 7, "="},
+		&Token{TOKEN_EQ_LT, 9, "=<"},
+		&Token{TOKEN_EQ_GT, 12, "=>"},
 		&Token{TOKEN_EOF, 14, nil}})
 }
 
@@ -99,8 +99,8 @@ func TestBraces(t *testing.T) {
 
 func TestPlus(t *testing.T) {
 	testTokens(t, []rune("+ ++ +="), []*Token{
-		&Token{TOKEN_PLUS, 0, nil},
-		&Token{TOKEN_INCREMENT, 2, nil},
-		&Token{TOKEN_PLUS_ASSIGN, 5, nil},
+		&Token{TOKEN_PLUS, 0, "+"},
+		&Token{TOKEN_INCREMENT, 2, "++"},
+		&Token{TOKEN_PLUS_ASSIGN, 5, "+="},
 		&Token{TOKEN_EOF, 7, nil}})
 }
