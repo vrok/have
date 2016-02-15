@@ -2,6 +2,7 @@ package have
 
 import (
 	"fmt"
+	"io/ioutil"
 	"testing"
 )
 
@@ -9,6 +10,26 @@ type generateTestCase struct {
 	code       string
 	shouldPass bool
 	typ        string
+}
+
+func transpile(code string, outputFile string) error {
+	parser := NewParser(NewLexer([]rune(code)))
+	result, err := parser.Parse()
+	if err != nil {
+		return err
+	}
+
+	cc := &CodeChunk{}
+	for _, stmt := range result {
+		typedStmt := stmt.(ExprToProcess)
+		if err := typedStmt.NegotiateTypes(); err != nil {
+			return err
+		}
+
+		typedStmt.(Generable).Generate(cc)
+	}
+
+	return ioutil.WriteFile(outputFile, []byte(cc.ReadAll()), 0644)
 }
 
 func testVarGenerate(t *testing.T, cases []generateTestCase) {
@@ -65,4 +86,8 @@ var a int = b+2`,
 	}
 
 	testVarGenerate(t, cases)
+
+	for i, c := range cases {
+		fmt.Printf("Compiling case %d: %s", i, transpile(c.code, fmt.Sprintf("tmp/case_%d.go", i)))
+	}
 }
