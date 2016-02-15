@@ -552,7 +552,7 @@ func (p *Parser) parseFuncStmt() (*VarStmt, error) {
 	decl := &VarDecl{name: fun.name, Type: fun.typ, Init: fun}
 	// TODO: mark as final/not changeable
 	p.identStack.addObject(decl)
-	return &VarStmt{expr{ident.Offset}, []*VarDecl{decl}}, nil
+	return &VarStmt{expr{ident.Offset}, []*VarDecl{decl}, true}, nil
 }
 
 func (p *Parser) parseVarStmt() (*VarStmt, error) {
@@ -570,7 +570,7 @@ func (p *Parser) parseVarStmt() (*VarStmt, error) {
 		p.identStack.addObject(v)
 	}
 
-	return &VarStmt{expr{ident.Offset}, vars}, nil
+	return &VarStmt{expr{ident.Offset}, vars, false}, nil
 }
 
 func (p *Parser) parseVarDecl() ([]*VarDecl, error) {
@@ -1321,7 +1321,12 @@ func (p *Parser) parseStmt() (Stmt, error) {
 		case TOKEN_EOF:
 			return nil, nil
 		default:
-			return nil, fmt.Errorf("Unexpected token: %s, %#v", token.Type, token)
+			p.putBack(token)
+			e, err := p.parseExpr()
+			if err != nil {
+				return nil, err
+			}
+			return &ExprStmt{expr{token.Offset}, e}, nil
 		}
 	}
 }
@@ -1333,6 +1338,10 @@ func (p *Parser) Parse() ([]Stmt, error) {
 		stmt, err := p.parseStmt()
 		if err != nil {
 			return nil, err
+		}
+		if stmt == nil {
+			// EOF
+			break
 		}
 		result = append(result, stmt)
 	}

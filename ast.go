@@ -77,7 +77,7 @@ func initVarDecls() {
 
 var builtinFuncs = []string{
 	// These should be changed once we have varags etc.
-	"func print(s string):\n pass",
+	"func print(s string) bool:\n pass",
 	"func read() string:\n pass",
 }
 
@@ -93,7 +93,8 @@ type CodeBlock struct {
 // implements Stmt
 type VarStmt struct {
 	expr
-	Vars []*VarDecl
+	Vars       []*VarDecl
+	IsFuncStmt bool
 }
 
 // implements Stmt
@@ -129,6 +130,7 @@ type ForStmt struct {
 // implements Stmt
 // Statement wrapper for expressions.
 type ExprStmt struct {
+	expr
 	Expression Expr
 }
 

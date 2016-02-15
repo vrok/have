@@ -126,6 +126,11 @@ func (vd *VarDecl) NegotiateTypes() error {
 	return NegotiateExprType(&vd.Type, vd.Init.(TypedExpr))
 }
 
+func (es *ExprStmt) NegotiateTypes() error {
+	uk := Type(&UnknownType{})
+	return NegotiateExprType(&uk, es.Expression.(TypedExpr))
+}
+
 func (ex *BlankExpr) Type() Type                     { panic("nope") }
 func (ex *BlankExpr) ApplyType(typ Type) error       { panic("nope") }
 func (ex *BlankExpr) GuessType() (ok bool, typ Type) { panic("nope") }
