@@ -75,6 +75,12 @@ func initVarDecls() {
 	}
 }
 
+var builtinFuncs = []string{
+	// These should be changed once we have varags etc.
+	"func print(s string):\n pass",
+	"func read() string:\n pass",
+}
+
 func GetBuiltinType(name string) (*TypeDecl, bool) {
 	t, ok := builtinTypes[name]
 	return t, ok
@@ -88,6 +94,11 @@ type CodeBlock struct {
 type VarStmt struct {
 	expr
 	Vars []*VarDecl
+}
+
+// implements Stmt
+type PassStmt struct {
+	expr
 }
 
 // implements Stmt

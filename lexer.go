@@ -77,6 +77,7 @@ const (
 	TOKEN_FUNC                   // the "func" keyword
 	TOKEN_TYPE                   // the "type" keyword
 	TOKEN_IN                     // the "in" keyword
+	TOKEN_PASS                   // the "pass" keyword
 	TOKEN_MUL                    // *
 	TOKEN_DIV                    // /
 	TOKEN_MUL_ASSIGN             // *=
@@ -232,6 +233,8 @@ func (l *Lexer) Next() (*Token, error) {
 		switch s := string(word); s {
 		case "for":
 			return l.retNewToken(TOKEN_FOR, nil)
+		case "pass":
+			return l.retNewToken(TOKEN_PASS, nil)
 		case "var":
 			return l.retNewToken(TOKEN_VAR, nil)
 		case "if":

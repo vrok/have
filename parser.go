@@ -86,6 +86,12 @@ func (p *Parser) peek() *Token {
 }
 
 func NewParser(lex *Lexer) *Parser {
+	parser := NewParserWithoutBuiltins(lex)
+	parser.loadBuiltinFuncs()
+	return parser
+}
+
+func NewParserWithoutBuiltins(lex *Lexer) *Parser {
 	return &Parser{lex: lex, identStack: &IdentStack{map[string]Object{}}}
 }
 
@@ -517,6 +523,19 @@ loop:
 		expr{ident.Offset},
 		branches,
 	}, nil
+}
+
+func (p *Parser) loadBuiltinFuncs() {
+	for _, code := range builtinFuncs {
+		parser := NewParserWithoutBuiltins(NewLexer([]rune(code)))
+		fun, err := parser.parseFunc()
+		if err != nil {
+			panic(err)
+		}
+
+		decl := &VarDecl{name: fun.name, Type: fun.typ, Init: fun}
+		p.identStack.addObject(decl)
+	}
 }
 
 func (p *Parser) parseFuncStmt() (*VarStmt, error) {
@@ -1297,6 +1316,8 @@ func (p *Parser) parseStmt() (Stmt, error) {
 			if token.Value.(string) != "" {
 				return nil, fmt.Errorf("Unexpected indent")
 			}
+		case TOKEN_PASS:
+			return &PassStmt{expr{token.Offset}}, nil
 		case TOKEN_EOF:
 			return nil, nil
 		default:
