@@ -210,4 +210,11 @@ func (es *ExprStmt) Generate(current *CodeChunk) {
 	current.AddChprintf("%C\n", es.Expression.(Generable))
 }
 
+func (f *File) Generate(current *CodeChunk) {
+	current.AddChprintf("package %s\n\n", f.Pkg)
+	for _, stmt := range f.Statements {
+		stmt.(Generable).Generate(current)
+	}
+}
+
 // TODO: Now just write Generables for all statements/expressions and we're done...

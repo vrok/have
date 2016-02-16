@@ -1331,6 +1331,31 @@ func (p *Parser) parseStmt() (Stmt, error) {
 	}
 }
 
+type File struct {
+	Pkg        string
+	Statements []Stmt
+}
+
+func (p *Parser) ParseFile() (*File, error) {
+	if p.expect(TOKEN_PACKAGE) == nil {
+		return nil, fmt.Errorf("Expected keyword `package` at the beginning of a file")
+	}
+
+	pkg := ""
+	if t := p.expect(TOKEN_WORD); t == nil {
+		return nil, fmt.Errorf("Expected package name after the `package` keyword")
+	} else {
+		pkg = t.Value.(string)
+	}
+
+	stmts, err := p.Parse()
+	if err != nil {
+		return nil, err
+	}
+
+	return &File{Pkg: pkg, Statements: stmts}, nil
+}
+
 func (p *Parser) Parse() ([]Stmt, error) {
 	var result = []Stmt{}
 	for t := p.nextToken(); t.Type != TOKEN_EOF; t = p.nextToken() {

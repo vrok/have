@@ -8,20 +8,20 @@ import (
 
 func transpile(code string, outputFile string) error {
 	parser := NewParser(NewLexer([]rune(code)))
-	result, err := parser.Parse()
+	result, err := parser.ParseFile()
 	if err != nil {
 		return err
 	}
 
-	cc := &CodeChunk{}
-	for _, stmt := range result {
+	for _, stmt := range result.Statements {
 		typedStmt := stmt.(ExprToProcess)
 		if err := typedStmt.NegotiateTypes(); err != nil {
 			return err
 		}
-
-		typedStmt.(Generable).Generate(cc)
 	}
+
+	cc := &CodeChunk{}
+	result.Generate(cc)
 
 	return ioutil.WriteFile(outputFile, []byte(cc.ReadAll()), 0644)
 }

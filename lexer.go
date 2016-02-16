@@ -78,6 +78,7 @@ const (
 	TOKEN_TYPE                   // the "type" keyword
 	TOKEN_IN                     // the "in" keyword
 	TOKEN_PASS                   // the "pass" keyword
+	TOKEN_PACKAGE                // the "package" keyword
 	TOKEN_MUL                    // *
 	TOKEN_DIV                    // /
 	TOKEN_MUL_ASSIGN             // *=
@@ -235,6 +236,8 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.retNewToken(TOKEN_FOR, nil)
 		case "pass":
 			return l.retNewToken(TOKEN_PASS, nil)
+		case "package":
+			return l.retNewToken(TOKEN_PACKAGE, nil)
 		case "var":
 			return l.retNewToken(TOKEN_VAR, nil)
 		case "if":
