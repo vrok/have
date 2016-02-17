@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 // CodeChunk can either be a string of smaller CodeChunks
@@ -145,7 +143,7 @@ func (vd *VarDecl) Generate(current *CodeChunk) {
 	current = current.NewChunk()
 	current.AddChprintf("%s %s", vd.name, vd.Type)
 	if vd.Init != nil {
-		current.AddChprintf(" = (%C)", vd.name, vd.Type, vd.Init.(Generable))
+		current.AddChprintf(" = %C", vd.Init.(Generable))
 	}
 }
 
@@ -201,7 +199,7 @@ func (fd *FuncDecl) Generate(current *CodeChunk) {
 func (bl *CodeBlock) Generate(current *CodeChunk) {
 	block := current.NewBlockChunk()
 	for _, stmt := range bl.Statements {
-		fmt.Printf("ZZZ generate code for %s\n", spew.Sdump(stmt))
+		//fmt.Printf("ZZZ generate code for %s\n", spew.Sdump(stmt))
 		stmt.(Generable).Generate(block.NewChunk())
 	}
 }
