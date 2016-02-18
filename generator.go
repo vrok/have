@@ -117,7 +117,13 @@ func (id *Ident) Generate(current *CodeChunk) {
 func (lit *BasicLit) Generate(current *CodeChunk) {
 	val := ""
 	switch lit.token.Type {
-	case TOKEN_NUM, TOKEN_TRUE, TOKEN_FALSE:
+	case TOKEN_TRUE:
+		current.AddString("true")
+		return
+	case TOKEN_FALSE:
+		current.AddString("false")
+		return
+	case TOKEN_NUM:
 		val = lit.token.Value.(string)
 	case TOKEN_STR:
 		val = fmt.Sprintf("\"%s\"", lit.token.Value.(string))
