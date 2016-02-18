@@ -53,6 +53,10 @@ func TestGenerateExpr(t *testing.T) {
 		{source: "\"bla\"", reference: "(string)(\"bla\")\n"},
 		{source: "true", reference: "true\n"},
 		{source: "false", reference: "false\n"},
+		{source: "1+1", reference: "((int)(1) + (int)(1))\n"},
+		{source: "1+(-1)", reference: "((int)(1) + (-(int)(1)))\n"},
+		{source: "func a():\n 1", reference: "func a() {\n\t(int)(1)\n}\n"},
+		{source: "print(\"test\")", reference: "print((string)(\"test\"))\n"},
 	}
 	testCases(t, cases)
 }

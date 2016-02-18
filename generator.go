@@ -137,12 +137,12 @@ func (lit *BasicLit) Generate(current *CodeChunk) {
 
 func (op *UnaryOp) Generate(current *CodeChunk) {
 	// TODO: Put the right operator in
-	current.AddChprintf("(%s(%C))", op.op.Value.(string), op.Right.(Generable))
+	current.AddChprintf("(%s%C)", op.op.Value.(string), op.Right.(Generable))
 }
 
 func (op *BinaryOp) Generate(current *CodeChunk) {
 	// TODO: Put the right operator in
-	current.AddChprintf("((%C)%s(%C))", op.Left.(Generable), op.op.Value.(string), op.Right.(Generable))
+	current.AddChprintf("(%C %s %C)", op.Left.(Generable), op.op.Value.(string), op.Right.(Generable))
 }
 
 func (vd *VarDecl) Generate(current *CodeChunk) {
@@ -164,7 +164,7 @@ func (vs *VarStmt) Generate(current *CodeChunk) {
 }
 
 func (fc *FuncCallExpr) Generate(current *CodeChunk) {
-	current.AddChprintf("(%C)(", fc.Left.(Generable))
+	current.AddChprintf("%C(", fc.Left.(Generable))
 	for i, arg := range fc.Args {
 		arg.(Generable).Generate(current)
 		if i+1 < len(fc.Args) {
@@ -196,7 +196,7 @@ func (fd *FuncDecl) Generate(current *CodeChunk) {
 		current.AddString(")")
 	}
 
-	current.AddString("{\n")
+	current.AddString(" {\n")
 	fd.Code.Generate(current)
 
 	current.AddString("}\n")
