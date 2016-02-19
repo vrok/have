@@ -312,6 +312,27 @@ var a int = f()`,
 			false,
 			"",
 		},
+		{`func f() int:
+	for x = 0; x < 100; print("a"):
+		var y = 2
+var a int = f()`,
+			true,
+			"int",
+		},
+		{`func f() int:
+	for x = 0; x < 100; print(1):
+		pass
+var a int = f()`,
+			false,
+			"int",
+		},
+		{`func f() int:
+	for ;;:
+		pass
+var a int = f()`,
+			true,
+			"int",
+		},
 	}
 
 	testVarTypes(t, cases)

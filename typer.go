@@ -93,6 +93,20 @@ func NegotiateExprType(varType *Type, value TypedExpr) error {
 	return value.ApplyType(typ)
 }
 
+func CheckCondition(expr TypedExpr) error {
+	var boolTyp Type = &SimpleType{SIMPLE_TYPE_BOOL}
+
+	err := NegotiateExprType(&boolTyp, expr)
+	if err != nil {
+		return err
+	}
+
+	if boolTyp.Kind() != KIND_SIMPLE || boolTyp.(*SimpleType).ID != SIMPLE_TYPE_BOOL {
+		fmt.Errorf("Error while negotiating types")
+	}
+	return nil
+}
+
 func (is *IfStmt) NegotiateTypes() error {
 	for _, b := range is.Branches {
 		if b.ScopedVarDecl != nil {
@@ -103,15 +117,8 @@ func (is *IfStmt) NegotiateTypes() error {
 		}
 
 		if b.Condition != nil {
-			var boolTyp Type = &SimpleType{SIMPLE_TYPE_BOOL}
-
-			err := NegotiateExprType(&boolTyp, b.Condition.(TypedExpr))
-			if err != nil {
+			if err := CheckCondition(b.Condition.(TypedExpr)); err != nil {
 				return err
-			}
-
-			if boolTyp.Kind() != KIND_SIMPLE || boolTyp.(*SimpleType).ID != SIMPLE_TYPE_BOOL {
-				fmt.Errorf("Error while negotiating types")
 			}
 		}
 
@@ -119,6 +126,38 @@ func (is *IfStmt) NegotiateTypes() error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (p *PassStmt) NegotiateTypes() error {
+	return nil
+}
+
+func (fs *ForStmt) NegotiateTypes() error {
+	for _, decl := range fs.ScopedVarDecls {
+		if err := decl.NegotiateTypes(); err != nil {
+			return err
+		}
+	}
+
+	if fs.Condition != nil {
+		if err := CheckCondition(fs.Condition.(TypedExpr)); err != nil {
+			return err
+		}
+	}
+
+	if fs.RepeatExpr != nil {
+
+		uk := Type(&UnknownType{})
+		if err := NegotiateExprType(&uk, fs.RepeatExpr.(TypedExpr)); err != nil {
+			return err
+		}
+	}
+
+	if err := fs.Code.CheckTypes(); err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -1307,6 +1307,9 @@ func (p *Parser) parseStmt() (Stmt, error) {
 		case TOKEN_IF:
 			p.putBack(token)
 			return p.parseIf()
+		case TOKEN_FOR:
+			p.putBack(token)
+			return p.parseForStmt()
 		case TOKEN_FUNC:
 			p.putBack(token)
 			return p.parseFuncStmt()
