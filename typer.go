@@ -598,6 +598,12 @@ func (ex *BinaryOp) ApplyType(typ Type) error {
 		return ex.applyTypeForComparisonOp(typ)
 	}
 
+	if ex.op.IsLogicalOp() {
+		if typ.Kind() != KIND_SIMPLE || typ.(*SimpleType).ID != SIMPLE_TYPE_BOOL {
+			return fmt.Errorf("Logical operators return bools, not %s", typ)
+		}
+	}
+
 	leftExpr, rightExpr := ex.Left.(TypedExpr), ex.Right.(TypedExpr)
 	if err := leftExpr.ApplyType(typ); err != nil {
 		return err

@@ -304,6 +304,14 @@ var a int = f()`,
 			false,
 			"",
 		},
+		{`var x = true || false`,
+			true,
+			"bool",
+		},
+		{`var x = 1 || 2`,
+			false,
+			"",
+		},
 	}
 
 	testVarTypes(t, cases)

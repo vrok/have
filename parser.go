@@ -1035,7 +1035,8 @@ var hierarchy [][]TokenType = [][]TokenType{
 	{TOKEN_PLUS, TOKEN_MINUS},
 	{TOKEN_SHL, TOKEN_SHR},
 	{TOKEN_LT, TOKEN_GT, TOKEN_EQ_GT, TOKEN_EQ_LT},
-	{TOKEN_EQUALS}}
+	{TOKEN_EQUALS},
+	{TOKEN_OR, TOKEN_AND}}
 
 var opSet map[TokenType]bool = make(map[TokenType]bool)
 

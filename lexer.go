@@ -34,6 +34,15 @@ func (t *Token) IsOrderOp() bool {
 	return false
 }
 
+// Tells if operator's operands can only be boolean.
+func (t *Token) IsLogicalOp() bool {
+	switch t.Type {
+	case TOKEN_AND, TOKEN_OR:
+		return true
+	}
+	return false
+}
+
 //go:generate stringer -type=TokenType
 const (
 	TOKEN_EOF          TokenType = iota + 1
@@ -90,6 +99,9 @@ const (
 	TOKEN_COLON                  // :
 	TOKEN_SEMICOLON              // ;
 	TOKEN_AMP                    // &
+	TOKEN_PIPE                   // |
+	TOKEN_AND                    // &&
+	TOKEN_OR                     // ||
 )
 
 type Lexer struct {
@@ -381,8 +393,21 @@ func (l *Lexer) Next() (*Token, error) {
 		l.skip()
 		return l.retNewToken(TOKEN_COLON, nil)
 	case ch == '&':
-		l.skip()
-		return l.retNewToken(TOKEN_AMP, "&")
+		alt, _ := l.checkAlt("&&", "&")
+		switch alt {
+		case "&&":
+			return l.retNewToken(TOKEN_AND, alt)
+		case "&":
+			return l.retNewToken(TOKEN_AMP, alt)
+		}
+	case ch == '|':
+		alt, _ := l.checkAlt("||", "|")
+		switch alt {
+		case "||":
+			return l.retNewToken(TOKEN_OR, alt)
+		case "|":
+			return l.retNewToken(TOKEN_PIPE, alt)
+		}
 	}
 
 	return nil, fmt.Errorf("Don't know what to do, '%c'", ch)
