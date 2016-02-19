@@ -165,6 +165,22 @@ func (vs *VarStmt) Generate(current *CodeChunk) {
 	}
 }
 
+func (vs *VarStmt) GenerateShortVarDecl(current *CodeChunk) {
+	for i, vd := range vs.Vars {
+		current.AddString(vd.name)
+		if i+1 < len(vs.Vars) {
+			current.AddString(", ")
+		}
+	}
+	current.AddString(" := ")
+	for i, vd := range vs.Vars {
+		current.AddChprintf("(%s)(%C)", vd.Type, vd.Init.(Generable))
+		if i+1 < len(vs.Vars) {
+			current.AddString(", ")
+		}
+	}
+}
+
 func (fc *FuncCallExpr) Generate(current *CodeChunk) {
 	current.AddChprintf("%C(", fc.Left.(Generable))
 	for i, arg := range fc.Args {
@@ -220,7 +236,9 @@ func (fs *IfStmt) Generate(current *CodeChunk) {
 	current = current.NewChunk()
 
 	if fs.Branches[0].ScopedVarDecl != nil {
-		current.AddChprintf("if %C; %C {\n", fs.Branches[0].ScopedVarDecl, fs.Branches[0].Condition)
+		current.AddString("if ")
+		fs.Branches[0].ScopedVarDecl.GenerateShortVarDecl(current)
+		current.AddChprintf("; %C {\n", fs.Branches[0].Condition)
 	} else {
 		current.AddChprintf("if %C {\n", fs.Branches[0].Condition)
 	}

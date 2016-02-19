@@ -63,6 +63,11 @@ if ((int)(1) == (int)(2)) {
 	(int)(1)
 }`,
 		},
+		{source: "if var t = 1; t == 2:\n 1", reference: `
+if t := (int)((int)(1)); (t == (int)(2)) {
+	(int)(1)
+}`,
+		},
 		{source: "if 1 == 2:\n 1\nelse:\n 2\n", reference: `
 if ((int)(1) == (int)(2)) {
 	(int)(1)
