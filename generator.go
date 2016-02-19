@@ -41,10 +41,12 @@ func (cc *CodeChunk) readAll(indent string) string {
 
 	buf := bytes.Buffer{}
 	for _, chk := range cc.chunks {
+		trailer := ""
 		if cc.blockOfStmts {
-			buf.WriteString(indent)
+			trailer = "\t"
+			buf.WriteString(indent + trailer)
 		}
-		buf.WriteString(chk.readAll(indent + "\t"))
+		buf.WriteString(chk.readAll(indent + trailer))
 	}
 	return buf.String()
 }
@@ -212,6 +214,36 @@ func (bl *CodeBlock) Generate(current *CodeChunk) {
 
 func (es *ExprStmt) Generate(current *CodeChunk) {
 	current.AddChprintf("%C\n", es.Expression.(Generable))
+}
+
+func (fs *IfStmt) Generate(current *CodeChunk) {
+	current = current.NewChunk()
+
+	if fs.Branches[0].ScopedVarDecl != nil {
+		current.AddChprintf("if %C; %C {\n", fs.Branches[0].ScopedVarDecl, fs.Branches[0].Condition)
+	} else {
+		current.AddChprintf("if %C {\n", fs.Branches[0].Condition)
+	}
+
+	fs.Branches[0].Code.Generate(current)
+	current.AddString("}")
+
+	for i, branch := range fs.Branches {
+		if i == 0 {
+			continue // It's already generated
+		}
+
+		if branch.Condition != nil {
+			current.AddChprintf(" else if %C {\n", branch.Condition)
+		} else {
+			current.AddString(" else {\n")
+		}
+
+		branch.Code.Generate(current)
+		current.AddString("}")
+	}
+
+	current.AddString("\n")
 }
 
 func (f *File) Generate(current *CodeChunk) {

@@ -542,6 +542,15 @@ func AreOrdered(t1, t2 Type) bool {
 	panic("todo")
 }
 
+func firstErr(errors ...error) error {
+	for _, e := range errors {
+		if e != nil {
+			return e
+		}
+	}
+	return nil
+}
+
 func (ex *BinaryOp) applyTypeForComparisonOp(typ Type) error {
 	leftExpr, rightExpr := ex.Left.(TypedExpr), ex.Right.(TypedExpr)
 
@@ -576,7 +585,8 @@ func (ex *BinaryOp) applyTypeForComparisonOp(typ Type) error {
 			return fmt.Errorf("Types %s and %s aren't comparable", t1, t2)
 		}
 	}
-	return nil
+
+	return firstErr(leftExpr.ApplyType(t1), rightExpr.ApplyType(t2))
 }
 
 func (ex *BinaryOp) ApplyType(typ Type) error {

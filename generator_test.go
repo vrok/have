@@ -2,6 +2,7 @@ package have
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -39,10 +40,10 @@ func testCases(t *testing.T, cases []generatorTestCase) {
 			t.Fail()
 			fmt.Printf("Error compiling case %d\nError: %s\nCode: %s\n", i, err, c.source)
 		}
-		if result != c.reference {
+		if a, b := strings.TrimSpace(result), strings.TrimSpace(c.reference); a != b {
 			t.Fail()
-			fmt.Printf("Different input and output for case %d.\nInput: %s\nOutput: %s\nWanted: %s\n",
-				i, c.source, result, c.reference)
+			fmt.Printf("Different input and output for case %d.\nInput: `%s`\nOutput: `%s`\nWanted: `%s`\n",
+				i, c.source, a, b)
 		}
 	}
 }
@@ -57,6 +58,25 @@ func TestGenerateExpr(t *testing.T) {
 		{source: "1+(-1)", reference: "((int)(1) + (-(int)(1)))\n"},
 		{source: "func a():\n 1", reference: "func a() {\n\t(int)(1)\n}\n"},
 		{source: "print(\"test\")", reference: "print((string)(\"test\"))\n"},
+		{source: "if 1 == 2:\n 1", reference: `
+if ((int)(1) == (int)(2)) {
+	(int)(1)
+}`,
+		},
+		{source: "if 1 == 2:\n 1\nelse:\n 2\n", reference: `
+if ((int)(1) == (int)(2)) {
+	(int)(1)
+} else {
+	(int)(2)
+}`},
+		{source: "if 1 == 2:\n 1\nelif true == false:\n 5\nelse:\n 2\n", reference: `
+if ((int)(1) == (int)(2)) {
+	(int)(1)
+} else if (true == false) {
+	(int)(5)
+} else {
+	(int)(2)
+}`},
 	}
 	testCases(t, cases)
 }
