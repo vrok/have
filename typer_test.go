@@ -536,7 +536,7 @@ func TestSimple(t *testing.T) {
 
 	for i, c := range cases {
 		parser := NewParser(NewLexer([]rune(c.code)))
-		result, err := parser.parseVarStmt()
+		result, err := parser.parseVarStmt(true)
 		if err != nil {
 			t.Fail()
 			fmt.Printf("Case %d: Failed parsing: %s\n", i, err)

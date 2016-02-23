@@ -121,10 +121,10 @@ type ForStmt struct {
 	expr
 
 	// TODO: foreach-like loops can't be handled by this
-	ScopedVarDecls []*VarDecl
-	Condition      Expr
-	RepeatExpr     Expr
-	Code           *CodeBlock
+	ScopedVarDecl *VarStmt
+	Condition     Expr
+	RepeatExpr    Expr
+	Code          *CodeBlock
 }
 
 // implements Stmt

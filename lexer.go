@@ -100,6 +100,7 @@ const (
 	TOKEN_SEMICOLON              // ;
 	TOKEN_AMP                    // &
 	TOKEN_PIPE                   // |
+	TOKEN_PERCENT                // %
 	TOKEN_AND                    // &&
 	TOKEN_OR                     // ||
 )
@@ -392,6 +393,9 @@ func (l *Lexer) Next() (*Token, error) {
 	case ch == ':':
 		l.skip()
 		return l.retNewToken(TOKEN_COLON, nil)
+	case ch == '%':
+		l.skip()
+		return l.retNewToken(TOKEN_PERCENT, nil)
 	case ch == '&':
 		alt, _ := l.checkAlt("&&", "&")
 		switch alt {

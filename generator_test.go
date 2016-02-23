@@ -63,12 +63,12 @@ if ((int)(1) == (int)(2)) {
 	(int)(1)
 }`,
 		},
-		{source: "if var t = 1; t == 2:\n 1", reference: `
+		{source: "if t = 1; t == 2:\n 1", reference: `
 if t := (int)((int)(1)); (t == (int)(2)) {
 	(int)(1)
 }`,
 		},
-		{source: "if var t = 1, k = \"aaa\"; t == 2 && k == \"bbb\":\n 1", reference: `
+		{source: "if t = 1, k = \"aaa\"; t == 2 && k == \"bbb\":\n 1", reference: `
 if t, k := (int)((int)(1)), (string)((string)("aaa")); ((t == (int)(2)) && (k == (string)("bbb"))) {
 	(int)(1)
 } `,
@@ -86,6 +86,10 @@ if ((int)(1) == (int)(2)) {
 	(int)(5)
 } else {
 	(int)(2)
+}`},
+		{source: `for x = 0; x < 100; print("a"):
+	print("b")`, reference: `for x := (int)((int)(0)); (x < (int)(100)); print((string)("a")) {
+	print((string)("b"))
 }`},
 	}
 	testCases(t, cases)

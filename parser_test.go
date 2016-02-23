@@ -243,29 +243,29 @@ func TestIfStmt(t *testing.T) {
 		code       string
 		shouldPass bool
 	}{
-		{`if var x = 0; x == 1:
+		{`if x = 0; x == 1:
 	var y = 3`, true},
-		{`if var x = 100; x > 10:
+		{`if x = 100; x > 10:
   if true:
     var y = 3`, true},
-		{`if var x int; false:
+		{`if x int; false:
   var y = 3`, true},
-		{`if var x int; false:
+		{`if x int; false:
   var y = 3
 else:
   var x = 3`, true},
-		{`if var x int; false:
+		{`if x int; false:
   var y = 3
   else:
     var x = 3`, false},
-		{`if var x int; false:
+		{`if x int; false:
   var y = 3
 else:`, false},
-		{`if var x int; false:
+		{`if x int; false:
   var y = 3
 else:
 var x = 3`, false},
-		{`if var x int; false:
+		{`if x int; false:
   var y = 3
 else
   var x = 3`, false},
@@ -363,21 +363,21 @@ func TestIdentSearch(t *testing.T) {
 		  var x = z
 		`, false},
 		{`func abc(x int, y int) int:
-	if var z = 1; z == x:
+	if z = 1; z == x:
 		var b = x * y * z
 `, true},
 		{`func abc(x int, y int) int:
-	if var z = 1; z == x:
+	if z = 1; z == x:
 		var b = x * y * z
 	var a = x * y * z
 `, false},
 		{`func abc(x int, y int) int:
-	if var Z = 1; z == x:
+	if Z = 1; z == x:
 		var b = x * y * z
 `, false},
 		{`func abc(x int) int:
-	if var y = 1; y == x:
-		if var z = 1; z == y:
+	if y = 1; y == x:
+		if z = 1; z == y:
 			var b = x * y * z
 `, true},
 	}
@@ -618,7 +618,7 @@ func TestVarDecl(t *testing.T) {
 	for i, test := range cases {
 		in := []rune(test.code)
 		parser := NewParser(NewLexer(in))
-		result, err := parser.parseVarStmt()
+		result, err := parser.parseVarStmt(true)
 		if err != nil {
 			fmt.Printf("Case #%d error: %s\n", i+1, err)
 			t.Fail()

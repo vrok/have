@@ -134,8 +134,9 @@ func (p *PassStmt) NegotiateTypes() error {
 }
 
 func (fs *ForStmt) NegotiateTypes() error {
-	for _, decl := range fs.ScopedVarDecls {
-		if err := decl.NegotiateTypes(); err != nil {
+	if fs.ScopedVarDecl != nil {
+		err := fs.ScopedVarDecl.NegotiateTypes()
+		if err != nil {
 			return err
 		}
 	}
@@ -147,7 +148,6 @@ func (fs *ForStmt) NegotiateTypes() error {
 	}
 
 	if fs.RepeatExpr != nil {
-
 		uk := Type(&UnknownType{})
 		if err := NegotiateExprType(&uk, fs.RepeatExpr.(TypedExpr)); err != nil {
 			return err

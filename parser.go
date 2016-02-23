@@ -356,13 +356,9 @@ func (p *Parser) parse3ClauseForStmt() (*ForStmt, error) {
 		p.identStack.pushScope()
 		defer p.identStack.popScope()
 
-		result.ScopedVarDecls, err = p.parseVarDecl()
+		result.ScopedVarDecl, err = p.parseVarStmt(false)
 		if err != nil {
 			return nil, err
-		}
-
-		for _, v := range result.ScopedVarDecls {
-			p.identStack.addObject(v)
 		}
 	}
 
@@ -435,7 +431,7 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 		p.identStack.pushScope()
 		defer p.identStack.popScope()
 
-		scopedVarDecl, err = p.parseVarStmt()
+		scopedVarDecl, err = p.parseVarStmt(false)
 		if err != nil {
 			return nil, err
 		}
@@ -555,10 +551,17 @@ func (p *Parser) parseFuncStmt() (*VarStmt, error) {
 	return &VarStmt{expr{ident.Offset}, []*VarDecl{decl}, true}, nil
 }
 
-func (p *Parser) parseVarStmt() (*VarStmt, error) {
-	ident := p.expect(TOKEN_VAR)
-	if ident == nil {
-		return nil, fmt.Errorf("Impossible happened")
+// varKeyword controls whether the `var` keyword should be expected
+// at the beginning.
+func (p *Parser) parseVarStmt(varKeyword bool) (*VarStmt, error) {
+	firstTok := p.nextToken()
+	if varKeyword {
+		if firstTok.Type != TOKEN_VAR {
+			return nil, fmt.Errorf("Impossible happened")
+		}
+	} else {
+		// We've just consumed part of the declaration, put it back.
+		p.putBack(firstTok)
 	}
 
 	vars, err := p.parseVarDecl()
@@ -570,7 +573,7 @@ func (p *Parser) parseVarStmt() (*VarStmt, error) {
 		p.identStack.addObject(v)
 	}
 
-	return &VarStmt{expr{ident.Offset}, vars, false}, nil
+	return &VarStmt{expr{firstTok.Offset}, vars, false}, nil
 }
 
 func (p *Parser) parseVarDecl() ([]*VarDecl, error) {
@@ -1031,8 +1034,8 @@ func (p *Parser) parseMaybeUnaryExpr() (Expr, error) {
 }
 
 var hierarchy [][]TokenType = [][]TokenType{
-	{TOKEN_MUL, TOKEN_DIV, TOKEN_AMP},
-	{TOKEN_PLUS, TOKEN_MINUS},
+	{TOKEN_MUL, TOKEN_DIV, TOKEN_AMP, TOKEN_PERCENT},
+	{TOKEN_PLUS, TOKEN_MINUS, TOKEN_PIPE},
 	{TOKEN_SHL, TOKEN_SHR},
 	{TOKEN_LT, TOKEN_GT, TOKEN_EQ_GT, TOKEN_EQ_LT},
 	{TOKEN_EQUALS},
@@ -1303,7 +1306,7 @@ func (p *Parser) parseStmt() (Stmt, error) {
 		switch token.Type {
 		case TOKEN_VAR:
 			p.putBack(token)
-			return p.parseVarStmt()
+			return p.parseVarStmt(true)
 		case TOKEN_IF:
 			p.putBack(token)
 			return p.parseIf()

@@ -91,6 +91,10 @@ func (cc *CodeChunk) AddChprintf(format string, a ...interface{}) {
 
 	i := 0
 	for _, arg := range a {
+		if arg == nil {
+			arg = EmptyGenerable{}
+		}
+
 		switch v := arg.(type) {
 		case Generable:
 			//generables = append(generables, v)
@@ -111,6 +115,10 @@ func (cc *CodeChunk) AddChprintf(format string, a ...interface{}) {
 type Generable interface {
 	Generate(current *CodeChunk)
 }
+
+type EmptyGenerable struct{}
+
+func (eg EmptyGenerable) Generate(current *CodeChunk) {}
 
 func (id *Ident) Generate(current *CodeChunk) {
 	current.AddString(id.name)
@@ -166,6 +174,10 @@ func (vs *VarStmt) Generate(current *CodeChunk) {
 }
 
 func (vs *VarStmt) GenerateShortVarDecl(current *CodeChunk) {
+	if vs == nil || len(vs.Vars) == 0 {
+		return
+	}
+
 	for i, vd := range vs.Vars {
 		current.AddString(vd.name)
 		if i+1 < len(vs.Vars) {
@@ -262,6 +274,15 @@ func (fs *IfStmt) Generate(current *CodeChunk) {
 	}
 
 	current.AddString("\n")
+}
+
+func (fs *ForStmt) Generate(current *CodeChunk) {
+	current = current.NewChunk()
+
+	// TODO: Handle `for` variants other than 3-way
+	current.AddString("for ")
+	fs.ScopedVarDecl.GenerateShortVarDecl(current)
+	current.AddChprintf("; %C; %C {\n%C}\n", fs.Condition, fs.RepeatExpr, fs.Code)
 }
 
 func (f *File) Generate(current *CodeChunk) {
