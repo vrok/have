@@ -1327,7 +1327,12 @@ func (p *Parser) parseSimpleStmt() (SimpleStmt, error) {
 	firstTok := p.peek()
 
 	switch firstTok.Type {
-	case TOKEN_ASSIGN, TOKEN_PLUS_ASSIGN, TOKEN_MINUS_ASSIGN: // TODO: add other ops
+	case TOKEN_PLUS_ASSIGN, TOKEN_MINUS_ASSIGN: // TODO: add other ops
+		if len(lhs) > 1 {
+			return nil, fmt.Errorf("More than one expression on the left side of assignment")
+		}
+		fallthrough
+	case TOKEN_ASSIGN:
 		p.nextToken()
 		rhs, err := p.parseExprList()
 		if err != nil {

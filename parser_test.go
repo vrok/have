@@ -480,6 +480,10 @@ y, x = 1, 2`, true},
 y, x, y = 1, 2`, false},
 		{`var x, y = 1, 2
 y, x`, false},
+		{`var x = 1
+x += 1`, true},
+		{`var x, y = 1, 2
+x, y += 1, 2`, false},
 	}
 	validityTest(t, cases)
 }
