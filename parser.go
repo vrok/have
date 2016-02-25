@@ -1300,6 +1300,62 @@ func (p *Parser) parseTypeDecl() (*TypeDecl, error) {
 	return result, nil
 }
 
+func (p *Parser) parseExprList() ([]Expr, error) {
+	result := []Expr{}
+	for {
+		expr, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, expr)
+
+		if p.peek().Type != TOKEN_COMMA {
+			break
+		}
+		p.nextToken()
+	}
+	return result, nil
+}
+
+func (p *Parser) parseSimpleStmt() (SimpleStmt, error) {
+	lhs, err := p.parseExprList()
+	if err != nil {
+		return nil, err
+	}
+
+	firstTok := p.peek()
+
+	switch firstTok.Type {
+	case TOKEN_ASSIGN, TOKEN_PLUS_ASSIGN, TOKEN_MINUS_ASSIGN: // TODO: add other ops
+		p.nextToken()
+		rhs, err := p.parseExprList()
+		if err != nil {
+			return nil, err
+		}
+		if len(lhs) != len(rhs) {
+			return nil, fmt.Errorf("Different number of values in assignment (%d and %d)", len(lhs), len(rhs))
+		}
+		return &AssignStmt{expr{firstTok.Offset}, lhs, rhs}, nil
+	}
+
+	if len(lhs) > 1 {
+		return nil, fmt.Errorf("Unexpected list of expressions")
+	}
+
+	if len(lhs) == 0 {
+		return nil, nil
+	}
+
+	switch p.peek().Type {
+	// TODO: parse sending to channels, increment/decrement statements, maybe short var declarations, etc
+	default:
+		return &ExprStmt{expr{firstTok.Offset}, lhs[0]}, nil
+	}
+
+	panic("todo")
+}
+
 func (p *Parser) parseStmt() (Stmt, error) {
 	for {
 		token := p.nextToken()
@@ -1329,11 +1385,7 @@ func (p *Parser) parseStmt() (Stmt, error) {
 			return nil, nil
 		default:
 			p.putBack(token)
-			e, err := p.parseExpr()
-			if err != nil {
-				return nil, err
-			}
-			return &ExprStmt{expr{token.Offset}, e}, nil
+			return p.parseSimpleStmt()
 		}
 	}
 }

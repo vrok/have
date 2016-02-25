@@ -397,6 +397,28 @@ func TestIdentSearch(t *testing.T) {
 	}
 }
 
+type validityTestCase struct {
+	code  string
+	valid bool
+}
+
+func validityTest(t *testing.T, cases []validityTestCase) {
+	for _, c := range cases {
+		parser := NewParser(NewLexer([]rune(c.code)))
+		result, err := parser.Parse()
+
+		// TODO: better assertions, more test cases.
+		// We'll need something more succint than comparing whole ASTs.
+		if c.valid && err != nil {
+			t.Fail()
+			fmt.Printf("Error parsing a function %s %s\n", err, spew.Sdump(result))
+		} else if err == nil && !c.valid {
+			t.Fail()
+			fmt.Printf("Parsing a compound literal should've failed %s %s\n", err, spew.Sdump(result))
+		}
+	}
+}
+
 func TestFuncDecl(t *testing.T) {
 	cases := []struct {
 		code  string
@@ -446,6 +468,20 @@ func TestFuncDecl(t *testing.T) {
 			fmt.Printf("Parsing a compound literal should've failed %s %s\n", err, spew.Sdump(result))
 		}
 	}
+}
+
+func TestSimpleStmt(t *testing.T) {
+	cases := []validityTestCase{
+		{`var x = 1
+x = 2`, true},
+		{`var x, y = 1, 2
+y, x = 1, 2`, true},
+		{`var x, y = 1, 2
+y, x, y = 1, 2`, false},
+		{`var x, y = 1, 2
+y, x`, false},
+	}
+	validityTest(t, cases)
 }
 
 func TestVarDecl(t *testing.T) {

@@ -17,6 +17,12 @@ type Stmt interface {
 	Expr
 }
 
+// Simple statements are those that can be used in the 3rd
+// clause of the `for` loop.
+type SimpleStmt interface {
+	Stmt
+}
+
 type ObjectType int
 
 const (
@@ -88,6 +94,12 @@ func GetBuiltinType(name string) (*TypeDecl, bool) {
 
 type CodeBlock struct {
 	Statements []Stmt
+}
+
+// implements SimpleStmt
+type AssignStmt struct {
+	expr
+	Lhs, Rhs []Expr
 }
 
 // implements Stmt
