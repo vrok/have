@@ -189,7 +189,7 @@ func (vs *VarStmt) Generate(current *CodeChunk) {
 	}
 }
 
-func (vs *VarStmt) GenerateShortVarDecl(current *CodeChunk) {
+func (vs *VarStmt) InlineGenerate(current *CodeChunk, noParenth bool) {
 	if vs == nil || len(vs.Vars) == 0 {
 		return
 	}
@@ -292,9 +292,7 @@ func (fs *IfStmt) Generate(current *CodeChunk) {
 	current = current.NewChunk()
 
 	if fs.Branches[0].ScopedVarDecl != nil {
-		current.AddString("if ")
-		fs.Branches[0].ScopedVarDecl.GenerateShortVarDecl(current)
-		current.AddChprintf("; %C {\n", fs.Branches[0].Condition)
+		current.AddChprintf("if %iC; %C {\n", fs.Branches[0].ScopedVarDecl, fs.Branches[0].Condition)
 	} else {
 		current.AddChprintf("if %C {\n", fs.Branches[0].Condition)
 	}
@@ -324,9 +322,7 @@ func (fs *ForStmt) Generate(current *CodeChunk) {
 	current = current.NewChunk()
 
 	// TODO: Handle `for` variants other than 3-way
-	current.AddString("for ")
-	fs.ScopedVarDecl.GenerateShortVarDecl(current)
-	current.AddChprintf("; %C; %iC {\n%C}\n", fs.Condition, fs.RepeatStmt, fs.Code)
+	current.AddChprintf("for %iC; %C; %iC {\n%C}\n", fs.ScopedVarDecl, fs.Condition, fs.RepeatStmt, fs.Code)
 }
 
 func (f *File) Generate(current *CodeChunk) {
