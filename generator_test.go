@@ -50,46 +50,46 @@ func testCases(t *testing.T, cases []generatorTestCase) {
 
 func TestGenerateExpr(t *testing.T) {
 	cases := []generatorTestCase{
-		{source: "1", reference: "(int)(1)\n"},
-		{source: "\"bla\"", reference: "(string)(\"bla\")\n"},
+		{source: "1", reference: "1\n"},
+		{source: "\"bla\"", reference: "\"bla\"\n"},
 		{source: "true", reference: "true\n"},
 		{source: "false", reference: "false\n"},
-		{source: "1+1", reference: "((int)(1) + (int)(1))\n"},
-		{source: "1+(-1)", reference: "((int)(1) + (-(int)(1)))\n"},
-		{source: "func a():\n 1", reference: "func a() {\n\t(int)(1)\n}\n"},
-		{source: "print(\"test\")", reference: "print((string)(\"test\"))\n"},
+		{source: "1+1", reference: "(1 + 1)\n"},
+		{source: "1+(-1)", reference: "(1 + (-1))\n"},
+		{source: "func a():\n 1", reference: "func a() {\n\t1\n}\n"},
+		{source: "print(\"test\")", reference: "print(\"test\")\n"},
 		{source: "if 1 == 2:\n 1", reference: `
-if ((int)(1) == (int)(2)) {
-	(int)(1)
+if (1 == 2) {
+	1
 }`,
 		},
 		{source: "if t = 1; t == 2:\n 1", reference: `
-if t := (int)((int)(1)); (t == (int)(2)) {
-	(int)(1)
+if t := (int)(1); (t == 2) {
+	1
 }`,
 		},
 		{source: "if t = 1, k = \"aaa\"; t == 2 && k == \"bbb\":\n 1", reference: `
-if t, k := (int)((int)(1)), (string)((string)("aaa")); ((t == (int)(2)) && (k == (string)("bbb"))) {
-	(int)(1)
+if t, k := (int)(1), (string)("aaa"); ((t == 2) && (k == "bbb")) {
+	1
 } `,
 		},
 		{source: "if 1 == 2:\n 1\nelse:\n 2\n", reference: `
-if ((int)(1) == (int)(2)) {
-	(int)(1)
+if (1 == 2) {
+	1
 } else {
-	(int)(2)
+	2
 }`},
 		{source: "if 1 == 2:\n 1\nelif true == false:\n 5\nelse:\n 2\n", reference: `
-if ((int)(1) == (int)(2)) {
-	(int)(1)
+if (1 == 2) {
+	1
 } else if (true == false) {
-	(int)(5)
+	5
 } else {
-	(int)(2)
+	2
 }`},
 		{source: `for x = 0; x < 100; print("a"):
-	print("b")`, reference: `for x := (int)((int)(0)); (x < (int)(100)); print((string)("a")) {
-	print((string)("b"))
+	print("b")`, reference: `for x := (int)(0); (x < 100); print("a") {
+	print("b")
 }`},
 	}
 	testCases(t, cases)

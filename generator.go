@@ -35,6 +35,10 @@ func (cc *CodeChunk) ReadAll() string {
 }
 
 func (cc *CodeChunk) readAll(indent string) string {
+	if cc == forcedIndentChunk {
+		return indent
+	}
+
 	if cc.code != "" {
 		return cc.code
 	}
@@ -83,11 +87,21 @@ func (cc *CodeChunk) NewBlockChunk() *CodeChunk {
 	return ch
 }
 
+type forcedIndent struct{}
+
+func (f forcedIndent) Generate(current *CodeChunk) {
+	current.AddChunks(forcedIndentChunk)
+}
+
 var splitter = regexp.MustCompile("%i?C")
+var forcedIndentChunk = &CodeChunk{}
+var ForcedIndent = &forcedIndent{}
 
 // Format with fmt.Sprintf, but one addition: "%C" can be use to add Generables.
 func (cc *CodeChunk) AddChprintf(format string, a ...interface{}) {
 	var nonGenerables []interface{}
+
+	//format = strings.Replace(format, "%I", cc.indent, -1)
 
 	ops := splitter.FindAllString(format, -1)
 	parts := splitter.Split(format, -1)
@@ -158,7 +172,8 @@ func (lit *BasicLit) Generate(current *CodeChunk) {
 	}
 
 	// Don't generate type conversions if not necessary.
-	current.AddString(fmt.Sprintf("(%s)(%s)", lit.typ, val))
+	//current.AddString(fmt.Sprintf("(%s)(%s)", lit.typ, val))
+	current.AddString(val)
 }
 
 func (op *UnaryOp) Generate(current *CodeChunk) {
@@ -298,7 +313,7 @@ func (fs *IfStmt) Generate(current *CodeChunk) {
 	}
 
 	fs.Branches[0].Code.Generate(current)
-	current.AddString("}")
+	current.AddChprintf("%C}", ForcedIndent)
 
 	for i, branch := range fs.Branches {
 		if i == 0 {
@@ -308,11 +323,11 @@ func (fs *IfStmt) Generate(current *CodeChunk) {
 		if branch.Condition != nil {
 			current.AddChprintf(" else if %C {\n", branch.Condition)
 		} else {
-			current.AddString(" else {\n")
+			current.AddChprintf(" else {\n")
 		}
 
 		branch.Code.Generate(current)
-		current.AddString("}")
+		current.AddChprintf("%C}", ForcedIndent)
 	}
 
 	current.AddString("\n")
@@ -322,7 +337,7 @@ func (fs *ForStmt) Generate(current *CodeChunk) {
 	current = current.NewChunk()
 
 	// TODO: Handle `for` variants other than 3-way
-	current.AddChprintf("for %iC; %C; %iC {\n%C}\n", fs.ScopedVarDecl, fs.Condition, fs.RepeatStmt, fs.Code)
+	current.AddChprintf("for %iC; %C; %iC {\n%C%C}\n", fs.ScopedVarDecl, fs.Condition, fs.RepeatStmt, fs.Code, ForcedIndent)
 }
 
 func (f *File) Generate(current *CodeChunk) {
