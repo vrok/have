@@ -98,6 +98,9 @@ var forcedIndentChunk = &CodeChunk{}
 var ForcedIndent = &forcedIndent{}
 
 // Format with fmt.Sprintf, but one addition: "%C" can be use to add Generables.
+// Use "%iC" variant for InlineGenerables.
+// Indents are inserted automatically, but for multi-line statements that need
+// extra indents to be added in the middle, use the ForcedIndent generable.
 func (cc *CodeChunk) AddChprintf(format string, a ...interface{}) {
 	var nonGenerables []interface{}
 
