@@ -3,7 +3,7 @@ package have
 import (
 	"bytes"
 	"fmt"
-	"strings"
+	"regexp"
 )
 
 // CodeChunk can either be a string of smaller CodeChunks
@@ -83,11 +83,14 @@ func (cc *CodeChunk) NewBlockChunk() *CodeChunk {
 	return ch
 }
 
+var splitter = regexp.MustCompile("%i?C")
+
 // Format with fmt.Sprintf, but one addition: "%C" can be use to add Generables.
 func (cc *CodeChunk) AddChprintf(format string, a ...interface{}) {
 	var nonGenerables []interface{}
 
-	parts := strings.Split(format, "%C")
+	ops := splitter.FindAllString(format, -1)
+	parts := splitter.Split(format, -1)
 
 	i := 0
 	for _, arg := range a {
@@ -100,9 +103,15 @@ func (cc *CodeChunk) AddChprintf(format string, a ...interface{}) {
 			//generables = append(generables, v)
 			cc.AddString(fmt.Sprintf(parts[i], nonGenerables...))
 			nonGenerables = nil
-			i++
 
-			v.Generate(cc)
+			switch ops[i] {
+			case "%iC":
+				v.(InlineGenerable).InlineGenerate(cc, false)
+			case "%C":
+				v.Generate(cc)
+			}
+
+			i++
 		default:
 			nonGenerables = append(nonGenerables, v)
 		}
@@ -113,7 +122,14 @@ func (cc *CodeChunk) AddChprintf(format string, a ...interface{}) {
 }
 
 type Generable interface {
+	// Generate the full version of the output code.
 	Generate(current *CodeChunk)
+}
+
+type InlineGenerable interface {
+	Generable
+	// Generate a shorter version of the code that e.g. fits into for-loop header.
+	InlineGenerate(current *CodeChunk, noParenth bool)
 }
 
 type EmptyGenerable struct{}
@@ -193,6 +209,30 @@ func (vs *VarStmt) GenerateShortVarDecl(current *CodeChunk) {
 	}
 }
 
+func (as *AssignStmt) Generate(current *CodeChunk) {
+	as.InlineGenerate(current, true)
+	current.AddString("\n")
+}
+
+func (as *AssignStmt) InlineGenerate(current *CodeChunk, noParenth bool) {
+	for i, v := range as.Lhs {
+		v.(Generable).Generate(current)
+		if i+1 < len(as.Lhs) {
+			current.AddString(", ")
+		}
+	}
+
+	current.AddChprintf(" %s ", as.Token.Value)
+
+	for i, v := range as.Rhs {
+		v.(Generable).Generate(current)
+		if i+1 < len(as.Rhs) {
+			current.AddString(", ")
+		}
+	}
+
+}
+
 func (fc *FuncCallExpr) Generate(current *CodeChunk) {
 	current.AddChprintf("%C(", fc.Left.(Generable))
 	for i, arg := range fc.Args {
@@ -244,6 +284,10 @@ func (es *ExprStmt) Generate(current *CodeChunk) {
 	current.AddChprintf("%C\n", es.Expression.(Generable))
 }
 
+func (es *ExprStmt) InlineGenerate(current *CodeChunk, noParenth bool) {
+	es.Expression.(Generable).Generate(current)
+}
+
 func (fs *IfStmt) Generate(current *CodeChunk) {
 	current = current.NewChunk()
 
@@ -282,7 +326,7 @@ func (fs *ForStmt) Generate(current *CodeChunk) {
 	// TODO: Handle `for` variants other than 3-way
 	current.AddString("for ")
 	fs.ScopedVarDecl.GenerateShortVarDecl(current)
-	current.AddChprintf("; %C; %C {\n%C}\n", fs.Condition, fs.RepeatExpr, fs.Code)
+	current.AddChprintf("; %C; %iC {\n%C}\n", fs.Condition, fs.RepeatStmt, fs.Code)
 }
 
 func (f *File) Generate(current *CodeChunk) {

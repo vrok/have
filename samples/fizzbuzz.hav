@@ -1,10 +1,12 @@
+package main
+
 func main():
-    for i := 1; i <= 100; i++:
+    for i = 1; i <= 100; i += 1:
         if i % 3 == 0 && i % 5 == 0:
-            print("Fizz Buzz")
+            print("Fizz Buzz\n")
         elif i % 3 == 0:
-            print("Fizz")
+            print("Fizz\n")
         elif i % 5 == 0:
-            print("Buzz")
+            print("Buzz\n")
         else:
-            print(i)
+            print("i\n")

@@ -380,7 +380,7 @@ func (p *Parser) parse3ClauseForStmt() (*ForStmt, error) {
 	}
 
 	if p.peek().Type != TOKEN_COLON {
-		result.RepeatExpr, err = p.parseExpr()
+		result.RepeatStmt, err = p.parseSimpleStmt()
 		if err != nil {
 			return nil, err
 		}
@@ -1341,7 +1341,7 @@ func (p *Parser) parseSimpleStmt() (SimpleStmt, error) {
 		if len(lhs) != len(rhs) {
 			return nil, fmt.Errorf("Different number of values in assignment (%d and %d)", len(lhs), len(rhs))
 		}
-		return &AssignStmt{expr{firstTok.Offset}, lhs, rhs}, nil
+		return &AssignStmt{expr{firstTok.Offset}, lhs, rhs, firstTok}, nil
 	}
 
 	if len(lhs) > 1 {

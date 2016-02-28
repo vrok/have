@@ -56,12 +56,12 @@ func TestIndents(t *testing.T) {
 }
 
 func TestEquals(t *testing.T) {
-	testTokens(t, []rune("for == = =< =>"), []*Token{
+	testTokens(t, []rune("for == = <= >="), []*Token{
 		&Token{TOKEN_FOR, 0, nil},
 		&Token{TOKEN_EQUALS, 4, "=="},
 		&Token{TOKEN_ASSIGN, 7, "="},
-		&Token{TOKEN_EQ_LT, 9, "=<"},
-		&Token{TOKEN_EQ_GT, 12, "=>"},
+		&Token{TOKEN_EQ_LT, 9, "<="},
+		&Token{TOKEN_EQ_GT, 12, ">="},
 		&Token{TOKEN_EOF, 14, nil}})
 }
 

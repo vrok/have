@@ -31,6 +31,13 @@ func nonilTyp(t Type) Type {
 	return t
 }
 
+func RootType(t Type) Type {
+	if t.Kind() == KIND_CUSTOM {
+		return t.(*CustomType).RootType()
+	}
+	return t
+}
+
 // Implements the definition of underlying types from the Go spec.
 func UnderlyingType(t Type) Type {
 	if t.Kind() == KIND_CUSTOM {
@@ -147,9 +154,9 @@ func (fs *ForStmt) NegotiateTypes() error {
 		}
 	}
 
-	if fs.RepeatExpr != nil {
-		uk := Type(&UnknownType{})
-		if err := NegotiateExprType(&uk, fs.RepeatExpr.(TypedExpr)); err != nil {
+	if fs.RepeatStmt != nil {
+		err := fs.RepeatStmt.(ExprToProcess).NegotiateTypes() // HERE TODO
+		if err != nil {
 			return err
 		}
 	}
@@ -158,6 +165,19 @@ func (fs *ForStmt) NegotiateTypes() error {
 		return err
 	}
 
+	return nil
+}
+
+func (as *AssignStmt) NegotiateTypes() error {
+	for i := range as.Lhs {
+		leftType := as.Lhs[i].(TypedExpr).Type()
+		err := NegotiateExprType(&leftType, as.Rhs[i].(TypedExpr))
+		if err != nil {
+			return err
+		}
+
+		// TODO: check addressability, "_" for ==, and if type is numeric for +=, -=,...
+	}
 	return nil
 }
 
@@ -384,9 +404,7 @@ func (ex *CompoundLit) Type() Type { return nonilTyp(ex.typ) }
 func (ex *CompoundLit) ApplyType(typ Type) error {
 	var apply = false
 
-	if typ.Kind() == KIND_CUSTOM {
-		typ = typ.(*CustomType).RootType()
-	}
+	typ = RootType(typ)
 
 	switch typ.Kind() {
 	case KIND_SLICE:
@@ -770,10 +788,7 @@ func (ex *BasicLit) Type() Type {
 }
 
 func (ex *BasicLit) ApplyType(typ Type) error {
-	actualType := typ
-	if typ.Kind() == KIND_CUSTOM {
-		actualType = typ.(*CustomType).RootType()
-	}
+	actualType := RootType(typ)
 
 	switch {
 	case ex.token.Type == TOKEN_STR &&

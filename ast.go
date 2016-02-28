@@ -100,6 +100,7 @@ type CodeBlock struct {
 type AssignStmt struct {
 	expr
 	Lhs, Rhs []Expr
+	Token    *Token
 }
 
 // implements Stmt
@@ -135,7 +136,7 @@ type ForStmt struct {
 	// TODO: foreach-like loops can't be handled by this
 	ScopedVarDecl *VarStmt
 	Condition     Expr
-	RepeatExpr    Expr
+	RepeatStmt    SimpleStmt
 	Code          *CodeBlock
 }
 

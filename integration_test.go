@@ -31,6 +31,7 @@ func transpile(code string, outputFile string) error {
 func TestGenerate(t *testing.T) {
 	cases := []string{
 		"helloworld",
+		"fizzbuzz",
 	}
 
 	for i, c := range cases {

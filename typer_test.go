@@ -333,6 +333,18 @@ var a int = f()`,
 			true,
 			"int",
 		},
+		{`func f():
+	var x = 1
+	x = 2`,
+			true,
+			"func()",
+		},
+		{`func f():
+	var x = 1
+	x = "bla"`,
+			false,
+			"",
+		},
 	}
 
 	testVarTypes(t, cases)

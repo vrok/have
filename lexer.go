@@ -54,8 +54,8 @@ const (
 	TOKEN_NEQUALS                // !=
 	TOKEN_GT                     // >
 	TOKEN_LT                     // <
-	TOKEN_EQ_LT                  // =<
-	TOKEN_EQ_GT                  // =>
+	TOKEN_EQ_LT                  // <=
+	TOKEN_EQ_GT                  // >=
 	TOKEN_NEGATE                 // !
 	TOKEN_NUM                    // general token for all number literals
 	TOKEN_STR                    // string literal
@@ -281,16 +281,12 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.retNewToken(TOKEN_WORD, s)
 		}
 	case ch == '=':
-		alt, _ := l.checkAlt("==", "=<", "=>", "=")
+		alt, _ := l.checkAlt("==", "=")
 		switch alt {
 		case "=":
 			return l.retNewToken(TOKEN_ASSIGN, alt)
 		case "==":
 			return l.retNewToken(TOKEN_EQUALS, alt)
-		case "=<":
-			return l.retNewToken(TOKEN_EQ_LT, alt)
-		case "=>":
-			return l.retNewToken(TOKEN_EQ_GT, alt)
 		}
 	case ch == '!':
 		alt, _ := l.checkAlt("!=", "!")
@@ -321,7 +317,7 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.retNewToken(TOKEN_DECREMENT, alt)
 		}
 	case ch == '<':
-		alt, _ := l.checkAlt("<<", "<-", "<")
+		alt, _ := l.checkAlt("<<", "<-", "<=", "<")
 		switch alt {
 		case "<":
 			return l.retNewToken(TOKEN_LT, alt)
@@ -329,14 +325,18 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.retNewToken(TOKEN_SEND, alt)
 		case "<<":
 			return l.retNewToken(TOKEN_SHL, alt)
+		case "<=":
+			return l.retNewToken(TOKEN_EQ_LT, alt)
 		}
 	case ch == '>':
-		alt, _ := l.checkAlt(">>", ">")
+		alt, _ := l.checkAlt(">>", ">=", ">")
 		switch alt {
 		case ">":
 			return l.retNewToken(TOKEN_GT, alt)
 		case ">>":
 			return l.retNewToken(TOKEN_SHR, alt)
+		case ">=":
+			return l.retNewToken(TOKEN_EQ_GT, alt)
 		}
 	case unicode.IsNumber(ch):
 		word := l.scanWord()
@@ -395,7 +395,7 @@ func (l *Lexer) Next() (*Token, error) {
 		return l.retNewToken(TOKEN_COLON, nil)
 	case ch == '%':
 		l.skip()
-		return l.retNewToken(TOKEN_PERCENT, nil)
+		return l.retNewToken(TOKEN_PERCENT, "%")
 	case ch == '&':
 		alt, _ := l.checkAlt("&&", "&")
 		switch alt {
