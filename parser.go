@@ -12,8 +12,148 @@ type Parser struct {
 	tokensBuf   []*Token
 	indentStack []string
 	identStack  *IdentStack
+	//branchStmts BranchStmtsMap
+	//branchStmts *BranchStmtsTree
+	branchTreesStack []*BranchStmtsTree
 
 	ignoreUnknowns, dontLookup bool
+}
+
+// BranchStmtsMap is used to store branch statements (break, continue, goto) that
+// haven't been paired with their labels/statements yet. When parser
+// finishes parsing blocks of code/branchable statments, it looks into
+// this structure to see if there were any matches.
+type BranchStmtsMap map[string][]*BranchStmt
+
+// BranchStmtsTree stores a hierarchy of BranchStmtsMaps. Each nested block of code
+// has its own BranchStmtsMap. This tree is needed to detect situations where gotos
+// jump into blocks of code (only jumping outside/within blocks is possible).
+type BranchStmtsTree struct {
+	Members  BranchStmtsMap
+	Children []*BranchStmtsTree
+}
+
+func NewBranchStmtsTree() *BranchStmtsTree {
+	return &BranchStmtsTree{
+		Members: BranchStmtsMap{},
+	}
+}
+
+func (p *Parser) topBranchStmtsTree() *BranchStmtsTree {
+	return p.branchTreesStack[len(p.branchTreesStack)-1]
+}
+
+func (p *Parser) pushNewBranchStmtsTree() *BranchStmtsTree {
+	b := p.topBranchStmtsTree().NewChild()
+	p.branchTreesStack = append(p.branchTreesStack, b)
+	return b
+}
+
+func (p *Parser) popBranchStmtsTree() {
+	p.branchTreesStack = p.branchTreesStack[:len(p.branchTreesStack)-1]
+}
+
+func (b *BranchStmtsTree) FindAll(label string) []*BranchStmt {
+	result := []*BranchStmt{}
+	result = append(result, b.Members.FindAll(label)...)
+	for _, child := range b.Children {
+		result = append(result, child.FindAll(label)...)
+	}
+	return result
+}
+
+func (b *BranchStmtsTree) CountBranchStmts() int {
+	sum := len(b.Members)
+	for _, child := range b.Children {
+		sum += child.CountBranchStmts()
+	}
+	return sum
+}
+
+// Call MatchGotoLabels on every BranchStmtsMap in the tree.
+func (b *BranchStmtsTree) MatchGotoLabels(labels map[string]*LabelStmt) {
+	b.Members.MatchGotoLabels(labels)
+	for _, child := range b.Children {
+		child.MatchGotoLabels(labels)
+	}
+}
+
+// Call MatchBranchableStmt on every BranchStmtsMap in the tree.
+func (b *BranchStmtsTree) MatchBranchableStmt(branchable Stmt, allowedBranchStmts ...TokenType) {
+	b.Members.MatchBranchableStmt(branchable, allowedBranchStmts...)
+	for _, child := range b.Children {
+		child.MatchBranchableStmt(branchable, allowedBranchStmts...)
+	}
+}
+
+func (b *BranchStmtsTree) NewChild() *BranchStmtsTree {
+	r := NewBranchStmtsTree()
+	b.Children = append(b.Children, r)
+	return r
+}
+
+func (b BranchStmtsMap) Add(bs *BranchStmt) {
+	lbl := ""
+	if bs.Right != nil {
+		lbl = bs.Right.name
+	}
+	b[lbl] = append(b[lbl], bs)
+}
+
+func (b BranchStmtsMap) FindAll(label string) []*BranchStmt {
+	return b[label]
+}
+
+func (b BranchStmtsMap) Remove(bs *BranchStmt) {
+	label := bs.Right.name
+	for i, x := range b[label] {
+		if x == bs {
+			b[label] = append(b[label][:i], b[label][i+1:]...)
+			if len(b[label]) == 0 {
+				delete(b, label)
+			}
+			return
+		}
+	}
+}
+
+func (b BranchStmtsMap) MatchGotoLabels(labels map[string]*LabelStmt) {
+	for labelName, label := range labels {
+		matches := b[labelName]
+		if len(matches) == 0 {
+			continue
+		}
+
+		for _, branchStmt := range matches {
+			branchStmt.GotoLabel = label
+		}
+
+		delete(b, labelName)
+	}
+}
+
+func (b BranchStmtsMap) MatchBranchableStmt(branchable Stmt, allowedBranchStmts ...TokenType) {
+	unnamed, ok := b[""]
+	switch {
+	case !ok:
+		return
+	case len(unnamed) == 0:
+		delete(b, "")
+	}
+	for i := len(unnamed) - 1; i >= 0; i-- {
+		x := unnamed[i]
+		for _, y := range allowedBranchStmts {
+			if y == x.Token.Type {
+				x.Branchable = branchable
+				unnamed = append(unnamed[:i], unnamed[i+1:]...)
+			}
+		}
+	}
+	if len(unnamed) > 0 {
+		b[""] = unnamed
+	} else {
+		delete(b, "")
+	}
 }
 
 // Stack of scopes available to the piece of code that is currently
@@ -92,7 +232,9 @@ func NewParser(lex *Lexer) *Parser {
 }
 
 func NewParserWithoutBuiltins(lex *Lexer) *Parser {
-	return &Parser{lex: lex, identStack: &IdentStack{map[string]Object{}}}
+	return &Parser{lex: lex,
+		identStack:       &IdentStack{map[string]Object{}},
+		branchTreesStack: []*BranchStmtsTree{NewBranchStmtsTree()}}
 }
 
 // Put back a token.
@@ -120,14 +262,20 @@ func (p *Parser) expect(typ TokenType) *Token {
 	return token
 }
 
-func (p *Parser) expectSeries(types ...TokenType) bool {
+// The stack is not changed when the result is false, and if it is true,
+// then all expected tokens are consumed.
+func (p *Parser) expectSeries(types ...TokenType) (bool, []*Token) {
+	stack := []*Token{}
 	for _, typ := range types {
-		t := p.expect(typ)
-		if t == nil {
-			return false
+		t := p.nextToken()
+		stack = append(stack, t)
+
+		if t.Type != typ {
+			p.putBackStack(stack)
+			return false, nil
 		}
 	}
-	return true
+	return true, stack
 }
 
 func (p *Parser) skipWhiteSpace() {
@@ -289,11 +437,14 @@ func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
 		return nil, err
 	}
 
-	result := make([]Stmt, 0)
+	result := &CodeBlock{Labels: map[string]*LabelStmt{}}
 	p.putBack(indent)
 
 	p.identStack.pushScope()
 	defer p.identStack.popScope()
+
+	p.pushNewBranchStmtsTree()
+	defer p.popBranchStmtsTree()
 
 	for t := p.nextToken(); t.Type != TOKEN_EOF; t = p.nextToken() {
 		p.putBack(t) // So that we can use handleIndentEnd
@@ -310,10 +461,18 @@ func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
 			return nil, err
 		}
 
-		result = append(result, stmt)
+		if lbl, ok := stmt.(*LabelStmt); ok {
+			if err := result.AddLabel(lbl); err != nil {
+				return nil, err
+			}
+		}
+
+		result.Statements = append(result.Statements, stmt)
 	}
 
-	return &CodeBlock{Statements: result}, nil
+	p.topBranchStmtsTree().MatchGotoLabels(result.Labels)
+
+	return result, nil
 }
 
 // Check if token `forWhat` is present before `untilWhat.
@@ -380,7 +539,7 @@ func (p *Parser) parse3ClauseForStmt() (*ForStmt, error) {
 	}
 
 	if p.peek().Type != TOKEN_COLON {
-		result.RepeatStmt, err = p.parseSimpleStmt()
+		result.RepeatStmt, err = p.parseSimpleStmt(false)
 		if err != nil {
 			return nil, err
 		}
@@ -399,19 +558,37 @@ func (p *Parser) parse3ClauseForStmt() (*ForStmt, error) {
 	return &result, nil
 }
 
-func (p *Parser) parseForStmt() (*ForStmt, error) {
+func (p *Parser) parseForStmt() (stmt *ForStmt, err error) {
 	ident := p.expect(TOKEN_FOR)
 	if ident == nil {
 		return nil, fmt.Errorf("Impossible happened")
 	}
 
+	// We push another BranchStmtsTree so that code like below fails:
+	//  if true:
+	//      break
+	//  for x = 0; x < 10; x += 1:
+	//      pass
+	// Without this extra tree, for's MatchBranchableStmt would be called
+	// for the surrounding block's tree. Another option would be to plug
+	// it into for's CodeBlock, but it would result in nasty code.
+	p.pushNewBranchStmtsTree()
+	defer p.popBranchStmtsTree()
+
 	threeClause := p.scanForSemicolon()
 
 	if threeClause {
-		return p.parse3ClauseForStmt()
+		stmt, err = p.parse3ClauseForStmt()
+		if err != nil {
+			return
+		}
 	} else {
 		panic("todo")
 	}
+
+	p.topBranchStmtsTree().MatchBranchableStmt(stmt, TOKEN_BREAK, TOKEN_CONTINUE)
+
+	return
 }
 
 func (p *Parser) parseIf() (*IfStmt, error) {
@@ -467,7 +644,7 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 
 	branches := []*IfBranch{
 		&IfBranch{
-			expr{ident.Offset},
+			stmt{expr: expr{ident.Offset}},
 			scopedVarDecl,
 			condition,
 			block,
@@ -487,7 +664,7 @@ loop:
 				return nil, err
 			}
 			branches = append(branches, &IfBranch{
-				expr{t.Offset},
+				stmt{expr: expr{t.Offset}},
 				nil,
 				condition,
 				block,
@@ -501,7 +678,7 @@ loop:
 				return nil, err
 			}
 			branches = append(branches, &IfBranch{
-				expr{t.Offset},
+				stmt{expr: expr{t.Offset}},
 				nil,
 				nil,
 				block,
@@ -516,7 +693,7 @@ loop:
 	// TODO: else, elsif statements
 
 	return &IfStmt{
-		expr{ident.Offset},
+		stmt{expr: expr{ident.Offset}},
 		branches,
 	}, nil
 }
@@ -548,7 +725,7 @@ func (p *Parser) parseFuncStmt() (*VarStmt, error) {
 	decl := &VarDecl{name: fun.name, Type: fun.typ, Init: fun}
 	// TODO: mark as final/not changeable
 	p.identStack.addObject(decl)
-	return &VarStmt{expr{ident.Offset}, []*VarDecl{decl}, true}, nil
+	return &VarStmt{stmt{expr: expr{ident.Offset}}, []*VarDecl{decl}, true}, nil
 }
 
 // varKeyword controls whether the `var` keyword should be expected
@@ -573,7 +750,7 @@ func (p *Parser) parseVarStmt(varKeyword bool) (*VarStmt, error) {
 		p.identStack.addObject(v)
 	}
 
-	return &VarStmt{expr{firstTok.Offset}, vars, false}, nil
+	return &VarStmt{stmt{expr: expr{firstTok.Offset}}, vars, false}, nil
 }
 
 func (p *Parser) parseVarDecl() ([]*VarDecl, error) {
@@ -779,7 +956,7 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 }
 
 func (p *Parser) parseStruct() (*StructType, error) {
-	if !p.expectSeries(TOKEN_STRUCT, TOKEN_COLON) {
+	if ok, _ := p.expectSeries(TOKEN_STRUCT, TOKEN_COLON); !ok {
 		return nil, fmt.Errorf("Couldn't parse struct declaration")
 	}
 
@@ -1262,6 +1439,10 @@ func (p *Parser) parseFunc() (*FuncDecl, error) {
 		return nil, err
 	}
 
+	if p.topBranchStmtsTree().CountBranchStmts() > 0 {
+		return nil, fmt.Errorf("Unmatched branch statements: %#v", p.topBranchStmtsTree())
+	}
+
 	return &FuncDecl{
 		expr:    expr{startTok.Offset},
 		name:    funcName,
@@ -1292,12 +1473,29 @@ func (p *Parser) parseTypeDecl() (*TypeDecl, error) {
 	}
 
 	result := &TypeDecl{
-		expr:        expr{startTok.Offset},
+		stmt:        stmt{expr: expr{startTok.Offset}},
 		name:        name.Value.(string),
 		AliasedType: realType,
 	}
 	p.identStack.addObject(result)
 	return result, nil
+}
+
+func (p *Parser) parseBranchStmt() (*BranchStmt, error) {
+	tok := p.nextToken()
+
+	id := (*Ident)(nil)
+	if p.peek().Type == TOKEN_WORD {
+		word := p.nextToken()
+
+		id = &Ident{expr{word.Offset}, word.Value.(string), nil}
+		// TODO: lookup ident (when label parsing is implemented)
+	}
+
+	r := &BranchStmt{stmt{expr: expr{tok.Offset}}, tok, id, nil, nil}
+	p.topBranchStmtsTree().Members.Add(r)
+
+	return r, nil
 }
 
 func (p *Parser) parseExprList() ([]Expr, error) {
@@ -1318,7 +1516,17 @@ func (p *Parser) parseExprList() ([]Expr, error) {
 	return result, nil
 }
 
-func (p *Parser) parseSimpleStmt() (SimpleStmt, error) {
+func (p *Parser) parseSimpleStmt(labelPossible bool) (SimpleStmt, error) {
+	// We make an exception if the next token is TOKEN_COLON, because TOKEN_COLON means
+	// that we're parsing a new label statement, so we don't want any ident lookups
+	// (goto can jump forwards, which would result in unknown ident errors)
+	if labelPossible {
+		if ok, tokens := p.expectSeries(TOKEN_WORD, TOKEN_COLON); ok {
+			name := tokens[0].Value.(string)
+			return &LabelStmt{stmt: stmt{expr: expr{tokens[0].Offset}}, name: name}, nil
+		}
+	}
+
 	lhs, err := p.parseExprList()
 	if err != nil {
 		return nil, err
@@ -1341,7 +1549,7 @@ func (p *Parser) parseSimpleStmt() (SimpleStmt, error) {
 		if len(lhs) != len(rhs) {
 			return nil, fmt.Errorf("Different number of values in assignment (%d and %d)", len(lhs), len(rhs))
 		}
-		return &AssignStmt{expr{firstTok.Offset}, lhs, rhs, firstTok}, nil
+		return &AssignStmt{stmt{expr: expr{firstTok.Offset}}, lhs, rhs, firstTok}, nil
 	}
 
 	if len(lhs) > 1 {
@@ -1355,7 +1563,7 @@ func (p *Parser) parseSimpleStmt() (SimpleStmt, error) {
 	switch p.peek().Type {
 	// TODO: parse sending to channels, increment/decrement statements, maybe short var declarations, etc
 	default:
-		return &ExprStmt{expr{firstTok.Offset}, lhs[0]}, nil
+		return &ExprStmt{stmt{expr: expr{firstTok.Offset}}, lhs[0]}, nil
 	}
 
 	panic("todo")
@@ -1385,12 +1593,15 @@ func (p *Parser) parseStmt() (Stmt, error) {
 				return nil, fmt.Errorf("Unexpected indent")
 			}
 		case TOKEN_PASS:
-			return &PassStmt{expr{token.Offset}}, nil
+			return &PassStmt{stmt{expr: expr{token.Offset}}}, nil
+		case TOKEN_GOTO, TOKEN_BREAK, TOKEN_CONTINUE, TOKEN_FALLTHROUGH:
+			p.putBack(token)
+			return p.parseBranchStmt()
 		case TOKEN_EOF:
 			return nil, nil
 		default:
 			p.putBack(token)
-			return p.parseSimpleStmt()
+			return p.parseSimpleStmt(true)
 		}
 	}
 }

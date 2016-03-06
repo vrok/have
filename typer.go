@@ -155,7 +155,7 @@ func (fs *ForStmt) NegotiateTypes() error {
 	}
 
 	if fs.RepeatStmt != nil {
-		err := fs.RepeatStmt.(ExprToProcess).NegotiateTypes() // HERE TODO
+		err := fs.RepeatStmt.(ExprToProcess).NegotiateTypes()
 		if err != nil {
 			return err
 		}

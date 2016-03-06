@@ -488,13 +488,56 @@ x, y += 1, 2`, false},
 	validityTest(t, cases)
 }
 
+func TestBranchStmt(t *testing.T) {
+	cases := []validityTestCase{
+		{`break`, true},
+		{`continue`, true},
+		{`
+func x():
+	for x = 0; x < 10; x += 1:
+		break`, true},
+		{`
+func x():
+	break`, false},
+		{`
+func x():
+	lol:
+	goto lol`, true},
+		{`
+func x():
+	lol:
+	lol:
+	goto lol`, false},
+		{`
+func x():
+	if true:
+		break
+	for x = 0; x < 10; x += 1:
+		pass`, false},
+		{`
+func x():
+	goto lol`, false},
+		{`
+func x():
+	lol:
+	for x = 0; x < 10; x += 1:
+		goto lol`, true},
+		{`
+func x():
+	goto lol
+	for x = 0; x < 10; x += 1:
+		lol:`, false},
+	}
+	validityTest(t, cases)
+}
+
 func TestVarDecl(t *testing.T) {
 	var cases = []struct {
 		code     string
 		expected *VarStmt
 	}{
 		{"var x int\n", &VarStmt{
-			expr: expr{},
+			stmt: stmt{expr: expr{}},
 			Vars: []*VarDecl{
 				&VarDecl{
 					name: "x",
@@ -506,7 +549,7 @@ func TestVarDecl(t *testing.T) {
 		{
 			"var x int = 1 + 2\n",
 			&VarStmt{
-				expr: expr{},
+				stmt: stmt{expr: expr{}},
 				Vars: []*VarDecl{
 					&VarDecl{
 						name: "x",
@@ -531,7 +574,7 @@ func TestVarDecl(t *testing.T) {
 		{
 			"var x,y int = 1, 2\n",
 			&VarStmt{
-				expr: expr{pos: 0},
+				stmt: stmt{expr: expr{pos: 0}},
 				Vars: []*VarDecl{
 					&VarDecl{
 						name: "x",
@@ -555,7 +598,7 @@ func TestVarDecl(t *testing.T) {
 		{
 			"var x,y int = (1, 2), z = 3\n",
 			&VarStmt{
-				expr: expr{},
+				stmt: stmt{expr: expr{}},
 				Vars: []*VarDecl{
 					&VarDecl{
 						name: "x",
@@ -599,7 +642,7 @@ func TestVarDecl(t *testing.T) {
 		{
 			"var x,y int = (1), 2\n",
 			&VarStmt{
-				expr: expr{},
+				stmt: stmt{expr: expr{}},
 				Vars: []*VarDecl{
 					&VarDecl{
 						name: "x",
@@ -631,7 +674,7 @@ func TestVarDecl(t *testing.T) {
 		{
 			"var x int, y = 1\n",
 			&VarStmt{
-				expr: expr{},
+				stmt: stmt{expr: expr{}},
 				Vars: []*VarDecl{
 					&VarDecl{
 						name: "x",

@@ -88,6 +88,10 @@ const (
 	TOKEN_IN                     // the "in" keyword
 	TOKEN_PASS                   // the "pass" keyword
 	TOKEN_PACKAGE                // the "package" keyword
+	TOKEN_BREAK                  // the "break" keyword
+	TOKEN_CONTINUE               // the "continue" keyword
+	TOKEN_FALLTHROUGH            // the "fallthrough" keyword
+	TOKEN_GOTO                   // the "goto" keyword
 	TOKEN_MUL                    // *
 	TOKEN_DIV                    // /
 	TOKEN_MUL_ASSIGN             // *=
@@ -277,6 +281,14 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.retNewToken(TOKEN_FUNC, nil)
 		case "type":
 			return l.retNewToken(TOKEN_TYPE, nil)
+		case "break":
+			return l.retNewToken(TOKEN_BREAK, nil)
+		case "continue":
+			return l.retNewToken(TOKEN_CONTINUE, nil)
+		case "fallthrough":
+			return l.retNewToken(TOKEN_FALLTHROUGH, nil)
+		case "goto":
+			return l.retNewToken(TOKEN_GOTO, nil)
 		default:
 			return l.retNewToken(TOKEN_WORD, s)
 		}

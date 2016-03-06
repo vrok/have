@@ -15,6 +15,12 @@ type expr struct {
 
 type Stmt interface {
 	Expr
+	Label() *Object
+}
+
+type stmt struct {
+	expr
+	label *Object
 }
 
 // Simple statements are those that can be used in the 3rd
@@ -29,6 +35,7 @@ const (
 	OBJECT_VAR = ObjectType(iota + 1)
 	OBJECT_TYPE
 	OBJECT_PACKAGE
+	OBJECT_LABEL
 )
 
 // This serves a similar purpose to Go's types.Object
@@ -47,9 +54,19 @@ type VarDecl struct {
 func (o *VarDecl) Name() string           { return o.name }
 func (o *VarDecl) ObjectType() ObjectType { return OBJECT_VAR }
 
-// Implements Object
+// implements Object and Stmt
+type LabelStmt struct {
+	stmt
+	name       string
+	Branchable Stmt // Either nil or branchable statement (for, switch, etc)
+}
+
+func (l *LabelStmt) Name() string           { return l.name }
+func (l *LabelStmt) ObjectType() ObjectType { return OBJECT_LABEL }
+
+// Implements Object and Stmt
 type TypeDecl struct {
-	expr
+	stmt
 
 	name        string
 	AliasedType Type
@@ -94,30 +111,39 @@ func GetBuiltinType(name string) (*TypeDecl, bool) {
 
 type CodeBlock struct {
 	Statements []Stmt
+	Labels     map[string]*LabelStmt
+}
+
+func (cb *CodeBlock) AddLabel(l *LabelStmt) error {
+	if _, ok := cb.Labels[l.Name()]; ok {
+		return fmt.Errorf("Label `%s` declared more than once", l.Name())
+	}
+	cb.Labels[l.Name()] = l
+	return nil
 }
 
 // implements SimpleStmt
 type AssignStmt struct {
-	expr
+	stmt
 	Lhs, Rhs []Expr
 	Token    *Token
 }
 
 // implements Stmt
 type VarStmt struct {
-	expr
+	stmt
 	Vars       []*VarDecl
 	IsFuncStmt bool
 }
 
 // implements Stmt
 type PassStmt struct {
-	expr
+	stmt
 }
 
 // implements Stmt
 type IfBranch struct {
-	expr
+	stmt
 	ScopedVarDecl *VarStmt
 	Condition     Expr
 	Code          *CodeBlock
@@ -125,13 +151,13 @@ type IfBranch struct {
 
 // implements Stmt
 type IfStmt struct {
-	expr
+	stmt
 	Branches []*IfBranch
 }
 
 // implements Stmt
 type ForStmt struct {
-	expr
+	stmt
 
 	// TODO: foreach-like loops can't be handled by this
 	ScopedVarDecl *VarStmt
@@ -143,8 +169,21 @@ type ForStmt struct {
 // implements Stmt
 // Statement wrapper for expressions.
 type ExprStmt struct {
-	expr
+	stmt
 	Expression Expr
+}
+
+// Break, continue, goto
+type BranchStmt struct {
+	stmt
+	Token *Token
+	Right *Ident
+
+	// Is nil for breaks/continues in unnamed loops/switches.
+	GotoLabel *LabelStmt
+	// Is nil for goto statements. Otherwise it is the statement
+	// that the continue/break refers to.
+	Branchable Stmt
 }
 
 type Kind int
@@ -374,6 +413,10 @@ type TypeExpr struct {
 
 func (e *expr) Pos() int {
 	return e.pos
+}
+
+func (s *stmt) Label() *Object {
+	return s.label
 }
 
 // Blank expression, represents no expression.
