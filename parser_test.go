@@ -527,6 +527,12 @@ func x():
 	goto lol
 	for x = 0; x < 10; x += 1:
 		lol:`, false},
+		{`
+func x():
+	lol:
+	pass
+	for x = 0; x < 10; x += 1:
+		break lol`, false},
 	}
 	validityTest(t, cases)
 }

@@ -124,11 +124,16 @@ func (b BranchStmtsMap) MatchGotoLabels(labels map[string]*LabelStmt) {
 			continue
 		}
 
-		for _, branchStmt := range matches {
-			branchStmt.GotoLabel = label
+		for i := len(matches) - 1; i >= 0; i-- {
+			if matches[i].Token.Type == TOKEN_GOTO {
+				matches[i].GotoLabel = label
+				matches = append(matches[:i], matches[i+1:]...)
+			}
 		}
 
-		delete(b, labelName)
+		if len(matches) == 0 {
+			delete(b, labelName)
+		}
 	}
 }
 
