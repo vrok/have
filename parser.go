@@ -17,6 +17,8 @@ type Parser struct {
 	branchTreesStack []*BranchStmtsTree
 
 	ignoreUnknowns, dontLookup bool
+
+	prevLbl *LabelStmt // Just declared labal is stored here temporarily
 }
 
 // BranchStmtsMap is used to store branch statements (break, continue, goto) that
@@ -79,10 +81,10 @@ func (b *BranchStmtsTree) MatchGotoLabels(labels map[string]*LabelStmt) {
 }
 
 // Call MatchBranchableStmt on every BranchStmtsMap in the tree.
-func (b *BranchStmtsTree) MatchBranchableStmt(branchable Stmt, allowedBranchStmts ...TokenType) {
-	b.Members.MatchBranchableStmt(branchable, allowedBranchStmts...)
+func (b *BranchStmtsTree) MatchBranchableStmt(branchable Stmt, lblName string, allowedBranchStmts ...TokenType) {
+	b.Members.MatchBranchableStmt(branchable, lblName, allowedBranchStmts...)
 	for _, child := range b.Children {
-		child.MatchBranchableStmt(branchable, allowedBranchStmts...)
+		child.MatchBranchableStmt(branchable, lblName, allowedBranchStmts...)
 	}
 }
 
@@ -137,13 +139,13 @@ func (b BranchStmtsMap) MatchGotoLabels(labels map[string]*LabelStmt) {
 	}
 }
 
-func (b BranchStmtsMap) MatchBranchableStmt(branchable Stmt, allowedBranchStmts ...TokenType) {
-	unnamed, ok := b[""]
+func (b BranchStmtsMap) MatchBranchableStmt(branchable Stmt, lblName string, allowedBranchStmts ...TokenType) {
+	unnamed, ok := b[lblName]
 	switch {
 	case !ok:
 		return
 	case len(unnamed) == 0:
-		delete(b, "")
+		delete(b, lblName)
 	}
 	for i := len(unnamed) - 1; i >= 0; i-- {
 		x := unnamed[i]
@@ -155,9 +157,9 @@ func (b BranchStmtsMap) MatchBranchableStmt(branchable Stmt, allowedBranchStmts 
 		}
 	}
 	if len(unnamed) > 0 {
-		b[""] = unnamed
+		b[lblName] = unnamed
 	} else {
-		delete(b, "")
+		delete(b, lblName)
 	}
 }
 
@@ -563,7 +565,7 @@ func (p *Parser) parse3ClauseForStmt() (*ForStmt, error) {
 	return &result, nil
 }
 
-func (p *Parser) parseForStmt() (stmt *ForStmt, err error) {
+func (p *Parser) parseForStmt(lbl *LabelStmt) (stmt *ForStmt, err error) {
 	ident := p.expect(TOKEN_FOR)
 	if ident == nil {
 		return nil, fmt.Errorf("Impossible happened")
@@ -591,7 +593,10 @@ func (p *Parser) parseForStmt() (stmt *ForStmt, err error) {
 		panic("todo")
 	}
 
-	p.topBranchStmtsTree().MatchBranchableStmt(stmt, TOKEN_BREAK, TOKEN_CONTINUE)
+	p.topBranchStmtsTree().MatchBranchableStmt(stmt, "", TOKEN_BREAK, TOKEN_CONTINUE)
+	if lbl != nil {
+		p.topBranchStmtsTree().MatchBranchableStmt(stmt, lbl.Name(), TOKEN_BREAK, TOKEN_CONTINUE)
+	}
 
 	return
 }
@@ -1575,6 +1580,8 @@ func (p *Parser) parseSimpleStmt(labelPossible bool) (SimpleStmt, error) {
 }
 
 func (p *Parser) parseStmt() (Stmt, error) {
+	lbl := p.prevLbl
+	p.prevLbl = nil
 	for {
 		token := p.nextToken()
 		switch token.Type {
@@ -1586,7 +1593,7 @@ func (p *Parser) parseStmt() (Stmt, error) {
 			return p.parseIf()
 		case TOKEN_FOR:
 			p.putBack(token)
-			return p.parseForStmt()
+			return p.parseForStmt(lbl)
 		case TOKEN_FUNC:
 			p.putBack(token)
 			return p.parseFuncStmt()
@@ -1606,7 +1613,9 @@ func (p *Parser) parseStmt() (Stmt, error) {
 			return nil, nil
 		default:
 			p.putBack(token)
-			return p.parseSimpleStmt(true)
+			stmt, err := p.parseSimpleStmt(true)
+			p.prevLbl, _ = stmt.(*LabelStmt)
+			return stmt, err
 		}
 	}
 }

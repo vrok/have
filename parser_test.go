@@ -227,7 +227,7 @@ func TestForStmt(t *testing.T) {
 
 	for _, c := range cases {
 		parser := NewParser(NewLexer([]rune(c.code)))
-		result, err := parser.parseForStmt()
+		result, err := parser.parseForStmt(nil)
 
 		passed := err == nil
 
@@ -533,6 +533,11 @@ func x():
 	pass
 	for x = 0; x < 10; x += 1:
 		break lol`, false},
+		{`
+func x():
+	lol:
+	for x = 0; x < 10; x += 1:
+		break lol`, true},
 	}
 	validityTest(t, cases)
 }
