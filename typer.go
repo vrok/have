@@ -75,6 +75,10 @@ func (vs *VarStmt) NegotiateTypes() error {
 	return nil
 }
 
+func (bs *BranchStmt) NegotiateTypes() error { return nil }
+
+func (ls *LabelStmt) NegotiateTypes() error { return nil }
+
 // This will overwrite the type pointer by varType.
 func NegotiateExprType(varType *Type, value TypedExpr) error {
 	*varType = nonilTyp(*varType)

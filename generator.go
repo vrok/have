@@ -350,4 +350,27 @@ func (f *File) Generate(current *CodeChunk) {
 	}
 }
 
+func (bs *BranchStmt) Generate(current *CodeChunk) {
+	var typ = ""
+	switch bs.Token.Type {
+	case TOKEN_BREAK:
+		typ = "break"
+	case TOKEN_CONTINUE:
+		typ = "continue"
+	case TOKEN_GOTO:
+		typ = "goto"
+	default:
+		panic("impossible")
+	}
+	if bs.Right == nil {
+		current.AddChprintf("%s\n", typ)
+	} else {
+		current.AddChprintf("%s %C\n", typ, bs.Right)
+	}
+}
+
+func (ls *LabelStmt) Generate(current *CodeChunk) {
+	current.AddChprintf("%s:\n", ls.Name())
+}
+
 // TODO: Now just write Generables for all statements/expressions and we're done...

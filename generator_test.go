@@ -91,6 +91,15 @@ if (1 == 2) {
 	print("b")`, reference: `for x := (int)(0); (x < 100); print("a") {
 	print("b")
 }`},
+		{source: `for x = 0; x < 100; print("a"):
+	break`, reference: `for x := (int)(0); (x < 100); print("a") {
+	break
+}`},
+		{source: `
+goto bla
+bla:`, reference: `goto bla
+bla:
+`},
 	}
 	testCases(t, cases)
 }
