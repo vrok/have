@@ -3,6 +3,7 @@ package have
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	spew "github.com/davecgh/go-spew/spew"
@@ -285,7 +286,7 @@ else
 	}
 }
 
-func TestParseStruct(t *testing.T) {
+func TestParseInlineStruct(t *testing.T) {
 	cases := []string{
 		`struct:
   x int
@@ -300,7 +301,46 @@ func TestParseStruct(t *testing.T) {
 	}
 	for _, c := range cases {
 		parser := NewParser(NewLexer([]rune(c)))
-		result, err := parser.parseStruct()
+		result, err := parser.parseStruct(false)
+
+		// TODO: better assertions, more test cases.
+		// We'll need something more succint than comparing whole ASTs.
+		if err != nil {
+			t.Fail()
+			fmt.Printf("Error parsing `struct` %s %s\n", err, spew.Sdump(result))
+		}
+	}
+}
+
+func TestParseStructStmt(t *testing.T) {
+	cases := []string{
+		`struct A:
+  x int
+  yb string
+
+`,
+		`struct A:
+  x int
+  kreff struct:
+    pr int
+  yb string`,
+		`
+struct Abc:
+	func foo():
+		pass`,
+		`
+struct Abc:
+	x int
+	y string
+	func foo():
+		pass
+	func* bar():
+		pass
+	z int`,
+	}
+	for _, c := range cases {
+		parser := NewParser(NewLexer([]rune(strings.TrimSpace(c))))
+		result, err := parser.parseStructStmt()
 
 		// TODO: better assertions, more test cases.
 		// We'll need something more succint than comparing whole ASTs.

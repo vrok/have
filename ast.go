@@ -130,6 +130,12 @@ type AssignStmt struct {
 }
 
 // implements Stmt
+type StructStmt struct {
+	stmt
+	Struct *StructType
+}
+
+// implements Stmt
 type VarStmt struct {
 	stmt
 	Vars       []*VarDecl
@@ -351,7 +357,9 @@ func (t *TupleType) Kind() Kind { return KIND_TUPLE }
 type StructType struct {
 	Members map[string]Type
 	// Keys in the order of declaration
-	Keys []string
+	Keys    []string
+	Methods []*FuncDecl
+	Name    string
 }
 
 func (st *StructType) GetTypeN(n int) Type {
@@ -504,6 +512,7 @@ type FuncDecl struct {
 	typ           *FuncType
 	Args, Results []*VarDecl
 	Code          *CodeBlock
+	PtrRecv       bool // Method with a pointer receiver
 }
 
 // implements PrimaryExpr

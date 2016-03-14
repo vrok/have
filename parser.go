@@ -271,7 +271,7 @@ func (p *Parser) expect(typ TokenType) *Token {
 
 // The stack is not changed when the result is false, and if it is true,
 // then all expected tokens are consumed.
-func (p *Parser) expectSeries(types ...TokenType) (bool, []*Token) {
+func (p *Parser) expectSeries(types ...TokenType) ([]*Token, bool) {
 	stack := []*Token{}
 	for _, typ := range types {
 		t := p.nextToken()
@@ -279,10 +279,10 @@ func (p *Parser) expectSeries(types ...TokenType) (bool, []*Token) {
 
 		if t.Type != typ {
 			p.putBackStack(stack)
-			return false, nil
+			return nil, false
 		}
 	}
-	return true, stack
+	return stack, true
 }
 
 func (p *Parser) skipWhiteSpace() {
@@ -732,6 +732,9 @@ func (p *Parser) parseFuncStmt() (*VarStmt, error) {
 	if err != nil {
 		return nil, err
 	}
+	if fun.PtrRecv {
+		return nil, fmt.Errorf("Declared a non-method function as having a pointer receiver")
+	}
 	decl := &VarDecl{name: fun.name, Type: fun.typ, Init: fun}
 	// TODO: mark as final/not changeable
 	p.identStack.addObject(decl)
@@ -965,9 +968,18 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 	return nil, fmt.Errorf("Impossible happened")
 }
 
-func (p *Parser) parseStruct() (*StructType, error) {
-	if ok, _ := p.expectSeries(TOKEN_STRUCT, TOKEN_COLON); !ok {
-		return nil, fmt.Errorf("Couldn't parse struct declaration")
+func (p *Parser) parseStruct(classDecl bool) (*StructType, error) {
+	name := ""
+	if classDecl {
+		tokens, ok := p.expectSeries(TOKEN_STRUCT, TOKEN_WORD, TOKEN_COLON)
+		if !ok {
+			return nil, fmt.Errorf("Couldn't parse struct header")
+		}
+		name = tokens[1].Value.(string)
+	} else {
+		if _, ok := p.expectSeries(TOKEN_STRUCT, TOKEN_COLON); !ok {
+			return nil, fmt.Errorf("Couldn't parse struct declaration")
+		}
 	}
 
 	_, err := p.expectNewIndent()
@@ -975,7 +987,7 @@ func (p *Parser) parseStruct() (*StructType, error) {
 		return nil, err
 	}
 
-	result := &StructType{Members: map[string]Type{}, Keys: []string{}}
+	result := &StructType{Name: name, Members: map[string]Type{}, Keys: []string{}}
 	for {
 		token := p.nextToken()
 
@@ -998,6 +1010,16 @@ func (p *Parser) parseStruct() (*StructType, error) {
 				return result, nil
 			}
 			// Struct continues.
+		case TOKEN_FUNC:
+			if !classDecl {
+				return nil, fmt.Errorf("Cannot declare methods in inline struct declarations")
+			}
+			p.putBack(token)
+			fun, err := p.parseFunc()
+			if err != nil {
+				return nil, err
+			}
+			result.Methods = append(result.Methods, fun)
 		default:
 			p.putBack(token)
 			p.forceIndentEnd()
@@ -1090,7 +1112,7 @@ func (p *Parser) parseType() (Type, error) {
 		}
 	case TOKEN_STRUCT:
 		p.putBack(token)
-		return p.parseStruct()
+		return p.parseStruct(false)
 	default:
 		// TODO add location info
 		return nil, fmt.Errorf("Expected type name, got %s", spew.Sdump(token))
@@ -1390,6 +1412,12 @@ func (p *Parser) parseFunc() (*FuncDecl, error) {
 		return nil, fmt.Errorf("Function declaration needs to start with 'func' keyword")
 	}
 
+	ptrRecv := false
+	if p.peek().Type == TOKEN_MUL {
+		p.nextToken()
+		ptrRecv = true
+	}
+
 	funcName := ""
 	t := p.nextToken()
 	switch t.Type {
@@ -1462,7 +1490,8 @@ func (p *Parser) parseFunc() (*FuncDecl, error) {
 			Args:    typesFromVars(args),
 			Results: typesFromVars(results),
 		},
-		Code: block,
+		Code:    block,
+		PtrRecv: ptrRecv,
 	}, nil
 }
 
@@ -1531,7 +1560,7 @@ func (p *Parser) parseSimpleStmt(labelPossible bool) (SimpleStmt, error) {
 	// that we're parsing a new label statement, so we don't want any ident lookups
 	// (goto can jump forwards, which would result in unknown ident errors)
 	if labelPossible {
-		if ok, tokens := p.expectSeries(TOKEN_WORD, TOKEN_COLON); ok {
+		if tokens, ok := p.expectSeries(TOKEN_WORD, TOKEN_COLON); ok {
 			name := tokens[0].Value.(string)
 			return &LabelStmt{stmt: stmt{expr: expr{tokens[0].Offset}}, name: name}, nil
 		}
@@ -1579,6 +1608,17 @@ func (p *Parser) parseSimpleStmt(labelPossible bool) (SimpleStmt, error) {
 	panic("todo")
 }
 
+func (p *Parser) parseStructStmt() (*StructStmt, error) {
+	firstTok := p.peek()
+
+	structDecl, err := p.parseStruct(true)
+	if err != nil {
+		return nil, err
+	}
+
+	return &StructStmt{stmt{expr: expr{firstTok.Offset}}, structDecl}, nil
+}
+
 func (p *Parser) parseStmt() (Stmt, error) {
 	lbl := p.prevLbl
 	p.prevLbl = nil
@@ -1611,6 +1651,8 @@ func (p *Parser) parseStmt() (Stmt, error) {
 			return p.parseBranchStmt()
 		case TOKEN_EOF:
 			return nil, nil
+		case TOKEN_STRUCT:
+			p.parseStructStmt()
 		default:
 			p.putBack(token)
 			stmt, err := p.parseSimpleStmt(true)
