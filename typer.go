@@ -79,6 +79,15 @@ func (bs *BranchStmt) NegotiateTypes() error { return nil }
 
 func (ls *LabelStmt) NegotiateTypes() error { return nil }
 
+func (ss *StructStmt) NegotiateTypes() error {
+	for _, m := range ss.Struct.Methods {
+		if err := m.Code.CheckTypes(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // This will overwrite the type pointer by varType.
 func NegotiateExprType(varType *Type, value TypedExpr) error {
 	*varType = nonilTyp(*varType)

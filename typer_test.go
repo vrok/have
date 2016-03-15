@@ -404,6 +404,27 @@ var a = Abc{y: 7}`,
 			false,
 			"Abc",
 		},
+		{`
+struct Abc:
+	func x(z int):
+		z = 3
+		pass
+var a = Abc{}`,
+			true,
+			"Abc",
+		},
+		{`
+struct Abc:
+	zz int
+	func x(z int):
+		self.zz = z
+	func *xp(z int):
+		self.zz = z
+		(*self).zz = z
+var a = Abc{}`,
+			true,
+			"Abc",
+		},
 	})
 }
 

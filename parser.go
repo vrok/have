@@ -386,18 +386,21 @@ func (p *Parser) handleIndentEndOrToken(tokenType TokenType) (end bool, err erro
 }
 
 // Very similar to handleIndentEndOrToken, but checks if the next token
-// is NOT of tokenType type.
-func (p *Parser) handleIndentEndOrNoToken(tokenType TokenType) (end bool, err error) {
+// is NOT one of tokenTypes type.
+func (p *Parser) handleIndentEndOrNoToken(tokenTypes ...TokenType) (end bool, err error) {
 	end, err = p.handleIndentEnd()
 	if end {
 		return end, err
 	}
 	next := p.nextToken()
 	defer p.putBack(next)
-	if next.Type != tokenType {
-		return true, nil
+
+	for _, tokenType := range tokenTypes {
+		if next.Type == tokenType {
+			return false, err
+		}
 	}
-	return false, err
+	return true, nil
 }
 
 // Use this to check for the beginning of a statement branch (part of a statement
@@ -988,6 +991,9 @@ func (p *Parser) parseStruct(classDecl bool) (*StructType, error) {
 	}
 
 	result := &StructType{Name: name, Members: map[string]Type{}, Keys: []string{}}
+
+	self, selfp := &VarDecl{name: "self", Type: result}, &VarDecl{name: "self", Type: &PointerType{To: result}}
+
 	for {
 		token := p.nextToken()
 
@@ -1002,7 +1008,7 @@ func (p *Parser) parseStruct(classDecl bool) (*StructType, error) {
 			result.Keys = append(result.Keys, name)
 		case TOKEN_INDENT:
 			p.putBack(token)
-			end, err := p.handleIndentEndOrNoToken(TOKEN_WORD)
+			end, err := p.handleIndentEndOrNoToken(TOKEN_WORD, TOKEN_FUNC)
 			if err != nil {
 				return nil, err
 			}
@@ -1014,12 +1020,22 @@ func (p *Parser) parseStruct(classDecl bool) (*StructType, error) {
 			if !classDecl {
 				return nil, fmt.Errorf("Cannot declare methods in inline struct declarations")
 			}
+
+			p.identStack.pushScope()
+
+			if p.peek().Type == TOKEN_MUL {
+				p.identStack.addObject(selfp)
+			} else {
+				p.identStack.addObject(self)
+			}
+
 			p.putBack(token)
 			fun, err := p.parseFunc()
 			if err != nil {
 				return nil, err
 			}
 			result.Methods = append(result.Methods, fun)
+			p.identStack.popScope()
 		default:
 			p.putBack(token)
 			p.forceIndentEnd()
