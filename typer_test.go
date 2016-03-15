@@ -2,6 +2,7 @@ package have
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -13,20 +14,20 @@ type typeTestCase struct {
 
 func testVarTypes(t *testing.T, cases []typeTestCase) {
 	for i, c := range cases {
-		parser := NewParser(NewLexer([]rune(c.code)))
+		parser := NewParser(NewLexer([]rune(strings.TrimSpace(c.code))))
 		result, err := parser.Parse()
 		if err != nil {
 			t.Fail()
 			fmt.Printf("FAIL: Failed parsing: %s\n", err)
 		}
 
-		var varStmt *VarStmt = nil
+		var stmtWithTypes ExprToProcess = nil
 		var ok = false
 
 		for _, stmt := range result {
-			varStmt, ok = stmt.(*VarStmt)
+			stmtWithTypes, ok = stmt.(ExprToProcess)
 			if ok {
-				err = varStmt.NegotiateTypes()
+				err = stmtWithTypes.NegotiateTypes()
 				if err != nil {
 					break
 				}
@@ -41,7 +42,7 @@ func testVarTypes(t *testing.T, cases []typeTestCase) {
 		}
 
 		if c.shouldPass {
-			firstVar := varStmt.Vars[0]
+			firstVar := stmtWithTypes.(*VarStmt).Vars[0]
 			if firstVar.Type.String() != c.typ || !IsAssignable(firstVar.Init.(TypedExpr).Type(), firstVar.Type) {
 				t.Fail()
 				fmt.Printf("FAIL: Case %d: Bad type: %s, %s, %s\n", i, c.typ, firstVar.Type.String(),
@@ -140,53 +141,6 @@ var b hash = {1: "aaa"}
 var a map[string]string = b`,
 			false,
 			"",
-		},
-		{`type point struct:
-	x int
-	y int
-var a point = {}
-var b point = a`,
-			true,
-			"point",
-		},
-		{`type point struct:
-	x int
-	y int
-var a point = {1, 2}
-var b point = a`,
-			true,
-			"point",
-		},
-		{`type point struct:
-	x int
-	y int
-var a point = {x: 1, y: 2}`,
-			true,
-			"point",
-		},
-		{`type point struct:
-	x int
-	y int
-var a point = {x: 1, z: 2}`,
-			false,
-			"",
-		},
-		{`type point struct:
-	x int
-	y int
-var a point = {x: 1, y: "2"}`,
-			false,
-			"",
-		},
-		{`type point struct:
-	x int
-	y int
-var a struct:
-	x int
-	y int = {}
-var b point = a`,
-			true,
-			"point",
 		},
 		{`var b, c, d = 2, 30, 40
 var a int = b * c + d + 10`,
@@ -350,6 +304,65 @@ var a int = f()`,
 	testVarTypes(t, cases)
 }
 
+func TestCustomStructTypes(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`type point struct:
+	x int
+	y int
+var a point = {}
+var b point = a`,
+			true,
+			"point",
+		},
+		{`type point struct:
+	x int
+	y int
+var a point = {1, 2}
+var b point = a`,
+			true,
+			"point",
+		},
+		{`type point struct:
+	x int
+	y int
+var a = point{1, 2}`,
+			true,
+			"point",
+		},
+		{`type point struct:
+	x int
+	y int
+var a point = {x: 1, y: 2}`,
+			true,
+			"point",
+		},
+		{`type point struct:
+	x int
+	y int
+var a point = {x: 1, z: 2}`,
+			false,
+			"",
+		},
+		{`type point struct:
+	x int
+	y int
+var a point = {x: 1, y: "2"}`,
+			false,
+			"",
+		},
+		{`type point struct:
+	x int
+	y int
+var a struct:
+	x int
+	y int = {}
+var b point = a`,
+			true,
+			"point",
+		},
+	})
+}
+
 func TestTypesIfStmt(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`func f() int:
@@ -359,6 +372,37 @@ func TestTypesIfStmt(t *testing.T) {
 var a int = f()`,
 			true,
 			"int",
+		},
+	})
+}
+
+func TestTypesStruct(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+struct Abc:
+	func x():
+		pass
+var a = Abc{}`,
+			true,
+			"Abc",
+		},
+		{`
+struct Abc:
+	x int
+	func x():
+		pass
+var a = Abc{x: 7}`,
+			true,
+			"Abc",
+		},
+		{`
+struct Abc:
+	x int
+	func x():
+		pass
+var a = Abc{y: 7}`,
+			false,
+			"Abc",
 		},
 	})
 }

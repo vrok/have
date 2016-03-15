@@ -456,9 +456,15 @@ const (
 // implements Expr
 type CompoundLit struct {
 	expr
-	typ   Type
-	kind  CompoundLitKind
-	elems []Expr
+	typ        Type
+	kind       CompoundLitKind
+	elems      []Expr
+	contentPos int
+}
+
+func (cl *CompoundLit) updatePosWithType(typ Expr) {
+	cl.contentPos = cl.pos
+	cl.pos = typ.Pos()
 }
 
 // implements Expr

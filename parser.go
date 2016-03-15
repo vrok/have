@@ -910,7 +910,7 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 	p.skipWhiteSpace()
 
 	if t := p.nextToken(); t.Type == TOKEN_RBRACE {
-		return &CompoundLit{typ: &UnknownType{}, kind: COMPOUND_EMPTY, elems: nil}, nil
+		return &CompoundLit{expr: expr{startTok.Offset}, typ: &UnknownType{}, kind: COMPOUND_EMPTY, elems: nil, contentPos: startTok.Offset}, nil
 	} else {
 		p.putBack(t)
 	}
@@ -951,7 +951,7 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 				} else if kind == COMPOUND_UNKNOWN {
 					kind = COMPOUND_LISTLIKE
 				}
-				return &CompoundLit{expr{startTok.Offset}, &UnknownType{}, kind, elems}, nil
+				return &CompoundLit{expr{startTok.Offset}, &UnknownType{}, kind, elems, startTok.Offset}, nil
 			default:
 				return nil, fmt.Errorf("Unexpected token in a compound literal")
 			}
@@ -959,7 +959,7 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 			switch t := p.nextToken(); t.Type {
 			case TOKEN_COMMA:
 			case TOKEN_RBRACE:
-				return &CompoundLit{expr{startTok.Offset}, &UnknownType{}, kind, elems}, nil
+				return &CompoundLit{expr{startTok.Offset}, &UnknownType{}, kind, elems, startTok.Offset}, nil
 			default:
 				return nil, fmt.Errorf("Unexpected token in a compound literal")
 			}
@@ -1210,13 +1210,22 @@ loop:
 
 			switch t := left.(type) {
 			case *Ident:
-				literal.typ = &CustomType{Name: t.name}
+				if p.dontLookup {
+					literal.typ = &CustomType{Name: t.name}
+				} else {
+					if t.object.ObjectType() != OBJECT_TYPE {
+						return nil, fmt.Errorf("Literal of non-typename expression `%s`", t)
+					}
+					literal.typ = t.object.(*TypeDecl).Type()
+				}
 			case *TypeExpr:
 				literal.typ = t.typ
 			// TODO: DotSelector for types from other packages
 			default:
 				return nil, fmt.Errorf("Compound literal preceded with something that can't be a type: %T", t)
 			}
+			literal.updatePosWithType(left)
+			left = literal
 		default:
 			p.putBack(token)
 			break loop
@@ -1616,6 +1625,13 @@ func (p *Parser) parseStructStmt() (*StructStmt, error) {
 		return nil, err
 	}
 
+	typeDecl := &TypeDecl{
+		stmt:        stmt{expr: expr{firstTok.Offset}},
+		name:        structDecl.Name,
+		AliasedType: structDecl,
+	}
+	p.identStack.addObject(typeDecl)
+
 	return &StructStmt{stmt{expr: expr{firstTok.Offset}}, structDecl}, nil
 }
 
@@ -1642,7 +1658,7 @@ func (p *Parser) parseStmt() (Stmt, error) {
 			return p.parseTypeDecl()
 		case TOKEN_INDENT:
 			if token.Value.(string) != "" {
-				return nil, fmt.Errorf("Unexpected indent")
+				return nil, fmt.Errorf("Unexpected indent, '%s'", token.Value.(string))
 			}
 		case TOKEN_PASS:
 			return &PassStmt{stmt{expr: expr{token.Offset}}}, nil
@@ -1652,7 +1668,8 @@ func (p *Parser) parseStmt() (Stmt, error) {
 		case TOKEN_EOF:
 			return nil, nil
 		case TOKEN_STRUCT:
-			p.parseStructStmt()
+			p.putBack(token)
+			return p.parseStructStmt()
 		default:
 			p.putBack(token)
 			stmt, err := p.parseSimpleStmt(true)
