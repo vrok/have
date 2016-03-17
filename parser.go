@@ -729,14 +729,16 @@ func (p *Parser) parseFuncStmt() (*VarStmt, error) {
 	if ident == nil {
 		return nil, fmt.Errorf("Impossible happened")
 	}
+
+	if p.peek().Type == TOKEN_MUL {
+		return nil, fmt.Errorf("Declared a non-method function as having a pointer receiver")
+	}
+
 	p.putBack(ident)
 
 	fun, err := p.parseFunc()
 	if err != nil {
 		return nil, err
-	}
-	if fun.PtrRecv {
-		return nil, fmt.Errorf("Declared a non-method function as having a pointer receiver")
 	}
 	decl := &VarDecl{name: fun.name, Type: fun.typ, Init: fun}
 	// TODO: mark as final/not changeable
@@ -839,7 +841,7 @@ groupsLoop:
 			p.putBack(t)
 			// All default values.
 			for _, v := range vars {
-				v.Init = NewBlankExpr()
+				v.Init = nil
 			}
 			allVars = append(allVars, vars...)
 			break groupsLoop
@@ -971,9 +973,13 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 	return nil, fmt.Errorf("Impossible happened")
 }
 
-func (p *Parser) parseStruct(classDecl bool) (*StructType, error) {
+func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl) (*StructType, error) {
 	name := ""
-	if classDecl {
+	if receiverTypeDecl != nil {
+		// For class-like (with methods) struct declarations we need to get
+		// TypeDecl (incomplete at this stage) of the struct being parsed.
+		// It is needed for `self` variable.
+
 		tokens, ok := p.expectSeries(TOKEN_STRUCT, TOKEN_WORD, TOKEN_COLON)
 		if !ok {
 			return nil, fmt.Errorf("Couldn't parse struct header")
@@ -992,7 +998,8 @@ func (p *Parser) parseStruct(classDecl bool) (*StructType, error) {
 
 	result := &StructType{Name: name, Members: map[string]Type{}, Keys: []string{}}
 
-	self, selfp := &VarDecl{name: "self", Type: result}, &VarDecl{name: "self", Type: &PointerType{To: result}}
+	selfType := &CustomType{Name: name, Decl: receiverTypeDecl}
+	self, selfp := &VarDecl{name: "self", Type: selfType}, &VarDecl{name: "self", Type: &PointerType{To: selfType}}
 
 	for {
 		token := p.nextToken()
@@ -1017,23 +1024,25 @@ func (p *Parser) parseStruct(classDecl bool) (*StructType, error) {
 			}
 			// Struct continues.
 		case TOKEN_FUNC:
-			if !classDecl {
+			if receiverTypeDecl == nil {
 				return nil, fmt.Errorf("Cannot declare methods in inline struct declarations")
 			}
 
 			p.identStack.pushScope()
 
+			receiver := self
 			if p.peek().Type == TOKEN_MUL {
-				p.identStack.addObject(selfp)
-			} else {
-				p.identStack.addObject(self)
+				receiver = selfp
 			}
+
+			p.identStack.addObject(receiver)
 
 			p.putBack(token)
 			fun, err := p.parseFunc()
 			if err != nil {
 				return nil, err
 			}
+			fun.Receiver = receiver
 			result.Methods = append(result.Methods, fun)
 			p.identStack.popScope()
 		default:
@@ -1128,7 +1137,7 @@ func (p *Parser) parseType() (Type, error) {
 		}
 	case TOKEN_STRUCT:
 		p.putBack(token)
-		return p.parseStruct(false)
+		return p.parseStruct(nil)
 	default:
 		// TODO add location info
 		return nil, fmt.Errorf("Expected type name, got %s", spew.Sdump(token))
@@ -1406,7 +1415,7 @@ func (p *Parser) parseResultDecl() ([]*VarDecl, error) {
 			result = append(result, &VarDecl{
 				name: "",
 				Type: typ,
-				Init: NewBlankExpr(),
+				Init: nil,
 			})
 
 			switch t := p.nextToken(); t.Type {
@@ -1437,10 +1446,8 @@ func (p *Parser) parseFunc() (*FuncDecl, error) {
 		return nil, fmt.Errorf("Function declaration needs to start with 'func' keyword")
 	}
 
-	ptrRecv := false
 	if p.peek().Type == TOKEN_MUL {
 		p.nextToken()
-		ptrRecv = true
 	}
 
 	funcName := ""
@@ -1515,8 +1522,7 @@ func (p *Parser) parseFunc() (*FuncDecl, error) {
 			Args:    typesFromVars(args),
 			Results: typesFromVars(results),
 		},
-		Code:    block,
-		PtrRecv: ptrRecv,
+		Code: block,
 	}, nil
 }
 
@@ -1636,16 +1642,18 @@ func (p *Parser) parseSimpleStmt(labelPossible bool) (SimpleStmt, error) {
 func (p *Parser) parseStructStmt() (*StructStmt, error) {
 	firstTok := p.peek()
 
-	structDecl, err := p.parseStruct(true)
+	typeDecl := &TypeDecl{
+		stmt: stmt{expr: expr{firstTok.Offset}},
+	}
+
+	structDecl, err := p.parseStruct(typeDecl)
 	if err != nil {
 		return nil, err
 	}
 
-	typeDecl := &TypeDecl{
-		stmt:        stmt{expr: expr{firstTok.Offset}},
-		name:        structDecl.Name,
-		AliasedType: structDecl,
-	}
+	typeDecl.name = structDecl.Name
+	typeDecl.AliasedType = structDecl
+
 	p.identStack.addObject(typeDecl)
 
 	return &StructStmt{stmt{expr: expr{firstTok.Offset}}, structDecl}, nil

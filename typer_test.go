@@ -338,6 +338,13 @@ var a point = {x: 1, y: 2}`,
 		},
 		{`type point struct:
 	x int
+var a = point{}
+var b = a.x`,
+			true,
+			"int",
+		},
+		{`type point struct:
+	x int
 	y int
 var a point = {x: 1, z: 2}`,
 			false,

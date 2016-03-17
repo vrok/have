@@ -301,7 +301,7 @@ func TestParseInlineStruct(t *testing.T) {
 	}
 	for _, c := range cases {
 		parser := NewParser(NewLexer([]rune(c)))
-		result, err := parser.parseStruct(false)
+		result, err := parser.parseStruct(nil)
 
 		// TODO: better assertions, more test cases.
 		// We'll need something more succint than comparing whole ASTs.
@@ -593,7 +593,7 @@ func TestVarDecl(t *testing.T) {
 				&VarDecl{
 					name: "x",
 					Type: &SimpleType{ID: simpleTypeStrToID["int"]},
-					Init: &BlankExpr{},
+					Init: nil,
 				},
 			},
 		}},

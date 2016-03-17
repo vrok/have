@@ -518,7 +518,8 @@ type FuncDecl struct {
 	typ           *FuncType
 	Args, Results []*VarDecl
 	Code          *CodeBlock
-	PtrRecv       bool // Method with a pointer receiver
+	// Is nil for non-method functions
+	Receiver *VarDecl
 }
 
 // implements PrimaryExpr

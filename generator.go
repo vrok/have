@@ -227,6 +227,10 @@ func (vs *VarStmt) InlineGenerate(current *CodeChunk, noParenth bool) {
 	}
 }
 
+func (ds *DotSelector) Generate(current *CodeChunk) {
+	current.AddChprintf("%C.%C", ds.Left, ds.Right)
+}
+
 func (as *AssignStmt) Generate(current *CodeChunk) {
 	as.InlineGenerate(current, true)
 	current.AddString("\n")
@@ -264,7 +268,11 @@ func (fc *FuncCallExpr) Generate(current *CodeChunk) {
 
 func (fd *FuncDecl) Generate(current *CodeChunk) {
 	current = current.NewChunk()
-	current.AddChprintf("func %s(", fd.name)
+	if fd.Receiver == nil {
+		current.AddChprintf("func %s(", fd.name)
+	} else {
+		current.AddChprintf("func (self %s) %s(", fd.Receiver.Type, fd.name)
+	}
 	for i, arg := range fd.Args {
 		arg.Generate(current)
 		if i+1 < len(fd.Args) {
@@ -371,6 +379,21 @@ func (bs *BranchStmt) Generate(current *CodeChunk) {
 
 func (ls *LabelStmt) Generate(current *CodeChunk) {
 	current.AddChprintf("%s:\n", ls.Name())
+}
+
+func (ss *StructStmt) Generate(current *CodeChunk) {
+	current.AddChprintf("type %s struct {\n", ss.Struct.Name)
+
+	ch := current.NewBlockChunk()
+	for name, member := range ss.Struct.Members {
+		ch.AddChprintf("%s %s\n", name, member)
+	}
+
+	current.AddChprintf("}\n\n")
+
+	for _, method := range ss.Struct.Methods {
+		current.AddChprintf("%C\n", method)
+	}
 }
 
 // TODO: Now just write Generables for all statements/expressions and we're done...

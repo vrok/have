@@ -100,6 +100,26 @@ goto bla
 bla:`, reference: `goto bla
 bla:
 `},
+		{source: `
+struct A:
+	x int
+	func setX(z int):
+		self.x = z
+	func *setY(z string):
+		self.y = z
+	y string
+`, reference: `type A struct {
+	x int
+	y string
+}
+
+func (self A) setX(z int) {
+	self.x = z
+}
+
+func (self *A) setY(z string) {
+	self.y = z
+}`},
 	}
 	testCases(t, cases)
 }

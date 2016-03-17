@@ -377,14 +377,15 @@ func (ex *TypeExpr) GuessType() (ok bool, typ Type) { return false, nil }
 
 func (ex *DotSelector) Type() Type {
 	leftType := ex.Left.(TypedExpr).Type()
-	switch leftType.Kind() {
-	case KIND_POINTER:
+
+	if leftType.Kind() == KIND_POINTER {
 		asPtr := leftType.(*PointerType)
-		if asPtr.To.Kind() != KIND_STRUCT {
-			return &UnknownType{}
-		}
 		leftType = asPtr.To
-		fallthrough
+	}
+
+	leftType = RootType(leftType)
+
+	switch leftType.Kind() {
 	case KIND_STRUCT:
 		asStruct := leftType.(*StructType)
 		member, ok := asStruct.Members[ex.Right.name]
@@ -394,8 +395,6 @@ func (ex *DotSelector) Type() Type {
 		}
 		return member
 	case KIND_UNKNOWN:
-		panic("todo")
-	case KIND_CUSTOM:
 		panic("todo")
 	default:
 		return &UnknownType{}
