@@ -194,7 +194,7 @@ func (as *AssignStmt) NegotiateTypes() error {
 	return nil
 }
 
-func (vd *VarDecl) NegotiateTypes() error {
+func (vd *Variable) NegotiateTypes() error {
 	return NegotiateExprType(&vd.Type, vd.Init.(TypedExpr))
 }
 
@@ -774,7 +774,7 @@ func (ex *UnaryOp) GuessType() (ok bool, typ Type) {
 
 func (ex *Ident) Type() Type {
 	if ex.object != nil && ex.object.ObjectType() == OBJECT_VAR {
-		return ex.object.(*VarDecl).Type
+		return ex.object.(*Variable).Type
 	}
 	return nil
 }
@@ -785,8 +785,8 @@ func (ex *Ident) ApplyType(typ Type) error {
 	}
 
 	//if ex.object.(*VarDecl).Type.String() != typ.String() {
-	if !IsAssignable(typ, ex.object.(*VarDecl).Type) {
-		return fmt.Errorf("Identifier %s is of type %s, can't assign type %s to it", ex.name, ex.object.(*VarDecl).Type, typ)
+	if !IsAssignable(typ, ex.object.(*Variable).Type) {
+		return fmt.Errorf("Identifier %s is of type %s, can't assign type %s to it", ex.name, ex.object.(*Variable).Type, typ)
 	}
 	return nil
 }

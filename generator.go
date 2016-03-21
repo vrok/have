@@ -189,7 +189,7 @@ func (op *BinaryOp) Generate(current *CodeChunk) {
 	current.AddChprintf("(%C %s %C)", op.Left.(Generable), op.op.Value.(string), op.Right.(Generable))
 }
 
-func (vd *VarDecl) Generate(current *CodeChunk) {
+func (vd *Variable) Generate(current *CodeChunk) {
 	current = current.NewChunk()
 	current.AddChprintf("%s %s", vd.name, vd.Type)
 	if vd.Init != nil {

@@ -45,14 +45,14 @@ type Object interface {
 }
 
 // Implements Object
-type VarDecl struct {
+type Variable struct {
 	name string
 	Type Type
 	Init Expr
 }
 
-func (o *VarDecl) Name() string           { return o.name }
-func (o *VarDecl) ObjectType() ObjectType { return OBJECT_VAR }
+func (o *Variable) Name() string           { return o.name }
+func (o *Variable) ObjectType() ObjectType { return OBJECT_VAR }
 
 // implements Object and Stmt
 type LabelStmt struct {
@@ -138,7 +138,7 @@ type StructStmt struct {
 // implements Stmt
 type VarStmt struct {
 	stmt
-	Vars       []*VarDecl
+	Vars       []*Variable
 	IsFuncStmt bool
 }
 
@@ -516,10 +516,10 @@ type FuncDecl struct {
 
 	name          string
 	typ           *FuncType
-	Args, Results []*VarDecl
+	Args, Results []*Variable
 	Code          *CodeBlock
 	// Is nil for non-method functions
-	Receiver *VarDecl
+	Receiver *Variable
 }
 
 // implements PrimaryExpr

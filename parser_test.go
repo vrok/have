@@ -589,8 +589,8 @@ func TestVarDecl(t *testing.T) {
 	}{
 		{"var x int\n", &VarStmt{
 			stmt: stmt{expr: expr{}},
-			Vars: []*VarDecl{
-				&VarDecl{
+			Vars: []*Variable{
+				&Variable{
 					name: "x",
 					Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 					Init: nil,
@@ -601,8 +601,8 @@ func TestVarDecl(t *testing.T) {
 			"var x int = 1 + 2\n",
 			&VarStmt{
 				stmt: stmt{expr: expr{}},
-				Vars: []*VarDecl{
-					&VarDecl{
+				Vars: []*Variable{
+					&Variable{
 						name: "x",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BinaryOp{
@@ -626,8 +626,8 @@ func TestVarDecl(t *testing.T) {
 			"var x,y int = 1, 2\n",
 			&VarStmt{
 				stmt: stmt{expr: expr{pos: 0}},
-				Vars: []*VarDecl{
-					&VarDecl{
+				Vars: []*Variable{
+					&Variable{
 						name: "x",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
@@ -635,7 +635,7 @@ func TestVarDecl(t *testing.T) {
 							token: &Token{Type: TOKEN_NUM, Offset: 14, Value: "1"},
 						},
 					},
-					&VarDecl{
+					&Variable{
 						name: "y",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
@@ -650,8 +650,8 @@ func TestVarDecl(t *testing.T) {
 			"var x,y int = (1, 2), z = 3\n",
 			&VarStmt{
 				stmt: stmt{expr: expr{}},
-				Vars: []*VarDecl{
-					&VarDecl{
+				Vars: []*Variable{
+					&Variable{
 						name: "x",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
@@ -663,7 +663,7 @@ func TestVarDecl(t *testing.T) {
 							},
 						},
 					},
-					&VarDecl{
+					&Variable{
 						name: "y",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
@@ -675,7 +675,7 @@ func TestVarDecl(t *testing.T) {
 							},
 						},
 					},
-					&VarDecl{
+					&Variable{
 						name: "z",
 						Type: &UnknownType{},
 						Init: &BasicLit{
@@ -694,8 +694,8 @@ func TestVarDecl(t *testing.T) {
 			"var x,y int = (1), 2\n",
 			&VarStmt{
 				stmt: stmt{expr: expr{}},
-				Vars: []*VarDecl{
-					&VarDecl{
+				Vars: []*Variable{
+					&Variable{
 						name: "x",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
@@ -707,7 +707,7 @@ func TestVarDecl(t *testing.T) {
 							},
 						},
 					},
-					&VarDecl{
+					&Variable{
 						name: "y",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: &BasicLit{
@@ -726,13 +726,13 @@ func TestVarDecl(t *testing.T) {
 			"var x int, y = 1\n",
 			&VarStmt{
 				stmt: stmt{expr: expr{}},
-				Vars: []*VarDecl{
-					&VarDecl{
+				Vars: []*Variable{
+					&Variable{
 						name: "x",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
 						Init: nil,
 					},
-					&VarDecl{
+					&Variable{
 						name: "y",
 						Type: &UnknownType{},
 						Init: &BasicLit{

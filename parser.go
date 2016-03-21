@@ -719,7 +719,7 @@ func (p *Parser) loadBuiltinFuncs() {
 			panic(err)
 		}
 
-		decl := &VarDecl{name: fun.name, Type: fun.typ, Init: fun}
+		decl := &Variable{name: fun.name, Type: fun.typ, Init: fun}
 		p.identStack.addObject(decl)
 	}
 }
@@ -740,10 +740,10 @@ func (p *Parser) parseFuncStmt() (*VarStmt, error) {
 	if err != nil {
 		return nil, err
 	}
-	decl := &VarDecl{name: fun.name, Type: fun.typ, Init: fun}
+	decl := &Variable{name: fun.name, Type: fun.typ, Init: fun}
 	// TODO: mark as final/not changeable
 	p.identStack.addObject(decl)
-	return &VarStmt{stmt{expr: expr{ident.Offset}}, []*VarDecl{decl}, true}, nil
+	return &VarStmt{stmt{expr: expr{ident.Offset}}, []*Variable{decl}, true}, nil
 }
 
 // varKeyword controls whether the `var` keyword should be expected
@@ -771,9 +771,9 @@ func (p *Parser) parseVarStmt(varKeyword bool) (*VarStmt, error) {
 	return &VarStmt{stmt{expr: expr{firstTok.Offset}}, vars, false}, nil
 }
 
-func (p *Parser) parseVarDecl() ([]*VarDecl, error) {
+func (p *Parser) parseVarDecl() ([]*Variable, error) {
 	unknownType := &UnknownType{}
-	allVars := []*VarDecl{}
+	allVars := []*Variable{}
 	var err error
 
 	// The outermost loop iterates over groups of vars that are
@@ -783,10 +783,10 @@ func (p *Parser) parseVarDecl() ([]*VarDecl, error) {
 groupsLoop:
 	for {
 		// Parse left side of "="
-		vars := []*VarDecl{}
+		vars := []*Variable{}
 	loop:
 		for {
-			decl := &VarDecl{Type: unknownType}
+			decl := &Variable{Type: unknownType}
 
 			token := p.nextToken()
 			switch token.Type {
@@ -999,7 +999,7 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl) (*StructType, error) {
 	result := &StructType{Name: name, Members: map[string]Type{}, Keys: []string{}}
 
 	selfType := &CustomType{Name: name, Decl: receiverTypeDecl}
-	self, selfp := &VarDecl{name: "self", Type: selfType}, &VarDecl{name: "self", Type: &PointerType{To: selfType}}
+	self, selfp := &Variable{name: "self", Type: selfType}, &Variable{name: "self", Type: &PointerType{To: selfType}}
 
 	for {
 		token := p.nextToken()
@@ -1376,7 +1376,7 @@ func (p *Parser) parseArgs(max int) ([]Expr, error) {
 	return result, nil
 }
 
-func (p *Parser) parseArgsDecl() ([]*VarDecl, error) {
+func (p *Parser) parseArgsDecl() ([]*Variable, error) {
 	// TODO: check default values are set only for parameters at the end
 	t := p.nextToken()
 	p.putBack(t)
@@ -1386,7 +1386,7 @@ func (p *Parser) parseArgsDecl() ([]*VarDecl, error) {
 	return p.parseVarDecl()
 }
 
-func (p *Parser) parseResultDecl() ([]*VarDecl, error) {
+func (p *Parser) parseResultDecl() ([]*Variable, error) {
 	t := p.nextToken()
 	if t.Type == TOKEN_LPARENTH {
 		result, err := p.parseVarDecl()
@@ -1398,7 +1398,7 @@ func (p *Parser) parseResultDecl() ([]*VarDecl, error) {
 		}
 		return result, err
 	} else {
-		result := []*VarDecl{}
+		result := []*Variable{}
 
 		if t.Type == TOKEN_COLON {
 			return result, nil
@@ -1412,7 +1412,7 @@ func (p *Parser) parseResultDecl() ([]*VarDecl, error) {
 			if err != nil {
 				return nil, err
 			}
-			result = append(result, &VarDecl{
+			result = append(result, &Variable{
 				name: "",
 				Type: typ,
 				Init: nil,
@@ -1432,7 +1432,7 @@ func (p *Parser) parseResultDecl() ([]*VarDecl, error) {
 	}
 }
 
-func typesFromVars(vd []*VarDecl) []Type {
+func typesFromVars(vd []*Variable) []Type {
 	result := make([]Type, len(vd))
 	for i, d := range vd {
 		result[i] = d.Type
@@ -1483,7 +1483,7 @@ func (p *Parser) parseFunc() (*FuncDecl, error) {
 		return nil, fmt.Errorf("Expected `)`")
 	}
 
-	results := []*VarDecl{}
+	results := []*Variable{}
 
 	// Check if ':' is next - if so, function doesn't return anything.
 	t = p.nextToken()
