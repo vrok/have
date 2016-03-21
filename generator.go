@@ -189,17 +189,39 @@ func (op *BinaryOp) Generate(current *CodeChunk) {
 	current.AddChprintf("(%C %s %C)", op.Left.(Generable), op.op.Value.(string), op.Right.(Generable))
 }
 
-func (vd *Variable) Generate(current *CodeChunk) {
-	current = current.NewChunk()
-	current.AddChprintf("%s %s", vd.name, vd.Type)
-	if vd.Init != nil {
-		current.AddChprintf(" = %C", vd.Init.(Generable))
+func (vd *VarDecl) Generate(current *CodeChunk) {
+	for i, v := range vd.Vars {
+		current.AddChprintf("%C", v)
+		if i+1 < len(vd.Vars) {
+			current.AddChprintf(", ")
+		}
 	}
+
+	current.AddChprintf("%s", vd.Vars[0].Type)
+}
+
+func (dc DeclChain) Generate(current *CodeChunk) {
+	current = current.NewChunk()
+
+	names := current.NewChunk()
+	inits := current.NewChunk()
+
+	i, count := 0, dc.countVars()
+	dc.eachPair(func(v *Variable, init Expr) {
+		names.AddChprintf("%s", v.name)
+		inits.AddChprintf("(%s)(%C)", v.Type, init)
+		if i+1 < count {
+			names.AddChprintf(", ")
+			inits.AddChprintf(", ")
+		}
+	})
+
+	names.AddChprintf(" = ")
 }
 
 func (vs *VarStmt) Generate(current *CodeChunk) {
 	if vs.IsFuncStmt {
-		vs.Vars[0].Init.(Generable).Generate(current)
+		vs.Vars[0].Inits[0].(Generable).Generate(current)
 		return
 	}
 	for _, vd := range vs.Vars {
@@ -212,19 +234,25 @@ func (vs *VarStmt) InlineGenerate(current *CodeChunk, noParenth bool) {
 		return
 	}
 
-	for i, vd := range vs.Vars {
+	i := 0
+	vs.Vars.eachPair(func(vd *Variable, init Expr) {
 		current.AddString(vd.name)
 		if i+1 < len(vs.Vars) {
 			current.AddString(", ")
 		}
-	}
+		i++
+	})
+
 	current.AddString(" := ")
-	for i, vd := range vs.Vars {
-		current.AddChprintf("(%s)(%C)", vd.Type, vd.Init.(Generable))
+
+	i = 0
+	vs.Vars.eachPair(func(vd *Variable, init Expr) {
+		current.AddChprintf("(%s)(%C)", vd.Type, init.(Generable))
 		if i+1 < len(vs.Vars) {
 			current.AddString(", ")
 		}
-	}
+		i++
+	})
 }
 
 func (ds *DotSelector) Generate(current *CodeChunk) {
@@ -273,22 +301,28 @@ func (fd *FuncDecl) Generate(current *CodeChunk) {
 	} else {
 		current.AddChprintf("func (self %s) %s(", fd.Receiver.Type, fd.name)
 	}
-	for i, arg := range fd.Args {
-		arg.Generate(current)
+
+	i := 0
+
+	fd.Args.eachPair(func(arg *Variable, init Expr) {
+		current.AddChprintf("%s %s", arg.name, arg.Type)
 		if i+1 < len(fd.Args) {
 			current.AddString(", ")
 		}
-	}
+		i++
+	})
 	current.AddString(")")
 
 	if len(fd.Results) > 0 {
 		current.AddString(" (")
-		for i, arg := range fd.Results {
-			arg.Generate(current)
+		i = 0
+		fd.Args.eachPair(func(arg *Variable, init Expr) {
+			current.AddChprintf("%s %s", arg.name, arg.Type)
 			if i+1 < len(fd.Args) {
 				current.AddString(", ")
 			}
-		}
+			i++
+		})
 		current.AddString(")")
 	}
 
@@ -301,7 +335,6 @@ func (fd *FuncDecl) Generate(current *CodeChunk) {
 func (bl *CodeBlock) Generate(current *CodeChunk) {
 	block := current.NewBlockChunk()
 	for _, stmt := range bl.Statements {
-		//fmt.Printf("ZZZ generate code for %s\n", spew.Sdump(stmt))
 		stmt.(Generable).Generate(block.NewChunk())
 	}
 }

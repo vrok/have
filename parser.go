@@ -719,7 +719,7 @@ func (p *Parser) loadBuiltinFuncs() {
 			panic(err)
 		}
 
-		decl := &Variable{name: fun.name, Type: fun.typ, Init: fun}
+		decl := &Variable{name: fun.name, Type: fun.typ}
 		p.identStack.addObject(decl)
 	}
 }
@@ -740,10 +740,13 @@ func (p *Parser) parseFuncStmt() (*VarStmt, error) {
 	if err != nil {
 		return nil, err
 	}
-	decl := &Variable{name: fun.name, Type: fun.typ, Init: fun}
+
+	funcVar := &Variable{name: fun.name, Type: fun.typ}
+	decl := &VarDecl{Vars: []*Variable{funcVar}, Inits: []Expr{fun}}
+
 	// TODO: mark as final/not changeable
-	p.identStack.addObject(decl)
-	return &VarStmt{stmt{expr: expr{ident.Offset}}, []*Variable{decl}, true}, nil
+	p.identStack.addObject(funcVar)
+	return &VarStmt{stmt{expr: expr{ident.Offset}}, []*VarDecl{decl}, true}, nil
 }
 
 // varKeyword controls whether the `var` keyword should be expected
@@ -764,16 +767,18 @@ func (p *Parser) parseVarStmt(varKeyword bool) (*VarStmt, error) {
 		return nil, err
 	}
 
-	for _, v := range vars {
-		p.identStack.addObject(v)
-	}
+	stmt := &VarStmt{stmt{expr: expr{firstTok.Offset}}, vars, false}
 
-	return &VarStmt{stmt{expr: expr{firstTok.Offset}}, vars, false}, nil
+	stmt.Vars.eachPair(func(v *Variable, init Expr) {
+		p.identStack.addObject(v)
+	})
+
+	return stmt, nil
 }
 
-func (p *Parser) parseVarDecl() ([]*Variable, error) {
+func (p *Parser) parseVarDecl() ([]*VarDecl, error) {
 	unknownType := &UnknownType{}
-	allVars := []*Variable{}
+	var varDecls = []*VarDecl{}
 	var err error
 
 	// The outermost loop iterates over groups of vars that are
@@ -833,23 +838,25 @@ groupsLoop:
 
 		switch t := p.nextToken(); t.Type {
 		case TOKEN_COMMA:
-			allVars = append(allVars, vars...)
+			varDecls = append(varDecls, &VarDecl{Vars: vars})
 			continue groupsLoop
 		case TOKEN_ASSIGN:
 			// Go on
 		case TOKEN_INDENT, TOKEN_SEMICOLON, TOKEN_RPARENTH:
 			p.putBack(t)
 			// All default values.
-			for _, v := range vars {
-				v.Init = nil
-			}
-			allVars = append(allVars, vars...)
+			//for _, v := range vars {
+			//	v.Init = nil
+			//}
+			varDecls = append(varDecls, &VarDecl{Vars: vars})
 			break groupsLoop
 		default:
 			return nil, fmt.Errorf("Unexpected token after new vars list: %#v", t)
 		}
 
 		var inits []Expr
+		varDecls = append(varDecls, &VarDecl{Vars: vars})
+
 		// Parse a list of initializers in parentheses.
 		if t := p.nextToken(); t.Type == TOKEN_LPARENTH {
 			inits, err = p.parseArgs(0)
@@ -892,18 +899,14 @@ groupsLoop:
 			return nil, fmt.Errorf("Different number of new vars and initializers\n")
 		}
 
-		for i := range vars {
-			vars[i].Init = inits[i]
-		}
-
-		allVars = append(allVars, vars...)
+		varDecls[len(varDecls)-1].Inits = inits
 
 		if t := p.nextToken(); t.Type != TOKEN_COMMA {
 			p.putBack(t)
 			break groupsLoop
 		}
 	}
-	return allVars, nil
+	return varDecls, nil
 }
 
 func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
@@ -1376,7 +1379,7 @@ func (p *Parser) parseArgs(max int) ([]Expr, error) {
 	return result, nil
 }
 
-func (p *Parser) parseArgsDecl() ([]*Variable, error) {
+func (p *Parser) parseArgsDecl() (DeclChain, error) {
 	// TODO: check default values are set only for parameters at the end
 	t := p.nextToken()
 	p.putBack(t)
@@ -1386,7 +1389,7 @@ func (p *Parser) parseArgsDecl() ([]*Variable, error) {
 	return p.parseVarDecl()
 }
 
-func (p *Parser) parseResultDecl() ([]*Variable, error) {
+func (p *Parser) parseResultDecl() (DeclChain, error) {
 	t := p.nextToken()
 	if t.Type == TOKEN_LPARENTH {
 		result, err := p.parseVarDecl()
@@ -1398,10 +1401,10 @@ func (p *Parser) parseResultDecl() ([]*Variable, error) {
 		}
 		return result, err
 	} else {
-		result := []*Variable{}
+		vars := []*Variable{}
 
 		if t.Type == TOKEN_COLON {
-			return result, nil
+			return []*VarDecl{&VarDecl{Vars: vars}}, nil
 		}
 
 		p.putBack(t)
@@ -1412,10 +1415,9 @@ func (p *Parser) parseResultDecl() ([]*Variable, error) {
 			if err != nil {
 				return nil, err
 			}
-			result = append(result, &Variable{
+			vars = append(vars, &Variable{
 				name: "",
 				Type: typ,
-				Init: nil,
 			})
 
 			switch t := p.nextToken(); t.Type {
@@ -1428,15 +1430,17 @@ func (p *Parser) parseResultDecl() ([]*Variable, error) {
 				return nil, fmt.Errorf("Unexpected token %s", t)
 			}
 		}
-		return result, nil
+		return []*VarDecl{&VarDecl{Vars: vars}}, nil
 	}
 }
 
-func typesFromVars(vd []*Variable) []Type {
-	result := make([]Type, len(vd))
-	for i, d := range vd {
+func typesFromVars(vd DeclChain) []Type {
+	result := make([]Type, vd.countVars())
+	i := 0
+	vd.eachPair(func(d *Variable, init Expr) {
 		result[i] = d.Type
-	}
+		i++
+	})
 	return result
 }
 
@@ -1475,15 +1479,15 @@ func (p *Parser) parseFunc() (*FuncDecl, error) {
 	}
 
 	// Make arguments accessiable within the function body.
-	for _, arg := range args {
+	args.eachPair(func(arg *Variable, init Expr) {
 		p.identStack.addObject(arg)
-	}
+	})
 
 	if t := p.expect(TOKEN_RPARENTH); t == nil {
 		return nil, fmt.Errorf("Expected `)`")
 	}
 
-	results := []*Variable{}
+	results := DeclChain(nil)
 
 	// Check if ':' is next - if so, function doesn't return anything.
 	t = p.nextToken()
@@ -1495,9 +1499,9 @@ func (p *Parser) parseFunc() (*FuncDecl, error) {
 		}
 
 		// Make named results accessiable within the function body.
-		for _, r := range results {
+		results.eachPair(func(r *Variable, init Expr) {
 			p.identStack.addObject(r)
-		}
+		})
 
 		if t := p.expect(TOKEN_COLON); t == nil {
 			return nil, fmt.Errorf("Expected `:`")

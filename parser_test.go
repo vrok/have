@@ -589,23 +589,28 @@ func TestVarDecl(t *testing.T) {
 	}{
 		{"var x int\n", &VarStmt{
 			stmt: stmt{expr: expr{}},
-			Vars: []*Variable{
-				&Variable{
-					name: "x",
-					Type: &SimpleType{ID: simpleTypeStrToID["int"]},
-					Init: nil,
+			Vars: DeclChain{&VarDecl{
+				Vars: []*Variable{
+					&Variable{
+						name: "x",
+						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
+					},
 				},
-			},
+				Inits: nil,
+			}},
 		}},
 		{
 			"var x int = 1 + 2\n",
 			&VarStmt{
 				stmt: stmt{expr: expr{}},
-				Vars: []*Variable{
+				Vars: DeclChain{&VarDecl{Vars: []*Variable{
 					&Variable{
 						name: "x",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
-						Init: &BinaryOp{
+					},
+				},
+					Inits: []Expr{
+						&BinaryOp{
 							expr: expr{pos: 14},
 							Left: &BasicLit{
 								expr:  expr{pos: 12},
@@ -619,6 +624,7 @@ func TestVarDecl(t *testing.T) {
 						},
 					},
 				},
+				},
 			},
 		},
 
@@ -626,79 +632,106 @@ func TestVarDecl(t *testing.T) {
 			"var x,y int = 1, 2\n",
 			&VarStmt{
 				stmt: stmt{expr: expr{pos: 0}},
-				Vars: []*Variable{
+				Vars: DeclChain{&VarDecl{Vars: []*Variable{
 					&Variable{
 						name: "x",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
-						Init: &BasicLit{
-							expr:  expr{pos: 14},
-							token: &Token{Type: TOKEN_NUM, Offset: 14, Value: "1"},
-						},
 					},
 					&Variable{
 						name: "y",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
-						Init: &BasicLit{
+					},
+				},
+					Inits: []Expr{
+						&BasicLit{
+							expr:  expr{pos: 14},
+							token: &Token{Type: TOKEN_NUM, Offset: 14, Value: "1"},
+						},
+						&BasicLit{
 							expr:  expr{pos: 17},
 							token: &Token{Type: TOKEN_NUM, Offset: 17, Value: "2"},
 						},
 					},
-				},
+				}},
 			},
 		},
 		{
 			"var x,y int = (1, 2), z = 3\n",
+
 			&VarStmt{
-				stmt: stmt{expr: expr{}},
-				Vars: []*Variable{
-					&Variable{
-						name: "x",
-						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
-						Init: &BasicLit{
-							expr: expr{pos: 15},
-							token: &Token{
-								Type:   TOKEN_NUM,
-								Offset: 15,
-								Value:  "1",
+				stmt: stmt{},
+				Vars: []*VarDecl{
+					&VarDecl{
+						Vars: []*Variable{
+							&Variable{
+								name: "x",
+								Type: &SimpleType{ID: 1},
+							},
+							&Variable{
+								name: "y",
+								Type: &SimpleType{ID: 1},
+							},
+						},
+						Inits: []Expr{
+							&BasicLit{
+								expr: expr{pos: 15},
+								typ:  nil,
+								token: &Token{
+									Type:   13,
+									Offset: 15,
+									Value:  "1",
+								},
+							},
+							&BasicLit{
+								expr: expr{pos: 18},
+								typ:  nil,
+								token: &Token{
+									Type:   13,
+									Offset: 18,
+									Value:  "2",
+								},
 							},
 						},
 					},
-					&Variable{
-						name: "y",
-						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
-						Init: &BasicLit{
-							expr: expr{pos: 18},
-							token: &Token{
-								Type:   TOKEN_NUM,
-								Offset: 18,
-								Value:  "2",
+					&VarDecl{
+						Vars: []*Variable{
+							&Variable{
+								name: "z",
+								Type: &UnknownType{},
 							},
 						},
-					},
-					&Variable{
-						name: "z",
-						Type: &UnknownType{},
-						Init: &BasicLit{
-							expr: expr{pos: 26},
-							token: &Token{
-								Type:   TOKEN_NUM,
-								Offset: 26,
-								Value:  "3",
+						Inits: []Expr{
+							&BasicLit{
+								expr: expr{pos: 26},
+								typ:  nil,
+								token: &Token{
+									Type:   13,
+									Offset: 26,
+									Value:  "3",
+								},
 							},
 						},
 					},
 				},
+				IsFuncStmt: false,
 			},
 		},
 		{
 			"var x,y int = (1), 2\n",
 			&VarStmt{
 				stmt: stmt{expr: expr{}},
-				Vars: []*Variable{
+				Vars: DeclChain{&VarDecl{Vars: []*Variable{
 					&Variable{
 						name: "x",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
-						Init: &BasicLit{
+					},
+					&Variable{
+						name: "y",
+						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
+					},
+				},
+					Inits: []Expr{
+						&BasicLit{
 							expr: expr{pos: 15},
 							token: &Token{
 								Type:   TOKEN_NUM,
@@ -706,11 +739,7 @@ func TestVarDecl(t *testing.T) {
 								Value:  "1",
 							},
 						},
-					},
-					&Variable{
-						name: "y",
-						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
-						Init: &BasicLit{
+						&BasicLit{
 							expr: expr{pos: 19},
 							token: &Token{
 								Type:   TOKEN_NUM,
@@ -720,31 +749,45 @@ func TestVarDecl(t *testing.T) {
 						},
 					},
 				},
+				},
 			},
 		},
 		{
 			"var x int, y = 1\n",
+
 			&VarStmt{
-				stmt: stmt{expr: expr{}},
-				Vars: []*Variable{
-					&Variable{
-						name: "x",
-						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
-						Init: nil,
+				stmt: stmt{},
+				Vars: []*VarDecl{
+					&VarDecl{
+						Vars: []*Variable{
+							&Variable{
+								name: "x",
+								Type: &SimpleType{ID: 1},
+							},
+						},
+						Inits: nil,
 					},
-					&Variable{
-						name: "y",
-						Type: &UnknownType{},
-						Init: &BasicLit{
-							expr: expr{pos: 15},
-							token: &Token{
-								Type:   TOKEN_NUM,
-								Offset: 15,
-								Value:  "1",
+					&VarDecl{
+						Vars: []*Variable{
+							&Variable{
+								name: "y",
+								Type: &UnknownType{},
+							},
+						},
+						Inits: []Expr{
+							&BasicLit{
+								expr: expr{pos: 15},
+								typ:  nil,
+								token: &Token{
+									Type:   13,
+									Offset: 15,
+									Value:  "1",
+								},
 							},
 						},
 					},
 				},
+				IsFuncStmt: false,
 			},
 		},
 	}

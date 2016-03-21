@@ -194,9 +194,25 @@ func (as *AssignStmt) NegotiateTypes() error {
 	return nil
 }
 
+func (vd *VarDecl) NegotiateTypes() error {
+	if len(vd.Vars) > 1 && len(vd.Inits) == 1 {
+		panic("todo: tuple var initialization")
+	}
+
+	var err error
+	vd.eachPair(func(v *Variable, init Expr) {
+		if err == nil {
+			err = NegotiateExprType(&v.Type, init.(TypedExpr))
+		}
+	})
+	return err
+}
+
+/*
 func (vd *Variable) NegotiateTypes() error {
 	return NegotiateExprType(&vd.Type, vd.Init.(TypedExpr))
 }
+*/
 
 func (es *ExprStmt) NegotiateTypes() error {
 	uk := Type(&UnknownType{})

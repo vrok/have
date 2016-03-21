@@ -42,11 +42,17 @@ func testVarTypes(t *testing.T, cases []typeTestCase) {
 		}
 
 		if c.shouldPass {
-			firstVar := stmtWithTypes.(*VarStmt).Vars[0]
-			if firstVar.Type.String() != c.typ || !IsAssignable(firstVar.Init.(TypedExpr).Type(), firstVar.Type) {
+			firstDecl := stmtWithTypes.(*VarStmt).Vars[0]
+
+			firstVar, firstInit := firstDecl.Vars[0], Expr(nil)
+			if len(firstDecl.Inits) > 0 {
+				firstInit = firstDecl.Inits[0]
+			}
+
+			if firstVar.Type.String() != c.typ || !IsAssignable(firstInit.(TypedExpr).Type(), firstVar.Type) {
 				t.Fail()
 				fmt.Printf("FAIL: Case %d: Bad type: %s, %s, %s\n", i, c.typ, firstVar.Type.String(),
-					firstVar.Init.(TypedExpr).Type().String())
+					firstInit.(TypedExpr).Type().String())
 			}
 		}
 	}
@@ -635,11 +641,17 @@ func TestSimple(t *testing.T) {
 		}
 
 		if err == nil {
-			firstVar := result.Vars[0]
-			if firstVar.Type.String() != c.typ || firstVar.Init.(TypedExpr).Type().String() != c.typ {
+			firstDecl := result.Vars[0]
+
+			firstVar, firstInit := firstDecl.Vars[0], Expr(nil)
+			if len(firstDecl.Inits) > 0 {
+				firstInit = firstDecl.Inits[0]
+			}
+
+			if firstVar.Type.String() != c.typ || firstInit.(TypedExpr).Type().String() != c.typ {
 				t.Fail()
 				fmt.Printf("Case %d: Bad type: %s, %s, %s\n", i, c.typ, firstVar.Type.String(),
-					firstVar.Init.(TypedExpr).Type().String())
+					firstInit.(TypedExpr).Type().String())
 			}
 		}
 	}

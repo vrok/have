@@ -48,7 +48,6 @@ type Object interface {
 type Variable struct {
 	name string
 	Type Type
-	Init Expr
 }
 
 func (o *Variable) Name() string           { return o.name }
@@ -135,11 +134,49 @@ type StructStmt struct {
 	Struct *StructType
 }
 
+type VarDecl struct {
+	Vars  []*Variable
+	Inits []Expr
+}
+
+// Calls callback for every variable-initializer pair of a VarDecl.
+// When len(Vars) > len(Inits), nil value is used as trailing Inits.
+func (vd *VarDecl) eachPair(callback func(v *Variable, init Expr)) {
+	for i, v := range vd.Vars {
+		init := Expr(nil)
+		if i < len(vd.Inits) {
+			init = vd.Inits[i]
+		}
+		callback(v, init)
+	}
+}
+
 // implements Stmt
 type VarStmt struct {
 	stmt
-	Vars       []*Variable
+	Vars       DeclChain
 	IsFuncStmt bool
+}
+
+// Chain of variable declarations. Sample uses:
+// 	- multi-element variable declaration
+// 	- function arguments definition
+//  - function results definition
+type DeclChain []*VarDecl
+
+// Calls VarDecl.eachPair for each VarDecl in the ArgsDecl.
+func (ad DeclChain) eachPair(callback func(v *Variable, init Expr)) {
+	for _, vd := range ad {
+		vd.eachPair(callback)
+	}
+}
+
+func (ad DeclChain) countVars() int {
+	count := 0
+	for _, vd := range ad {
+		count += len(vd.Vars)
+	}
+	return count
 }
 
 // implements Stmt
@@ -516,7 +553,7 @@ type FuncDecl struct {
 
 	name          string
 	typ           *FuncType
-	Args, Results []*Variable
+	Args, Results DeclChain
 	Code          *CodeBlock
 	// Is nil for non-method functions
 	Receiver *Variable
