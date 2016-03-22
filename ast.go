@@ -381,7 +381,7 @@ func (t *TupleType) String() string {
 	out.WriteByte('(')
 	for c, v := range t.Members {
 		fmt.Fprintf(out, v.String())
-		if c < len(t.Members) {
+		if c+1 < len(t.Members) {
 			out.Write([]byte(", "))
 		}
 	}

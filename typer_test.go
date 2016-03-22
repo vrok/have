@@ -389,6 +389,43 @@ var a int = f()`,
 	})
 }
 
+func TestTypesTupleAssign(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+func a() int, int:
+	pass
+var x, y = a()
+var z = x`,
+			true,
+			"int",
+		},
+		{`
+func a() int, int:
+	pass
+var x, y int = a()
+var z = x`,
+			false,
+			"",
+		},
+		{`
+func a() int, string:
+	pass
+var x, y = a()
+var z = y`,
+			true,
+			"string",
+		},
+		{`
+func a() int, string:
+	pass
+var x, y = a()
+var z int = y`,
+			false,
+			"",
+		},
+	})
+}
+
 func TestTypesStruct(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`

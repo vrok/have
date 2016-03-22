@@ -895,7 +895,7 @@ groupsLoop:
 			}
 		}
 
-		if len(inits) != len(vars) {
+		if len(inits) != len(vars) && len(inits) != 1 {
 			return nil, fmt.Errorf("Different number of new vars and initializers\n")
 		}
 

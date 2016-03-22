@@ -196,7 +196,39 @@ func (as *AssignStmt) NegotiateTypes() error {
 
 func (vd *VarDecl) NegotiateTypes() error {
 	if len(vd.Vars) > 1 && len(vd.Inits) == 1 {
-		panic("todo: tuple var initialization")
+		// Mutliple variables initialized with a single function call - we need to unpack a tuple
+
+		init := vd.Inits[0]
+		fun, ok := init.(*FuncCallExpr)
+		if !ok {
+			return fmt.Errorf("Too few values on the right side")
+		}
+
+		result := fun.Type()
+		if result.Kind() != KIND_TUPLE {
+			return fmt.Errorf("Too few values on the right side (function call returns only 1 result)")
+		}
+
+		tuple := result.(*TupleType)
+
+		for i, v := range vd.Vars {
+			typ, err := NegotiateTypes(v.Type, tuple.Members[i])
+			if err != nil {
+				return err
+			}
+
+			if typ.String() != tuple.Members[i].String() {
+				return fmt.Errorf("Variable and function result have different types: %s and %s", typ, tuple.Members[i])
+			}
+
+			if v.Type.Kind() != KIND_UNKNOWN {
+				return fmt.Errorf("Variables initialized from unpacked tuples must have inferred types")
+			}
+
+			v.Type = typ
+		}
+
+		return nil
 	}
 
 	var err error
