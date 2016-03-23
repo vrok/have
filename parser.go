@@ -1620,7 +1620,7 @@ func (p *Parser) parseSimpleStmt(labelPossible bool) (SimpleStmt, error) {
 		if err != nil {
 			return nil, err
 		}
-		if len(lhs) != len(rhs) {
+		if len(lhs) != len(rhs) && len(rhs) != 1 {
 			return nil, fmt.Errorf("Different number of values in assignment (%d and %d)", len(lhs), len(rhs))
 		}
 		return &AssignStmt{stmt{expr: expr{firstTok.Offset}}, lhs, rhs, firstTok}, nil

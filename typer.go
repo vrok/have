@@ -181,7 +181,57 @@ func (fs *ForStmt) NegotiateTypes() error {
 	return nil
 }
 
+func NegotiateTupleUnpackAssign(lhsTypes []*Type, rhs TypedExpr) error {
+	if _, ok := rhs.(*FuncCallExpr); !ok {
+		// Tuples cannot be stored explicitly at the moment.
+		return fmt.Errorf("Too few values on the right side")
+	}
+
+	if rhs.Type().Kind() != KIND_TUPLE {
+		return fmt.Errorf("Too few values on the right side (function call returns only 1 result)")
+	}
+
+	tuple := rhs.Type().(*TupleType)
+
+	for i, t := range lhsTypes {
+		typ, err := NegotiateTypes(*t, tuple.Members[i])
+		if err != nil {
+			return err
+		}
+
+		if typ.String() != tuple.Members[i].String() {
+			return fmt.Errorf("Variable and function result have different types: %s and %s", typ, tuple.Members[i])
+		}
+
+		if (*t).Kind() != KIND_UNKNOWN && (*t).String() != typ.String() {
+			return fmt.Errorf("Variables initialized from unpacked tuples must have inferred types")
+		}
+
+		*t = typ
+	}
+	return nil
+}
+
 func (as *AssignStmt) NegotiateTypes() error {
+
+	if len(as.Lhs) != len(as.Rhs) {
+
+		if len(as.Rhs) == 1 {
+			// We might be dealing with tuple unpacking
+
+			types := make([]*Type, len(as.Lhs))
+			for i, v := range as.Lhs {
+				typ := v.(TypedExpr).Type()
+				types[i] = &typ
+			}
+
+			return NegotiateTupleUnpackAssign(types, as.Rhs[0].(TypedExpr))
+
+		} else {
+			return fmt.Errorf("Different number of items on the left and right hand side")
+		}
+	}
+
 	for i := range as.Lhs {
 		leftType := as.Lhs[i].(TypedExpr).Type()
 		err := NegotiateExprType(&leftType, as.Rhs[i].(TypedExpr))
@@ -198,42 +248,20 @@ func (vd *VarDecl) NegotiateTypes() error {
 	if len(vd.Vars) > 1 && len(vd.Inits) == 1 {
 		// Mutliple variables initialized with a single function call - we need to unpack a tuple
 
-		init := vd.Inits[0]
-		fun, ok := init.(*FuncCallExpr)
-		if !ok {
-			return fmt.Errorf("Too few values on the right side")
-		}
-
-		result := fun.Type()
-		if result.Kind() != KIND_TUPLE {
-			return fmt.Errorf("Too few values on the right side (function call returns only 1 result)")
-		}
-
-		tuple := result.(*TupleType)
-
+		types := make([]*Type, len(vd.Vars))
 		for i, v := range vd.Vars {
-			typ, err := NegotiateTypes(v.Type, tuple.Members[i])
-			if err != nil {
-				return err
-			}
-
-			if typ.String() != tuple.Members[i].String() {
-				return fmt.Errorf("Variable and function result have different types: %s and %s", typ, tuple.Members[i])
-			}
-
-			if v.Type.Kind() != KIND_UNKNOWN {
-				return fmt.Errorf("Variables initialized from unpacked tuples must have inferred types")
-			}
-
-			v.Type = typ
+			types[i] = &v.Type
 		}
 
-		return nil
+		return NegotiateTupleUnpackAssign(types, vd.Inits[0].(TypedExpr))
 	}
 
 	var err error
 	vd.eachPair(func(v *Variable, init Expr) {
 		if err == nil {
+			if init == nil {
+				init = NewBlankExpr()
+			}
 			err = NegotiateExprType(&v.Type, init.(TypedExpr))
 		}
 	})
@@ -251,9 +279,9 @@ func (es *ExprStmt) NegotiateTypes() error {
 	return NegotiateExprType(&uk, es.Expression.(TypedExpr))
 }
 
-func (ex *BlankExpr) Type() Type                     { panic("nope") }
-func (ex *BlankExpr) ApplyType(typ Type) error       { panic("nope") }
-func (ex *BlankExpr) GuessType() (ok bool, typ Type) { panic("nope") }
+func (ex *BlankExpr) Type() Type                     { return &UnknownType{} }
+func (ex *BlankExpr) ApplyType(typ Type) error       { return nil }
+func (ex *BlankExpr) GuessType() (ok bool, typ Type) { return false, nil }
 
 // Implements convertability definition from Go spec
 // https://golang.org/ref/spec#Conversions

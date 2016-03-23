@@ -404,8 +404,8 @@ func a() int, int:
 	pass
 var x, y int = a()
 var z = x`,
-			false,
-			"",
+			true,
+			"int",
 		},
 		{`
 func a() int, string:
@@ -422,6 +422,15 @@ var x, y = a()
 var z int = y`,
 			false,
 			"",
+		},
+		{`
+func a() int, int:
+	pass
+var x, y int
+x, y = a()
+var z = x`,
+			true,
+			"int",
 		},
 	})
 }
