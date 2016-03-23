@@ -134,7 +134,7 @@ func testTypes(t *testing.T, code string, expected Type) {
 		t.Fail()
 	}
 	if result.String() != expected.String() {
-		fmt.Printf("Types aren't equal (%d and %d)\n", result.String(), expected.String())
+		fmt.Printf("Types aren't equal (%s and %s)\n", result.String(), expected.String())
 		t.Fail()
 	}
 }

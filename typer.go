@@ -122,7 +122,7 @@ func CheckCondition(expr TypedExpr) error {
 	}
 
 	if boolTyp.Kind() != KIND_SIMPLE || boolTyp.(*SimpleType).ID != SIMPLE_TYPE_BOOL {
-		fmt.Errorf("Error while negotiating types")
+		return fmt.Errorf("Error while negotiating types")
 	}
 	return nil
 }

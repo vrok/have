@@ -247,7 +247,7 @@ func NewParserWithoutBuiltins(lex *Lexer) *Parser {
 // Put back a token.
 func (p *Parser) putBack(tok *Token) {
 	if tok == nil {
-		panic(fmt.Errorf("NIL tok %s", tok))
+		panic(fmt.Errorf("NIL tok %s", tok.Type))
 	}
 	p.tokensBuf = append([]*Token{tok}, p.tokensBuf...)
 }
@@ -325,7 +325,7 @@ func (p *Parser) expectNewIndent() (*Token, error) {
 func (p *Parser) isIndentEnd() (end bool, err error) {
 	token := p.expect(TOKEN_INDENT)
 	if token == nil {
-		return false, fmt.Errorf("Indent expected, got %s", token)
+		return false, fmt.Errorf("Indent expected, got %s", token.Type)
 	}
 	defer p.putBack(token)
 
@@ -800,7 +800,7 @@ groupsLoop:
 			case TOKEN_ASSIGN:
 				break loop
 			default:
-				return nil, fmt.Errorf("Unexpected token %s\n", token)
+				return nil, fmt.Errorf("Unexpected token %s\n", token.Type)
 			}
 
 			vars = append(vars, decl)
@@ -827,7 +827,7 @@ groupsLoop:
 				p.putBack(token)
 				break loop
 			default:
-				return nil, fmt.Errorf("Unexpected token %s", token)
+				return nil, fmt.Errorf("Unexpected token %s", token.Type)
 			}
 		}
 
@@ -1203,7 +1203,7 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 			return nil, err
 		}
 	default:
-		return nil, fmt.Errorf("Unexpected token (expected a primary expression): %s", token)
+		return nil, fmt.Errorf("Unexpected token (expected a primary expression): %s", token.Type)
 	}
 
 loop:
@@ -1242,7 +1242,7 @@ loop:
 					literal.typ = &CustomType{Name: t.name}
 				} else {
 					if t.object.ObjectType() != OBJECT_TYPE {
-						return nil, fmt.Errorf("Literal of non-typename expression `%s`", t)
+						return nil, fmt.Errorf("Literal of non-typename expression `%s`", t.Type())
 					}
 					literal.typ = t.object.(*TypeDecl).Type()
 				}
@@ -1349,8 +1349,6 @@ func (p *Parser) parseExpr() (Expr, error) {
 			return exprStack[0], nil
 		}
 	}
-
-	return nil, fmt.Errorf("Error parsing expression, couldn't reduce primary/unary expression stack")
 }
 
 // Use max=0 for unbounded number of arguments.
@@ -1376,7 +1374,6 @@ func (p *Parser) parseArgs(max int) ([]Expr, error) {
 			}
 		}
 	}
-	return result, nil
 }
 
 func (p *Parser) parseArgsDecl() (DeclChain, error) {
@@ -1427,7 +1424,7 @@ func (p *Parser) parseResultDecl() (DeclChain, error) {
 				p.putBack(t)
 				break loop
 			default:
-				return nil, fmt.Errorf("Unexpected token %s", t)
+				return nil, fmt.Errorf("Unexpected token %s", t.Type)
 			}
 		}
 		return []*VarDecl{&VarDecl{Vars: vars}}, nil
