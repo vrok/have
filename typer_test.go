@@ -432,6 +432,24 @@ var z = x`,
 			true,
 			"int",
 		},
+		{`
+func a() int, int:
+	pass
+func b(x, y int) int:
+	pass
+var z = b(a())`,
+			true,
+			"int",
+		},
+		{`
+func a() int, string:
+	pass
+func b(x, y int) int:
+	pass
+var z = b(a())`,
+			false,
+			"",
+		},
 	})
 }
 

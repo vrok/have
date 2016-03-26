@@ -181,6 +181,8 @@ func (fs *ForStmt) NegotiateTypes() error {
 	return nil
 }
 
+// Helper function useful for situations where a function call expression returning
+// more than one result is assigned to multiple variables.
 func NegotiateTupleUnpackAssign(lhsTypes []*Type, rhs TypedExpr) error {
 	if _, ok := rhs.(*FuncCallExpr); !ok {
 		// Tuples cannot be stored explicitly at the moment.
@@ -213,9 +215,7 @@ func NegotiateTupleUnpackAssign(lhsTypes []*Type, rhs TypedExpr) error {
 }
 
 func (as *AssignStmt) NegotiateTypes() error {
-
 	if len(as.Lhs) != len(as.Rhs) {
-
 		if len(as.Rhs) == 1 {
 			// We might be dealing with tuple unpacking
 
@@ -226,7 +226,6 @@ func (as *AssignStmt) NegotiateTypes() error {
 			}
 
 			return NegotiateTupleUnpackAssign(types, as.Rhs[0].(TypedExpr))
-
 		} else {
 			return fmt.Errorf("Different number of items on the left and right hand side")
 		}
@@ -401,9 +400,22 @@ func (ex *FuncCallExpr) ApplyType(typ Type) error {
 			return fmt.Errorf("Function `%s` returns more than one result", asFunc)
 		}
 
-		for i, arg := range asFunc.Args {
-			if err := NegotiateExprType(&arg, ex.Args[i].(TypedExpr)); err != nil {
-				return err
+		if len(asFunc.Args) != len(ex.Args) {
+			if len(ex.Args) == 1 {
+				types := make([]*Type, len(asFunc.Args)) // TODO NOW: use asFunc instead of ex.Args
+				for i, v := range asFunc.Args {
+					//typ := v.(TypedExpr).Type()
+					types[i] = &v
+				}
+
+				return NegotiateTupleUnpackAssign(types, ex.Args[0].(TypedExpr))
+			}
+			return fmt.Errorf("Wrong number of arguments: %d instead of %d", len(ex.Args), len(asFunc.Args))
+		} else {
+			for i, arg := range asFunc.Args {
+				if err := NegotiateExprType(&arg, ex.Args[i].(TypedExpr)); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
