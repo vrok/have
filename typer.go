@@ -987,6 +987,10 @@ func (t *FuncType) Negotiate(other Type) (Type, error) {
 	panic("todo")
 }
 
+func (t *IfaceType) Negotiate(other Type) (Type, error) {
+	panic("todo")
+}
+
 func NegotiateTypes(t1, t2 Type) (Type, error) {
 	if t1.Known() && t2.Known() {
 		// Both types are fully known, no negotiation needed, just

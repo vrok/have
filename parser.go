@@ -1056,6 +1056,10 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl) (*StructType, error) {
 	}
 }
 
+func (p *Parser) parseInterface() (*IfaceType, error) {
+	return nil, nil
+}
+
 func (p *Parser) parseType() (Type, error) {
 	token := p.nextToken()
 	switch token.Type {
@@ -1141,6 +1145,9 @@ func (p *Parser) parseType() (Type, error) {
 	case TOKEN_STRUCT:
 		p.putBack(token)
 		return p.parseStruct(nil)
+	case TOKEN_INTERFACE:
+		p.putBack(token)
+		return p.parseInterface()
 	default:
 		// TODO add location info
 		return nil, fmt.Errorf("Expected type name, got %s", spew.Sdump(token))
@@ -1441,7 +1448,10 @@ func typesFromVars(vd DeclChain) []Type {
 	return result
 }
 
-func (p *Parser) parseFunc() (*FuncDecl, error) {
+// Parses function header (declaration without the body).
+// Returns a partially complete FuncDecl, that can be later filled with
+// function's body, etc.
+func (p *Parser) parseFuncHeader() (*FuncDecl, error) {
 	startTok := p.expect(TOKEN_FUNC)
 	if startTok == nil {
 		return nil, fmt.Errorf("Function declaration needs to start with 'func' keyword")
@@ -1467,18 +1477,10 @@ func (p *Parser) parseFunc() (*FuncDecl, error) {
 		return nil, fmt.Errorf("Expected `(`")
 	}
 
-	p.identStack.pushScope()
-	defer p.identStack.popScope()
-
 	args, err := p.parseArgsDecl()
 	if err != nil {
 		return nil, err
 	}
-
-	// Make arguments accessiable within the function body.
-	args.eachPair(func(arg *Variable, init Expr) {
-		p.identStack.addObject(arg)
-	})
 
 	if t := p.expect(TOKEN_RPARENTH); t == nil {
 		return nil, fmt.Errorf("Expected `)`")
@@ -1487,31 +1489,12 @@ func (p *Parser) parseFunc() (*FuncDecl, error) {
 	results := DeclChain(nil)
 
 	// Check if ':' is next - if so, function doesn't return anything.
-	t = p.nextToken()
-	if t.Type != TOKEN_COLON {
-		p.putBack(t)
+	t = p.peek()
+	if t.Type != TOKEN_COLON && t.Type != TOKEN_INDENT {
 		results, err = p.parseResultDecl()
 		if err != nil {
 			return nil, err
 		}
-
-		// Make named results accessiable within the function body.
-		results.eachPair(func(r *Variable, init Expr) {
-			p.identStack.addObject(r)
-		})
-
-		if t := p.expect(TOKEN_COLON); t == nil {
-			return nil, fmt.Errorf("Expected `:`")
-		}
-	}
-
-	block, err := p.parseCodeBlock()
-	if err != nil {
-		return nil, err
-	}
-
-	if p.topBranchStmtsTree().CountBranchStmts() > 0 {
-		return nil, fmt.Errorf("Unmatched branch statements: %#v", p.topBranchStmtsTree())
 	}
 
 	return &FuncDecl{
@@ -1523,8 +1506,44 @@ func (p *Parser) parseFunc() (*FuncDecl, error) {
 			Args:    typesFromVars(args),
 			Results: typesFromVars(results),
 		},
-		Code: block,
 	}, nil
+}
+
+func (p *Parser) parseFunc() (*FuncDecl, error) {
+	fd, err := p.parseFuncHeader()
+	if err != nil {
+		return nil, err
+	}
+
+	if t := p.expect(TOKEN_COLON); t == nil {
+		return nil, fmt.Errorf("Expected `:`")
+	}
+
+	p.identStack.pushScope()
+	defer p.identStack.popScope()
+
+	// Make arguments accessiable within the function body.
+	fd.Args.eachPair(func(arg *Variable, init Expr) {
+		p.identStack.addObject(arg)
+	})
+
+	// Make named results accessiable within the function body.
+	fd.Results.eachPair(func(r *Variable, init Expr) {
+		p.identStack.addObject(r)
+	})
+
+	block, err := p.parseCodeBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	if p.topBranchStmtsTree().CountBranchStmts() > 0 {
+		return nil, fmt.Errorf("Unmatched branch statements: %#v", p.topBranchStmtsTree())
+	}
+
+	fd.Code = block
+
+	return fd, nil
 }
 
 func (p *Parser) parseTypeDecl() (*TypeDecl, error) {

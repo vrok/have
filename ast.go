@@ -239,6 +239,7 @@ const (
 	KIND_POINTER
 	KIND_CUSTOM
 	KIND_STRUCT
+	KIND_INTERFACE
 	KIND_TUPLE
 	KIND_FUNC
 	KIND_UNKNOWN
@@ -426,6 +427,29 @@ func (t *StructType) String() string {
 }
 
 func (t *StructType) Kind() Kind { return KIND_STRUCT }
+
+type IfaceType struct {
+	// Keys in the order of declaration
+	Keys    []string
+	Methods []*FuncDecl
+}
+
+func (t *IfaceType) Known() bool { return true }
+func (t *IfaceType) Kind() Kind  { return KIND_INTERFACE }
+
+func (t *IfaceType) String() string {
+	out := &bytes.Buffer{}
+	out.WriteString("interface{")
+	// TODO: use 't.Keys' for consistent order
+	for i, k := range t.Methods {
+		fmt.Fprintf(out, "%s: %s", k.name, k.typ)
+		if (i + 1) < len(t.Methods) {
+			out.Write([]byte(", "))
+		}
+	}
+	out.WriteByte('}')
+	return out.String()
+}
 
 type CustomType struct {
 	Name    string

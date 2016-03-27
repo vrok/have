@@ -92,6 +92,7 @@ const (
 	TOKEN_CONTINUE               // the "continue" keyword
 	TOKEN_FALLTHROUGH            // the "fallthrough" keyword
 	TOKEN_GOTO                   // the "goto" keyword
+	TOKEN_INTERFACE              // the "interface" keyword
 	TOKEN_MUL                    // *
 	TOKEN_DIV                    // /
 	TOKEN_MUL_ASSIGN             // *=
