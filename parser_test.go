@@ -528,6 +528,42 @@ x, y += 1, 2`, false},
 	validityTest(t, cases)
 }
 
+func TestParseInterfaces(t *testing.T) {
+	cases := []validityTestCase{
+		{`
+type Ble interface:
+	func x()
+`, true},
+		{`
+type Ble interface:
+	func x()
+`, true},
+		{`
+type Ble interface:
+	func *x()
+`, true},
+		{`
+type Ble interface:
+	x int
+	func x()
+`, false},
+		{`
+interface Ble:
+	func x()
+`, true},
+		{`
+interface:
+	func x()
+`, false},
+		{`
+type Ble interface:
+	x int
+	func x()
+`, false},
+	}
+	validityTest(t, cases)
+}
+
 func TestBranchStmt(t *testing.T) {
 	cases := []validityTestCase{
 		{`break`, true},

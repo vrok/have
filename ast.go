@@ -134,6 +134,12 @@ type StructStmt struct {
 	Struct *StructType
 }
 
+// implements Stmt
+type IfaceStmt struct {
+	stmt
+	Iface *IfaceType
+}
+
 type VarDecl struct {
 	Vars  []*Variable
 	Inits []Expr
@@ -432,6 +438,7 @@ type IfaceType struct {
 	// Keys in the order of declaration
 	Keys    []string
 	Methods []*FuncDecl
+	name    string
 }
 
 func (t *IfaceType) Known() bool { return true }
@@ -581,6 +588,10 @@ type FuncDecl struct {
 	Code          *CodeBlock
 	// Is nil for non-method functions
 	Receiver *Variable
+	// Indicates whether the receiver is a pointer.
+	// It is redundant for structs, but is useful for interfaces
+	// (where Receiver is nil).
+	PtrReceiver bool
 }
 
 // implements PrimaryExpr

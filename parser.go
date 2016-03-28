@@ -1033,9 +1033,9 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl) (*StructType, error) {
 
 			p.identStack.pushScope()
 
-			receiver := self
+			receiver, ptrReceiver := self, false
 			if p.peek().Type == TOKEN_MUL {
-				receiver = selfp
+				receiver, ptrReceiver = selfp, true
 			}
 
 			p.identStack.addObject(receiver)
@@ -1045,7 +1045,7 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl) (*StructType, error) {
 			if err != nil {
 				return nil, err
 			}
-			fun.Receiver = receiver
+			fun.Receiver, fun.PtrReceiver = receiver, ptrReceiver
 			result.Methods = append(result.Methods, fun)
 			p.identStack.popScope()
 		default:
@@ -1056,7 +1056,64 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl) (*StructType, error) {
 	}
 }
 
-func (p *Parser) parseInterface() (*IfaceType, error) {
+func (p *Parser) parseInterface(named bool) (*IfaceType, error) {
+	name := ""
+	if named {
+		// For class-like (with methods) struct declarations we need to get
+		// TypeDecl (incomplete at this stage) of the struct being parsed.
+		// It is needed for `self` variable.
+
+		tokens, ok := p.expectSeries(TOKEN_INTERFACE, TOKEN_WORD, TOKEN_COLON)
+		if !ok {
+			return nil, fmt.Errorf("Couldn't parse struct header")
+		}
+		name = tokens[1].Value.(string)
+	} else {
+		if _, ok := p.expectSeries(TOKEN_INTERFACE, TOKEN_COLON); !ok {
+			return nil, fmt.Errorf("Couldn't parse struct declaration")
+		}
+	}
+
+	_, err := p.expectNewIndent()
+	if err != nil {
+		return nil, err
+	}
+
+	result := &IfaceType{name: name, Keys: []string{}, Methods: []*FuncDecl{}}
+
+	for {
+		token := p.nextToken()
+
+		switch token.Type {
+		case TOKEN_INDENT:
+			p.putBack(token)
+			end, err := p.handleIndentEndOrNoToken(TOKEN_FUNC)
+			if err != nil {
+				return nil, err
+			}
+			if end {
+				return result, nil
+			}
+			// Interface continues.
+		case TOKEN_FUNC:
+			ptrReceiver := false
+			if p.peek().Type == TOKEN_MUL {
+				ptrReceiver = true
+			}
+			p.putBack(token)
+			fun, err := p.parseFuncHeader()
+			if err != nil {
+				return nil, err
+			}
+			fun.PtrReceiver = ptrReceiver
+			result.Methods = append(result.Methods, fun)
+		default:
+			p.putBack(token)
+			p.forceIndentEnd()
+			return result, nil
+		}
+	}
+
 	return nil, nil
 }
 
@@ -1147,7 +1204,7 @@ func (p *Parser) parseType() (Type, error) {
 		return p.parseStruct(nil)
 	case TOKEN_INTERFACE:
 		p.putBack(token)
-		return p.parseInterface()
+		return p.parseInterface(false)
 	default:
 		// TODO add location info
 		return nil, fmt.Errorf("Expected type name, got %s", spew.Sdump(token))
@@ -1679,6 +1736,26 @@ func (p *Parser) parseStructStmt() (*StructStmt, error) {
 	return &StructStmt{stmt{expr: expr{firstTok.Offset}}, structDecl}, nil
 }
 
+func (p *Parser) parseIfaceStmt() (*IfaceStmt, error) {
+	firstTok := p.peek()
+
+	typeDecl := &TypeDecl{
+		stmt: stmt{expr: expr{firstTok.Offset}},
+	}
+
+	ifaceDecl, err := p.parseInterface(true)
+	if err != nil {
+		return nil, err
+	}
+
+	typeDecl.name = ifaceDecl.name
+	typeDecl.AliasedType = ifaceDecl
+
+	p.identStack.addObject(typeDecl)
+
+	return &IfaceStmt{stmt{expr: expr{firstTok.Offset}}, ifaceDecl}, nil
+}
+
 func (p *Parser) parseStmt() (Stmt, error) {
 	lbl := p.prevLbl
 	p.prevLbl = nil
@@ -1714,6 +1791,9 @@ func (p *Parser) parseStmt() (Stmt, error) {
 		case TOKEN_STRUCT:
 			p.putBack(token)
 			return p.parseStructStmt()
+		case TOKEN_INTERFACE:
+			p.putBack(token)
+			return p.parseIfaceStmt()
 		default:
 			p.putBack(token)
 			stmt, err := p.parseSimpleStmt(true)

@@ -276,6 +276,8 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.retNewToken(TOKEN_FALSE, nil)
 		case "struct":
 			return l.retNewToken(TOKEN_STRUCT, nil)
+		case "interface":
+			return l.retNewToken(TOKEN_INTERFACE, nil)
 		case "map":
 			return l.retNewToken(TOKEN_MAP, nil)
 		case "func":
