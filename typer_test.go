@@ -505,6 +505,51 @@ var a = Abc{}`,
 	})
 }
 
+func TestTypesInterfaces(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+interface A:
+	func x()
+struct Abc:
+	func x():
+		pass
+var a A
+a = Abc{}
+var b = a
+`,
+			true,
+			"A",
+		},
+		{`
+interface A:
+	func x()
+struct Abc:
+	func *x():
+		pass
+var a A
+a = &Abc{}
+var b = a
+`,
+			true,
+			"A",
+		},
+		// TODO: Below case doesn't compile as it should, but the error msg is very non-intuitive:
+		{`
+interface A:
+	func x()
+struct Abc:
+	func y():
+		pass
+var a A
+a = Abc{}
+var b = a
+`,
+			false,
+			"",
+		},
+	})
+}
+
 func TestSimple(t *testing.T) {
 	var cases = []struct {
 		code       string

@@ -69,6 +69,7 @@ type TypeDecl struct {
 
 	name        string
 	AliasedType Type
+	Methods     []*FuncDecl
 }
 
 func (o *TypeDecl) Name() string           { return o.name }

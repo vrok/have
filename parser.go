@@ -842,7 +842,7 @@ groupsLoop:
 			continue groupsLoop
 		case TOKEN_ASSIGN:
 			// Go on
-		case TOKEN_INDENT, TOKEN_SEMICOLON, TOKEN_RPARENTH:
+		case TOKEN_EOF, TOKEN_INDENT, TOKEN_SEMICOLON, TOKEN_RPARENTH:
 			p.putBack(t)
 			// All default values.
 			//for _, v := range vars {
@@ -1730,6 +1730,7 @@ func (p *Parser) parseStructStmt() (*StructStmt, error) {
 
 	typeDecl.name = structDecl.Name
 	typeDecl.AliasedType = structDecl
+	typeDecl.Methods = structDecl.Methods
 
 	p.identStack.addObject(typeDecl)
 
@@ -1750,6 +1751,7 @@ func (p *Parser) parseIfaceStmt() (*IfaceStmt, error) {
 
 	typeDecl.name = ifaceDecl.name
 	typeDecl.AliasedType = ifaceDecl
+	typeDecl.Methods = ifaceDecl.Methods
 
 	p.identStack.addObject(typeDecl)
 

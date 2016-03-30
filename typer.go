@@ -56,13 +56,87 @@ func IsUnnamed(t Type) bool {
 	return !IsNamed(t)
 }
 
+// Can be used to check if a type is an interface. Works with
+// interfaces aliased by named types.
+func IsInterface(t Type) bool {
+	return RootType(t).Kind() == KIND_INTERFACE
+}
+
 // Implements the definition of assignability from the Go spec.
 func IsAssignable(to, what Type) bool {
+	if IsInterface(to) {
+		return Implements(to, what)
+	}
+
 	if IsNamed(to) && IsNamed(what) {
 		return to.String() == what.String()
 	}
 	// TODO: handle other cases (nils, interfaces, etc.)
 	return UnderlyingType(to).String() == UnderlyingType(what).String()
+}
+
+// Like ExactImplements, but with Golang-style syntax sugar.
+func Implements(iface, value Type) bool {
+	i := RootType(iface).(*IfaceType)
+
+	typesToCheck := []Type{value}
+
+	switch value.Kind() {
+	case KIND_POINTER:
+		typesToCheck = append(typesToCheck, value.(*PointerType).To)
+	case KIND_CUSTOM:
+		typesToCheck = append(typesToCheck, &PointerType{To: value})
+	}
+
+	for _, typ := range typesToCheck {
+		if ExactImplements(i, typ) {
+			return true
+		}
+	}
+	return false
+}
+
+// Tells whether value's methods are a subset of iface's methods.
+func ExactImplements(iface *IfaceType, value Type) bool {
+	ptr := false
+	if value.Kind() == KIND_POINTER {
+		value = value.(*PointerType).To
+		ptr = true
+	}
+
+	if value.Kind() != KIND_CUSTOM {
+		// Only named (aka custom) types can have methods.
+		return false
+	}
+
+	namedType := value.(*CustomType)
+
+	for _, imet := range iface.Methods {
+		found := false
+		for _, met := range namedType.Decl.Methods {
+			if met.name != imet.name {
+				continue
+			}
+
+			if met.PtrReceiver != ptr {
+				continue
+			}
+
+			if met.typ.String() != imet.typ.String() {
+				continue
+			}
+
+			found = true
+			break
+		}
+
+		if !found {
+			//return fmt.Errorf("Interface not satisfied, method %s (%s) missing", imet.name, imet.typ)
+			return false
+		}
+	}
+
+	return true
 }
 
 func (vs *VarStmt) NegotiateTypes() error {
@@ -503,6 +577,11 @@ func (ex *DotSelector) GuessType() (ok bool, typ Type) {
 func (ex *CompoundLit) Type() Type { return nonilTyp(ex.typ) }
 func (ex *CompoundLit) ApplyType(typ Type) error {
 	var apply = false
+
+	if ex.typ.Kind() != KIND_UNKNOWN {
+		// Assume that the calling code knows what it's doing.
+		return nil
+	}
 
 	typ = RootType(typ)
 
