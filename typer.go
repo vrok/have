@@ -75,29 +75,10 @@ func IsAssignable(to, what Type) bool {
 	return UnderlyingType(to).String() == UnderlyingType(what).String()
 }
 
-// Like ExactImplements, but with Golang-style syntax sugar.
+// Tells whether value's methods are a subset of iface's methods.
 func Implements(iface, value Type) bool {
 	i := RootType(iface).(*IfaceType)
 
-	typesToCheck := []Type{value}
-
-	switch value.Kind() {
-	case KIND_POINTER:
-		typesToCheck = append(typesToCheck, value.(*PointerType).To)
-	case KIND_CUSTOM:
-		typesToCheck = append(typesToCheck, &PointerType{To: value})
-	}
-
-	for _, typ := range typesToCheck {
-		if ExactImplements(i, typ) {
-			return true
-		}
-	}
-	return false
-}
-
-// Tells whether value's methods are a subset of iface's methods.
-func ExactImplements(iface *IfaceType, value Type) bool {
 	ptr := false
 	if value.Kind() == KIND_POINTER {
 		value = value.(*PointerType).To
@@ -111,7 +92,7 @@ func ExactImplements(iface *IfaceType, value Type) bool {
 
 	namedType := value.(*CustomType)
 
-	for _, imet := range iface.Methods {
+	for _, imet := range i.Methods {
 		found := false
 		for _, met := range namedType.Decl.Methods {
 			if met.name != imet.name {
@@ -184,6 +165,20 @@ func NegotiateExprType(varType *Type, value TypedExpr) error {
 	}
 
 	*varType = typ
+
+	if IsInterface(typ) {
+		// Don't always run ApplyType for interfaces - lhs and rhs expressions
+		// might have different types and that is on purpose.
+		switch value.Type().Kind() {
+		case KIND_UNKNOWN:
+			return value.ApplyType(typ)
+		default:
+			// Run value.ApplyType with value's own type - seems unnecessary,
+			// but ApplyType might do some extra checks as side effects.
+			return value.ApplyType(value.Type())
+		}
+	}
+
 	return value.ApplyType(typ)
 }
 
@@ -275,7 +270,7 @@ func NegotiateTupleUnpackAssign(lhsTypes []*Type, rhs TypedExpr) error {
 			return err
 		}
 
-		if typ.String() != tuple.Members[i].String() {
+		if typ.String() != tuple.Members[i].String() && !IsInterface(typ) {
 			return fmt.Errorf("Variable and function result have different types: %s and %s", typ, tuple.Members[i])
 		}
 
@@ -476,9 +471,10 @@ func (ex *FuncCallExpr) ApplyType(typ Type) error {
 
 		if len(asFunc.Args) != len(ex.Args) {
 			if len(ex.Args) == 1 {
-				types := make([]*Type, len(asFunc.Args)) // TODO NOW: use asFunc instead of ex.Args
+				types := make([]*Type, len(asFunc.Args))
 				for i, v := range asFunc.Args {
 					//typ := v.(TypedExpr).Type()
+					v := v
 					types[i] = &v
 				}
 
@@ -577,11 +573,6 @@ func (ex *DotSelector) GuessType() (ok bool, typ Type) {
 func (ex *CompoundLit) Type() Type { return nonilTyp(ex.typ) }
 func (ex *CompoundLit) ApplyType(typ Type) error {
 	var apply = false
-
-	if ex.typ.Kind() != KIND_UNKNOWN {
-		// Assume that the calling code knows what it's doing.
-		return nil
-	}
 
 	typ = RootType(typ)
 

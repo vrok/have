@@ -547,6 +547,66 @@ var b = a
 			false,
 			"",
 		},
+		{`
+interface A:
+	func x()
+struct Abc:
+	func x():
+		pass
+func zab() Abc, int:
+	pass
+func ka(a A, i int) A:
+	pass	
+var c = ka(zab())
+`,
+			true,
+			"A",
+		},
+		{`
+interface A:
+	func x()
+struct Abc:
+	func y():
+		pass
+func zab() Abc, int:
+	pass
+func ka(a A, i int) A:
+	pass	
+var c = ka(zab())
+`,
+			false,
+			"",
+		},
+		{`
+interface A:
+	func x()
+struct Abc:
+	func x():
+		pass
+func z() Abc, int:
+	pass
+var a A, b int
+a, b = z()
+var c = a
+`,
+			true,
+			"A",
+		},
+		{`
+interface A:
+	func x()
+struct Abc:
+	func x():
+		pass
+func z() Abc, int:
+	pass
+var a A, b int
+a, b = z()
+var c = a
+`,
+			true,
+			"A",
+		},
 	})
 }
 
