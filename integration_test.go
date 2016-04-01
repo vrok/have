@@ -53,7 +53,7 @@ func TestGenerate(t *testing.T) {
 			panic(err)
 		}
 
-		if bytes.Compare(modelOutput, sampleOutput) != 0 {
+		if !bytes.Equal(modelOutput, sampleOutput) {
 			fmt.Printf("Files gave different outputs: %s and %s\n", model, sample)
 			t.Fail()
 		}

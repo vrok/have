@@ -21,7 +21,7 @@ func testVarTypes(t *testing.T, cases []typeTestCase) {
 			fmt.Printf("FAIL: Failed parsing: %s\n", err)
 		}
 
-		var stmtWithTypes ExprToProcess = nil
+		var stmtWithTypes ExprToProcess
 		var ok = false
 
 		for _, stmt := range result {

@@ -407,8 +407,8 @@ type StructType struct {
 	Name    string
 }
 
-func (st *StructType) GetTypeN(n int) Type {
-	return st.Members[st.Keys[n]]
+func (t *StructType) GetTypeN(n int) Type {
+	return t.Members[t.Keys[n]]
 }
 
 func (t *StructType) Known() bool {

@@ -1113,8 +1113,6 @@ func (p *Parser) parseInterface(named bool) (*IfaceType, error) {
 			return result, nil
 		}
 	}
-
-	return nil, nil
 }
 
 func (p *Parser) parseType() (Type, error) {
@@ -1712,8 +1710,6 @@ func (p *Parser) parseSimpleStmt(labelPossible bool) (SimpleStmt, error) {
 	default:
 		return &ExprStmt{stmt{expr: expr{firstTok.Offset}}, lhs[0]}, nil
 	}
-
-	panic("todo")
 }
 
 func (p *Parser) parseStructStmt() (*StructStmt, error) {
