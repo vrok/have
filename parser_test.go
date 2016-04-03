@@ -536,7 +536,7 @@ type Ble interface:
 `, true},
 		{`
 type Ble interface:
-	func x()
+	func x() int
 `, true},
 		{`
 type Ble interface:

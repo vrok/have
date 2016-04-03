@@ -610,6 +610,20 @@ var c = a
 	})
 }
 
+func TestTypesInterfaceMethods(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+interface A:
+	func x() int
+var a A
+var b = a.x()
+`,
+			true,
+			"int",
+		},
+	})
+}
+
 func TestSimple(t *testing.T) {
 	var cases = []struct {
 		code       string
