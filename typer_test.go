@@ -521,6 +521,16 @@ var b = Abc{}.x()
 			true,
 			"int",
 		},
+		{`
+struct Abc:
+	func x() int, string:
+		pass
+var b, c = Abc{}.x()
+var d = c
+`,
+			true,
+			"string",
+		},
 	})
 }
 
@@ -625,6 +635,18 @@ var c = a
 `,
 			true,
 			"A",
+		},
+		{`
+struct Abc:
+	func x():
+		pass
+var a interface:
+	func x()
+a = Abc{}
+var b = a
+`,
+			true,
+			"interface{x: func()}",
 		},
 	})
 }
