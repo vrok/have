@@ -418,14 +418,22 @@ func (ss *StructStmt) Generate(current *CodeChunk) {
 	current.AddChprintf("type %s struct {\n", ss.Struct.Name)
 
 	ch := current.NewBlockChunk()
-	for name, member := range ss.Struct.Members {
-		ch.AddChprintf("%s %s\n", name, member)
+	for _, name := range ss.Struct.Keys {
+		if _, ok := ss.Struct.Members[name]; !ok {
+			// Not a plain member, but a method
+			continue
+		}
+		ch.AddChprintf("%s %s\n", name, ss.Struct.Members[name])
 	}
 
 	current.AddChprintf("}\n\n")
 
-	for _, method := range ss.Struct.Methods {
-		current.AddChprintf("%C\n", method)
+	for _, name := range ss.Struct.Keys {
+		if _, ok := ss.Struct.Methods[name]; !ok {
+			// Not a method, a plain member
+			continue
+		}
+		current.AddChprintf("%C\n", ss.Struct.Methods[name])
 	}
 }
 

@@ -21,7 +21,7 @@ func testVarTypes(t *testing.T, cases []typeTestCase) {
 			fmt.Printf("FAIL: Failed parsing: %s\n", err)
 		}
 
-		var stmtWithTypes ExprToProcess
+		var stmtWithTypes ExprToProcess = nil
 		var ok = false
 
 		for _, stmt := range result {
@@ -502,6 +502,25 @@ var a = Abc{}`,
 			true,
 			"Abc",
 		},
+		{`
+struct Abc:
+	func x() int:
+		pass
+var a Abc
+var b = a.x()
+`,
+			true,
+			"int",
+		},
+		{`
+struct Abc:
+	func x() int:
+		pass
+var b = Abc{}.x()
+`,
+			true,
+			"int",
+		},
 	})
 }
 
@@ -614,7 +633,7 @@ func TestTypesInterfaceMethods(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
 interface A:
-	func x() int
+       func x() int
 var a A
 var b = a.x()
 `,

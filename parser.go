@@ -999,7 +999,7 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl) (*StructType, error) {
 		return nil, err
 	}
 
-	result := &StructType{Name: name, Members: map[string]Type{}, Keys: []string{}}
+	result := &StructType{Name: name, Members: map[string]Type{}, Keys: []string{}, Methods: map[string]*FuncDecl{}}
 
 	selfType := &CustomType{Name: name, Decl: receiverTypeDecl}
 	self, selfp := &Variable{name: "self", Type: selfType}, &Variable{name: "self", Type: &PointerType{To: selfType}}
@@ -1046,7 +1046,8 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl) (*StructType, error) {
 				return nil, err
 			}
 			fun.Receiver, fun.PtrReceiver = receiver, ptrReceiver
-			result.Methods = append(result.Methods, fun)
+			result.Methods[fun.name] = fun
+			result.Keys = append(result.Keys, fun.name)
 			p.identStack.popScope()
 		default:
 			p.putBack(token)
@@ -1079,7 +1080,7 @@ func (p *Parser) parseInterface(named bool) (*IfaceType, error) {
 		return nil, err
 	}
 
-	result := &IfaceType{name: name, Keys: []string{}, Methods: []*FuncDecl{}}
+	result := &IfaceType{name: name, Keys: []string{}, Methods: map[string]*FuncDecl{}}
 
 	for {
 		token := p.nextToken()
@@ -1106,7 +1107,8 @@ func (p *Parser) parseInterface(named bool) (*IfaceType, error) {
 				return nil, err
 			}
 			fun.PtrReceiver = ptrReceiver
-			result.Methods = append(result.Methods, fun)
+			result.Methods[fun.name] = fun
+			result.Keys = append(result.Keys, fun.name)
 		default:
 			p.putBack(token)
 			p.forceIndentEnd()
@@ -1482,7 +1484,7 @@ func (p *Parser) parseResultDecl() (DeclChain, error) {
 			switch t := p.nextToken(); t.Type {
 			case TOKEN_COMMA:
 				// Go on
-			case TOKEN_COLON:
+			case TOKEN_COLON, TOKEN_INDENT:
 				p.putBack(t)
 				break loop
 			default:

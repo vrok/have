@@ -69,7 +69,7 @@ type TypeDecl struct {
 
 	name        string
 	AliasedType Type
-	Methods     []*FuncDecl
+	Methods     map[string]*FuncDecl
 }
 
 func (o *TypeDecl) Name() string           { return o.name }
@@ -403,7 +403,7 @@ type StructType struct {
 	Members map[string]Type
 	// Keys in the order of declaration
 	Keys    []string
-	Methods []*FuncDecl
+	Methods map[string]*FuncDecl
 	Name    string
 }
 
@@ -424,6 +424,10 @@ func (t *StructType) String() string {
 	out := &bytes.Buffer{}
 	out.WriteByte('{')
 	for i, k := range t.Keys {
+		if _, ok := t.Members[k]; !ok {
+			// Not a plain member, but a method
+			continue
+		}
 		fmt.Fprintf(out, "%s: %s", k, t.Members[k].String())
 		if (i + 1) < len(t.Members) {
 			out.Write([]byte(", "))
@@ -438,7 +442,7 @@ func (t *StructType) Kind() Kind { return KIND_STRUCT }
 type IfaceType struct {
 	// Keys in the order of declaration
 	Keys    []string
-	Methods []*FuncDecl
+	Methods map[string]*FuncDecl
 	name    string
 }
 
@@ -449,8 +453,8 @@ func (t *IfaceType) String() string {
 	out := &bytes.Buffer{}
 	out.WriteString("interface{")
 	// TODO: use 't.Keys' for consistent order
-	for i, k := range t.Methods {
-		fmt.Fprintf(out, "%s: %s", k.name, k.typ)
+	for i, k := range t.Keys {
+		fmt.Fprintf(out, "%s: %s", t.Methods[k].name, t.Methods[k].typ)
 		if (i + 1) < len(t.Methods) {
 			out.Write([]byte(", "))
 		}

@@ -548,10 +548,24 @@ func (ex *DotSelector) Type() Type {
 		asStruct := leftType.(*StructType)
 		member, ok := asStruct.Members[ex.Right.name]
 		if !ok {
+			method, ok := asStruct.Methods[ex.Right.name]
+			if !ok {
+				// no such member
+				return &UnknownType{}
+			}
+
+			member = method.Type()
+		}
+		return member
+	case KIND_INTERFACE:
+		asIface := leftType.(*IfaceType)
+		method, ok := asIface.Methods[ex.Right.name]
+		if !ok {
 			// no such member
 			return &UnknownType{}
 		}
-		return member
+
+		return method.Type()
 	case KIND_UNKNOWN:
 		panic("todo")
 	default:
