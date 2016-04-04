@@ -85,16 +85,21 @@ func Implements(iface, value Type) bool {
 		ptr = true
 	}
 
-	if value.Kind() != KIND_CUSTOM {
-		// Only named (aka custom) types can have methods.
+	var valueMethods map[string]*FuncDecl
+
+	switch value.Kind() {
+	case KIND_CUSTOM:
+		valueMethods = value.(*CustomType).Decl.Methods
+	case KIND_INTERFACE:
+		valueMethods = value.(*IfaceType).Methods
+	default:
+		// Other types can't have methods
 		return false
 	}
 
-	namedType := value.(*CustomType)
-
 	for _, imet := range i.Methods {
 		found := false
-		for _, met := range namedType.Decl.Methods {
+		for _, met := range valueMethods {
 			if met.name != imet.name {
 				continue
 			}
