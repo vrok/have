@@ -9,7 +9,8 @@ func main() {
 		} else if i%5 == 0 {
 			print("Buzz\n")
 		} else {
-			print("i\n")
+			print(i)
+			print("\n")
 		}
 	}
 }

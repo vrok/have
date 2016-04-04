@@ -279,8 +279,10 @@ var a int = f()`,
 			true,
 			"int",
 		},
-		{`func f() int:
-	for x = 0; x < 100; print(1):
+		{`func x(s string):
+	pass
+func f() int:
+	for x = 0; x < 100; x(1):
 		pass
 var a int = f()`,
 			false,

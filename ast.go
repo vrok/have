@@ -100,7 +100,7 @@ func initVarDecls() {
 
 var builtinFuncs = []string{
 	// These should be changed once we have varags etc.
-	"func print(s string) bool:\n pass",
+	"func print(s interface:\n\t) bool:\n pass",
 	"func read() string:\n pass",
 }
 
