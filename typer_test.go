@@ -648,6 +648,13 @@ var b = a
 			true,
 			"interface{x: func()}",
 		},
+		{`
+func p(value interface:
+	) int:
+	pass
+var x = p("aaa")`,
+			true,
+			"int"},
 	})
 }
 

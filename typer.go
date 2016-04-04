@@ -93,8 +93,9 @@ func Implements(iface, value Type) bool {
 	case KIND_INTERFACE:
 		valueMethods = value.(*IfaceType).Methods
 	default:
-		// Other types can't have methods
-		return false
+		// Other types can't have methods, but they still can satsifty
+		// the empty interface.
+		valueMethods = map[string]*FuncDecl{}
 	}
 
 	for _, imet := range i.Methods {
@@ -176,6 +177,15 @@ func NegotiateExprType(varType *Type, value TypedExpr) error {
 		// might have different types and that is on purpose.
 		switch value.Type().Kind() {
 		case KIND_UNKNOWN:
+			// If we're dealing with interfaces then we don't want to apply that
+			// interface type to the value (unless that's explicitly specified).
+			// But we don't know the type of the value. But, we still haven't run
+			// GuessType() on it, so we still have a chance.
+			// Example where this is used: assigning builtin types to the empty interface.
+			ok, guessedType := value.GuessType()
+			if ok {
+				return value.ApplyType(guessedType)
+			}
 			return value.ApplyType(typ)
 		default:
 			// Run value.ApplyType with value's own type - seems unnecessary,
