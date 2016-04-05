@@ -32,6 +32,12 @@ func TestIndents(t *testing.T) {
 		&Token{TOKEN_FOR, 3, nil},
 		&Token{TOKEN_EOF, 6, nil}})
 
+	// Don't emit indents for blank lines
+	testTokens(t, []rune("\n\n \n  for"), []*Token{
+		&Token{TOKEN_INDENT, 3, "  "},
+		&Token{TOKEN_FOR, 6, nil},
+		&Token{TOKEN_EOF, 9, nil}})
+
 	s := `
 		  for test
 		    for

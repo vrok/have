@@ -115,9 +115,9 @@ type Lexer struct {
 	buf []rune
 	// Stack of opened indents.
 	indentsStack []int
-	// When a single char occurence produces more than one token,
-	// they should be added to this queue.
-	queue []*Token
+	// We don't want to emit indent tokens for blank lines,
+	// so we need to postpone indent tokens for a while.
+	tokenIndent *Token
 	// How many characters we've processed.
 	skipped int
 	// Offset of currently processed token.
@@ -125,7 +125,7 @@ type Lexer struct {
 }
 
 func NewLexer(buf []rune) *Lexer {
-	return &Lexer{buf: buf, indentsStack: []int{}, queue: []*Token{}}
+	return &Lexer{buf: buf, indentsStack: []int{}}
 }
 
 // Advance lexer's buffer by skipping whitespace, except newlines.
@@ -166,15 +166,6 @@ func (l *Lexer) skipBy(n int) {
 // Tells if we've reached the end of the buffer.
 func (l *Lexer) isEnd() bool {
 	return len(l.buf) == 0
-}
-
-// Token queue is used in situations when a single buffer location can emit
-// many tokens. They are placed in the queue, Next() looks into it first,
-// before advancing the buffer.
-func (l *Lexer) popFromQueue() *Token {
-	result := l.queue[0]
-	l.queue = l.queue[1:]
-	return result
 }
 
 // Check which token is currently at the beginning of the buffer.
@@ -227,11 +218,15 @@ func (l *Lexer) retNewToken(typ TokenType, val interface{}) (*Token, error) {
 }
 
 func (l *Lexer) Next() (*Token, error) {
-	if len(l.queue) > 0 {
-		return l.popFromQueue(), nil
-	}
-
 	l.curTokenPos = l.skipped
+
+	if l.isEnd() || l.buf[0] != '\n' {
+		if l.tokenIndent != nil {
+			t := l.tokenIndent
+			l.tokenIndent = nil
+			return t, nil
+		}
+	}
 
 	if l.isEnd() {
 		return l.retNewToken(TOKEN_EOF, nil)
@@ -243,7 +238,8 @@ func (l *Lexer) Next() (*Token, error) {
 	case ch == '\n':
 		l.skip()
 		indent := string(l.skipWhiteChars())
-		return l.retNewToken(TOKEN_INDENT, indent)
+		l.tokenIndent = l.newToken(TOKEN_INDENT, indent)
+		return l.Next()
 	case unicode.IsSpace(ch):
 		l.skipWhiteChars()
 		return l.Next()
