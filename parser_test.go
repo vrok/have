@@ -77,6 +77,9 @@ func TestPrimaryExpr(t *testing.T) {
 	testPrimaryExpr(t, `struct:
     x int
 	  {x: 1}`, &CompoundLit{})
+	testPrimaryExpr(t, `struct:
+	x int
+{x: 1}`, &CompoundLit{})
 }
 
 func testExpr(t *testing.T, code string, expected Expr) {

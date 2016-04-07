@@ -179,6 +179,32 @@ func (lit *BasicLit) Generate(current *CodeChunk) {
 	current.AddString(val)
 }
 
+func (lit *CompoundLit) Generate(current *CodeChunk) {
+	current.AddChprintf("%s{", lit.typ)
+
+	switch lit.kind {
+	case COMPOUND_LISTLIKE:
+		current.AddChprintf("\n")
+		ch := current.NewBlockChunk()
+
+		for _, val := range lit.elems {
+			ch.NewChunk().AddChprintf("%C,\n", val)
+		}
+	case COMPOUND_MAPLIKE:
+		current.AddChprintf("\n")
+		ch := current.NewBlockChunk()
+
+		lit.eachKeyVal(func(key, val Expr) {
+			ch.NewChunk().AddChprintf("%C: %C,\n", key, val)
+		})
+	case COMPOUND_EMPTY:
+	default:
+		panic("shouldn't ever happen, please report a bug")
+	}
+
+	current.AddChprintf("}")
+}
+
 func (op *UnaryOp) Generate(current *CodeChunk) {
 	// TODO: Put the right operator in
 	current.AddChprintf("(%s%C)", op.op.Value.(string), op.Right.(Generable))
@@ -190,14 +216,22 @@ func (op *BinaryOp) Generate(current *CodeChunk) {
 }
 
 func (vd *VarDecl) Generate(current *CodeChunk) {
-	for i, v := range vd.Vars {
-		current.AddChprintf("%C", v)
-		if i+1 < len(vd.Vars) {
-			current.AddChprintf(", ")
-		}
-	}
+	current = current.NewChunk()
 
-	current.AddChprintf("%s", vd.Vars[0].Type)
+	names := current.NewChunk()
+	inits := current.NewChunk()
+
+	i, count := 0, len(vd.Vars)
+	vd.eachPair(func(v *Variable, init Expr) {
+		names.AddChprintf("%s", v.name)
+		inits.AddChprintf("(%s)(%C)", v.Type, init)
+		if i+1 < count {
+			names.AddChprintf(", ")
+			inits.AddChprintf(", ")
+		}
+	})
+
+	names.AddChprintf(" = ")
 }
 
 func (dc DeclChain) Generate(current *CodeChunk) {

@@ -540,6 +540,14 @@ func (cl *CompoundLit) updatePosWithType(typ Expr) {
 	cl.pos = typ.Pos()
 }
 
+// Iterate over every key-value pair.
+// It only makes sense for COMPOUND_MAPLIKE.
+func (cl *CompoundLit) eachKeyVal(callback func(key, val Expr)) {
+	for i := 0; i < len(cl.elems)/2; i++ {
+		callback(cl.elems[i*2], cl.elems[i*2+1])
+	}
+}
+
 // implements Expr
 type BinaryOp struct {
 	expr

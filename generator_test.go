@@ -120,6 +120,29 @@ func (self A) setX(z int) {
 func (self *A) setY(z string) {
 	self.y = z
 }`},
+		{source: `
+var x = 1`, reference: `var x = (int)(1)`},
+		{source: `
+var x = map[int]string {
+	1: "bla",
+	2: "ble"
+}`, reference: `var x = (map[int]string)(map[int]string{
+	1: "bla",
+	2: "ble",
+})`},
+		{source: `
+var x = []string{"ble", "bla"}`, reference: `
+var x = ([]string)([]string{
+	"ble",
+	"bla",
+})`},
+		{source: `
+var x = []string{}`, reference: `
+var x = ([]string)([]string{})`},
+		{source: `
+var j = struct:
+	x int
+{ 0 }`, reference: ``},
 	}
 	testCases(t, cases)
 }
