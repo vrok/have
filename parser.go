@@ -1292,7 +1292,7 @@ loop:
 			if err != nil {
 				return nil, err
 			}
-			if t := p.expect(TOKEN_RPARENTH); t == nil {
+			if p.expect(TOKEN_RPARENTH) == nil {
 				return nil, fmt.Errorf("Expected `)`")
 			}
 			left = &FuncCallExpr{expr{token.Offset}, left, args}
@@ -1300,6 +1300,9 @@ loop:
 			index, err := p.parseExpr()
 			if err != nil {
 				return nil, err
+			}
+			if p.expect(TOKEN_RBRACKET) == nil {
+				return nil, fmt.Errorf("Expected `]`")
 			}
 			left = &ArrayExpr{expr{token.Offset}, left, index}
 		case TOKEN_LBRACE:

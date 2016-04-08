@@ -719,6 +719,16 @@ var a A = nil`,
 	})
 }
 
+func TestTypesIndices(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`var x []int
+var y = x[0]`,
+			true,
+			"int",
+		},
+	})
+}
+
 func TestSimple(t *testing.T) {
 	var cases = []struct {
 		code       string
