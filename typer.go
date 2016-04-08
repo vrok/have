@@ -150,6 +150,10 @@ func (ss *StructStmt) NegotiateTypes() error {
 	return nil
 }
 
+func (is *IfaceStmt) NegotiateTypes() error {
+	return nil
+}
+
 // This will overwrite the type pointer by varType.
 func NegotiateExprType(varType *Type, value TypedExpr) error {
 	*varType = nonilTyp(*varType)

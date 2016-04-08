@@ -476,4 +476,8 @@ func (ss *StructStmt) Generate(current *CodeChunk) {
 	}
 }
 
+func (is *IfaceStmt) Generate(current *CodeChunk) {
+	current.AddChprintf("type %s %s\n", is.Iface.name, is.Iface)
+}
+
 // TODO: Now just write Generables for all statements/expressions and we're done...

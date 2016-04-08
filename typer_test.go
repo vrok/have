@@ -648,7 +648,7 @@ a = Abc{}
 var b = a
 `,
 			true,
-			"interface{x: func()}",
+			"interface{x()}",
 		},
 		{`
 func p(value interface:
@@ -699,7 +699,7 @@ var a interface:
 	func x()
   = nil`,
 			true,
-			"interface{x: func()}",
+			"interface{x()}",
 		},
 		{`var a int = nil`,
 			false,

@@ -159,6 +159,13 @@ var j = (struct {x int; y string})(struct {x int; y string}{
 })`},
 		{source: `var x *int = nil`,
 			reference: `var x = (*int)(nil)`},
+		{source: `
+interface A:
+	func a() int
+var x A = nil`,
+			reference: `
+type A interface{a() int}
+var x = (A)(nil)`},
 	}
 	testCases(t, cases)
 }

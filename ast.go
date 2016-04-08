@@ -335,8 +335,12 @@ func (t *FuncType) Known() bool {
 }
 
 func (t *FuncType) String() string {
+	return "func" + t.Header()
+}
+
+func (t *FuncType) Header() string {
 	out := &bytes.Buffer{}
-	out.WriteString("func(")
+	out.WriteString("(")
 	for c, a := range t.Args {
 		out.WriteString(a.String())
 		if (c + 1) < len(t.Args) {
@@ -454,9 +458,9 @@ func (t *IfaceType) String() string {
 	out.WriteString("interface{")
 	// TODO: use 't.Keys' for consistent order
 	for i, k := range t.Keys {
-		fmt.Fprintf(out, "%s: %s", t.Methods[k].name, t.Methods[k].typ)
+		fmt.Fprintf(out, "%s%s", t.Methods[k].name, t.Methods[k].typ.Header())
 		if (i + 1) < len(t.Methods) {
-			out.Write([]byte(", "))
+			out.Write([]byte("; "))
 		}
 	}
 	out.WriteByte('}')
