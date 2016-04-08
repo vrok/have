@@ -182,27 +182,28 @@ func (lit *BasicLit) Generate(current *CodeChunk) {
 func (lit *CompoundLit) Generate(current *CodeChunk) {
 	current.AddChprintf("%s{", lit.typ)
 
+	if lit.kind == COMPOUND_EMPTY {
+		current.AddChprintf("}")
+		return
+	}
+
+	current.AddChprintf("\n")
+	ch := current.NewBlockChunk()
+
 	switch lit.kind {
 	case COMPOUND_LISTLIKE:
-		current.AddChprintf("\n")
-		ch := current.NewBlockChunk()
-
 		for _, val := range lit.elems {
 			ch.NewChunk().AddChprintf("%C,\n", val)
 		}
 	case COMPOUND_MAPLIKE:
-		current.AddChprintf("\n")
-		ch := current.NewBlockChunk()
-
 		lit.eachKeyVal(func(key, val Expr) {
 			ch.NewChunk().AddChprintf("%C: %C,\n", key, val)
 		})
-	case COMPOUND_EMPTY:
 	default:
 		panic("shouldn't ever happen, please report a bug")
 	}
 
-	current.AddChprintf("}")
+	current.AddChprintf("%C}", ForcedIndent)
 }
 
 func (op *UnaryOp) Generate(current *CodeChunk) {
@@ -460,7 +461,7 @@ func (ss *StructStmt) Generate(current *CodeChunk) {
 		ch.AddChprintf("%s %s\n", name, ss.Struct.Members[name])
 	}
 
-	current.AddChprintf("}\n\n")
+	current.AddChprintf("%C}\n\n", ForcedIndent)
 
 	for _, name := range ss.Struct.Keys {
 		if _, ok := ss.Struct.Methods[name]; !ok {
