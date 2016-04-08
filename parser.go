@@ -1229,6 +1229,12 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 	var left Expr
 	var err error
 
+	// Sometimes we know that one simple expression can't make a full primary expression,
+	// for example when we load a type name it must be followed by something,
+	// either a literal or an expression that will be type-converted.
+	// In such situations, we should skip any indents in-between.
+	needsMore := false
+
 	switch token.Type {
 	case TOKEN_LPARENTH:
 		left, err = p.parseExpr()
@@ -1259,6 +1265,7 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 		if err != nil {
 			return nil, err
 		}
+		needsMore = true
 	case TOKEN_LBRACE:
 		// Untyped compound literal, we'll have to deduce its type.
 		p.putBack(token)
@@ -1318,10 +1325,18 @@ loop:
 			}
 			literal.updatePosWithType(left)
 			left = literal
+		case TOKEN_INDENT:
+			if !needsMore {
+				// Effectively a fallthrough
+				p.putBack(token)
+				break loop
+			}
 		default:
 			p.putBack(token)
 			break loop
 		}
+		// Something was just loaded.
+		needsMore = false
 	}
 
 	return left, nil

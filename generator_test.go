@@ -152,7 +152,11 @@ var j = (struct {x int; y string})(struct {x int; y string}{
 var j = struct:
 	x int
 	y string
-{ 0, "ble" }`, reference: ``},
+{ 0, "ble" }`, reference: `
+var j = (struct {x int; y string})(struct {x int; y string}{
+	0,
+	"ble",
+})`},
 	}
 	testCases(t, cases)
 }
