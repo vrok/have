@@ -142,7 +142,17 @@ var x = ([]string)([]string{})`},
 		{source: `
 var j = struct:
 	x int
-{ 0 }`, reference: ``},
+	y string
+	{ 0, "ble" }`, reference: `
+var j = (struct {x int; y string})(struct {x int; y string}{
+	0,
+	"ble",
+})`},
+		{source: `
+var j = struct:
+	x int
+	y string
+{ 0, "ble" }`, reference: ``},
 	}
 	testCases(t, cases)
 }

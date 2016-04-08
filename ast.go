@@ -422,15 +422,15 @@ func (t *StructType) Known() bool {
 
 func (t *StructType) String() string {
 	out := &bytes.Buffer{}
-	out.WriteByte('{')
+	out.WriteString("struct {")
 	for i, k := range t.Keys {
 		if _, ok := t.Members[k]; !ok {
 			// Not a plain member, but a method
 			continue
 		}
-		fmt.Fprintf(out, "%s: %s", k, t.Members[k].String())
+		fmt.Fprintf(out, "%s %s", k, t.Members[k].String())
 		if (i + 1) < len(t.Members) {
-			out.Write([]byte(", "))
+			out.Write([]byte("; "))
 		}
 	}
 	out.WriteByte('}')
