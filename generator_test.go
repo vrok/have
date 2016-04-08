@@ -157,6 +157,8 @@ var j = (struct {x int; y string})(struct {x int; y string}{
 	0,
 	"ble",
 })`},
+		{source: `var x *int = nil`,
+			reference: `var x = (*int)(nil)`},
 	}
 	testCases(t, cases)
 }

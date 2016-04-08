@@ -1259,6 +1259,8 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 		//next := p.nextToken()
 	case TOKEN_STR, TOKEN_NUM, TOKEN_TRUE, TOKEN_FALSE:
 		return &BasicLit{expr{token.Offset}, nil, token}, nil
+	case TOKEN_NIL:
+		return &NilExpr{}, nil
 	case TOKEN_MAP, TOKEN_STRUCT, TOKEN_LBRACKET:
 		p.putBack(token)
 		left, err = p.parseTypeExpr()

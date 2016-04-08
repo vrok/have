@@ -1,13 +1,16 @@
 package main
 
 func main():
-    for i = 1; i <= 100; i += 1:
-        if i % 3 == 0 && i % 5 == 0:
+    struct A:
+        i int
+    var x A = A{i: 1}
+    for ; x.i <= 100; x.i += 1:
+        if x.i % 3 == 0 && x.i % 5 == 0:
             print("Fizz Buzz\n")
-        elif i % 3 == 0:
+        elif x.i % 3 == 0:
             print("Fizz\n")
-        elif i % 5 == 0:
+        elif x.i % 5 == 0:
             print("Buzz\n")
         else:
-            print(i)
+            print(x.i)
             print("\n")

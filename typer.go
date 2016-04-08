@@ -71,6 +71,7 @@ func IsAssignable(to, what Type) bool {
 	if IsNamed(to) && IsNamed(what) {
 		return to.String() == what.String()
 	}
+
 	// TODO: handle other cases (nils, interfaces, etc.)
 	return UnderlyingType(to).String() == UnderlyingType(what).String()
 }
@@ -980,6 +981,23 @@ func (ex *Ident) ApplyType(typ Type) error {
 
 func (ex *Ident) GuessType() (ok bool, typ Type) {
 	return false, nil
+}
+
+func (ex *NilExpr) Type() Type {
+	return nonilTyp(ex.typ)
+}
+
+func (ex *NilExpr) ApplyType(typ Type) error {
+	switch RootType(typ).Kind() {
+	case KIND_POINTER, KIND_INTERFACE, KIND_MAP, KIND_SLICE, KIND_FUNC:
+		ex.typ = typ
+		return nil
+	}
+	return fmt.Errorf("Type %s can't be set to nil", typ)
+}
+
+func (ex *NilExpr) GuessType() (ok bool, typ Type) {
+	return false, &UnknownType{}
 }
 
 func (ex *BasicLit) Type() Type {

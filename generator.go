@@ -157,6 +157,10 @@ func (id *Ident) Generate(current *CodeChunk) {
 	current.AddString(id.name)
 }
 
+func (n *NilExpr) Generate(current *CodeChunk) {
+	current.AddString("nil")
+}
+
 func (lit *BasicLit) Generate(current *CodeChunk) {
 	val := ""
 	switch lit.token.Type {

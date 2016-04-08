@@ -509,6 +509,11 @@ type BlankExpr struct {
 
 func NewBlankExpr() *BlankExpr { return &BlankExpr{expr{0}} }
 
+type NilExpr struct {
+	expr
+	typ Type
+}
+
 // implements Expr
 type BasicLit struct {
 	expr

@@ -93,6 +93,7 @@ const (
 	TOKEN_FALLTHROUGH            // the "fallthrough" keyword
 	TOKEN_GOTO                   // the "goto" keyword
 	TOKEN_INTERFACE              // the "interface" keyword
+	TOKEN_NIL                    // the "nil" keyword
 	TOKEN_MUL                    // *
 	TOKEN_DIV                    // /
 	TOKEN_MUL_ASSIGN             // *=
@@ -288,6 +289,8 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.retNewToken(TOKEN_FALLTHROUGH, nil)
 		case "goto":
 			return l.retNewToken(TOKEN_GOTO, nil)
+		case "nil":
+			return l.retNewToken(TOKEN_NIL, nil)
 		default:
 			return l.retNewToken(TOKEN_WORD, s)
 		}

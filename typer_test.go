@@ -674,6 +674,51 @@ var b = a.x()
 	})
 }
 
+func TestTypesNil(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`var a *int = nil`,
+			true,
+			"*int",
+		},
+		{`
+interface A:
+	func x()
+var a A = nil`,
+			true,
+			"A",
+		},
+		{`
+interface A:
+	func x()
+var a = A(nil)`,
+			true,
+			"A",
+		},
+		{`
+var a interface:
+	func x()
+  = nil`,
+			true,
+			"interface{x: func()}",
+		},
+		{`var a int = nil`,
+			false,
+			"",
+		},
+		{`var a string = nil`,
+			false,
+			"",
+		},
+		{`
+struct A:
+	x int
+var a A = nil`,
+			false,
+			"",
+		},
+	})
+}
+
 func TestSimple(t *testing.T) {
 	var cases = []struct {
 		code       string
