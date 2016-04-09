@@ -761,6 +761,39 @@ var y = x[0]`,
 			true,
 			"int",
 		},
+		{`var x [7]int
+var y = x[0]`,
+			true,
+			"int",
+		},
+		{`var x [7]int
+var y = 5 == x[0]`,
+			true,
+			"bool",
+		},
+		{`var y = 5 == {1,2,3,4}[0]`,
+			true,
+			"bool",
+		},
+		{`var y = "lala"[0]`,
+			true,
+			"byte",
+		},
+		{`var x = &([3]int{0,1,2})
+var y = x[0]`,
+			true,
+			"int",
+		},
+		{`var x = &([]int{0,1,2})
+var y = x[0]`,
+			false,
+			"",
+		},
+		{`var x map[string]int
+var y = x["bla"]`,
+			true,
+			"int",
+		},
 	})
 }
 

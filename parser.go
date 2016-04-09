@@ -1256,8 +1256,9 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 			}
 		}
 		left = ident
-		//next := p.nextToken()
-	case TOKEN_STR, TOKEN_NUM, TOKEN_TRUE, TOKEN_FALSE:
+	case TOKEN_STR:
+		left = &BasicLit{expr{token.Offset}, nil, token}
+	case TOKEN_NUM, TOKEN_TRUE, TOKEN_FALSE:
 		return &BasicLit{expr{token.Offset}, nil, token}, nil
 	case TOKEN_NIL:
 		return &NilExpr{}, nil

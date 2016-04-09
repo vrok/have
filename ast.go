@@ -266,6 +266,7 @@ const (
 	SIMPLE_TYPE_INT = SimpleTypeID(iota + 1)
 	SIMPLE_TYPE_STRING
 	SIMPLE_TYPE_BOOL
+	SIMPLE_TYPE_BYTE
 	// TODO: add others
 )
 
@@ -273,6 +274,7 @@ var simpleTypeAsStr = map[SimpleTypeID]string{
 	SIMPLE_TYPE_INT:    "int",
 	SIMPLE_TYPE_STRING: "string",
 	SIMPLE_TYPE_BOOL:   "bool",
+	SIMPLE_TYPE_BYTE:   "byte",
 }
 
 var simpleTypeStrToID = map[string]SimpleTypeID{}

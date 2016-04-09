@@ -604,6 +604,84 @@ func (ex *DotSelector) GuessType() (ok bool, typ Type) {
 	return false, nil
 }
 
+func (ex *ArrayExpr) valueTypeForContainer(containerType Type) (ok bool, typ Type) {
+	switch root := RootType(containerType); root.Kind() {
+	case KIND_MAP:
+		return true, root.(*MapType).Of
+	case KIND_SLICE:
+		return true, root.(*SliceType).Of
+	case KIND_ARRAY:
+		return true, root.(*ArrayType).Of
+	case KIND_SIMPLE:
+		if root.(*SimpleType).ID == SIMPLE_TYPE_STRING {
+			return true, &SimpleType{SIMPLE_TYPE_BYTE}
+		}
+		return false, &UnknownType{}
+	case KIND_POINTER:
+		to := root.(*PointerType).To
+		if to.Kind() == KIND_ARRAY {
+			// Yep, that works in Golang too
+			return true, to.(*ArrayType).Of
+		}
+		return false, &UnknownType{}
+	default:
+		return false, &UnknownType{}
+	}
+}
+
+func (ex *ArrayExpr) Type() Type {
+	ok, typ := ex.valueTypeForContainer(ex.Left.(TypedExpr).Type())
+	if !ok {
+		return &UnknownType{}
+	}
+	return typ
+}
+
+func (ex *ArrayExpr) ApplyType(typ Type) error {
+	if _, ok := ex.Index.(*SliceExpr); ok {
+		panic("todo")
+	}
+
+	// TODO: this doesn't work for maps
+	err := ex.Index.(TypedExpr).ApplyType(&SimpleType{SIMPLE_TYPE_INT})
+	if err != nil {
+		return err
+	}
+
+	lt := ex.Left.(TypedExpr).Type()
+	if !lt.Known() {
+		var ok bool
+		ok, lt = ex.Left.(TypedExpr).GuessType()
+		if !ok {
+			return fmt.Errorf("Coudln't infer container's type")
+		}
+	}
+
+	if !lt.Known() {
+		return fmt.Errorf("Coudln't infer container's type")
+	}
+
+	ok, valueTyp := ex.valueTypeForContainer(lt)
+	if !ok {
+		return fmt.Errorf("Coudln't infer container's type")
+	}
+
+	if !IsAssignable(typ, valueTyp) {
+		return fmt.Errorf("Type %s cannot be assigned to %s", valueTyp, typ)
+	}
+
+	return ex.Left.(TypedExpr).ApplyType(lt)
+}
+
+func (ex *ArrayExpr) GuessType() (ok bool, typ Type) {
+	ok, typ = ex.Left.(TypedExpr).GuessType()
+	if !ok {
+		return false, &UnknownType{}
+	}
+
+	return ex.valueTypeForContainer(typ)
+}
+
 func (ex *CompoundLit) Type() Type { return nonilTyp(ex.typ) }
 func (ex *CompoundLit) ApplyType(typ Type) error {
 	var apply = false
