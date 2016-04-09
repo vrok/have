@@ -716,6 +716,41 @@ var a A = nil`,
 			false,
 			"",
 		},
+		{`var a *int = nil
+var b = a == nil`,
+			true,
+			"bool",
+		},
+	})
+}
+
+func TestTypesCompareLiterals(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`var x []int
+var y = x == {1, 2, 3}`,
+			true,
+			"bool",
+		},
+		{`var x []int
+var y = x == {1, "bla", 3}`,
+			false,
+			"",
+		},
+		{`var x []int
+var y = x == nil`,
+			true,
+			"bool",
+		},
+		{`var x map[string]int
+var y = x == {"a": 1, "b": 2, "c": 3}`,
+			true,
+			"bool",
+		},
+		{`var x map[string]int
+var y = x == {1, 2, 3}`,
+			false,
+			"",
+		},
 	})
 }
 

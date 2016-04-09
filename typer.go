@@ -821,20 +821,35 @@ func (ex *BinaryOp) applyTypeForComparisonOp(typ Type) error {
 
 	t1 := leftExpr.Type()
 	if !t1.Known() {
-		var ok bool
-		ok, t1 = leftExpr.GuessType()
-		if !ok {
-			return fmt.Errorf("Couldn't infer type of the left operand")
+		ok, t := leftExpr.GuessType()
+		if ok {
+			t1 = t
 		}
 	}
 
 	t2 := rightExpr.Type()
 	if !t2.Known() {
-		var ok bool
-		ok, t2 = rightExpr.GuessType()
-		if !ok {
-			return fmt.Errorf("Couldn't infer type of the operand on the right")
+		ok, t := rightExpr.GuessType()
+		if ok {
+			t2 = t
 		}
+	}
+
+	var err error
+
+	switch {
+	case t1.Known() && !t2.Known():
+		err = rightExpr.ApplyType(t1)
+		t2 = t1
+	case !t1.Known() && t2.Known():
+		err = leftExpr.ApplyType(t2)
+		t1 = t2
+	case !t1.Known() && !t2.Known():
+		err = fmt.Errorf("Couldn't infer types of left and right operands")
+	}
+
+	if err != nil {
+		return err
 	}
 
 	if ex.op.IsOrderOp() {
