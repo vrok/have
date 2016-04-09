@@ -584,6 +584,14 @@ type ArrayExpr struct {
 	Left, Index Expr
 }
 
+// Represents subslice extraction - for x[a:b], it represents a:b.
+// Implements Expr.
+type SliceExpr struct {
+	expr
+
+	From, To Expr
+}
+
 type DotSelector struct {
 	expr
 

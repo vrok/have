@@ -1301,6 +1301,17 @@ loop:
 			if err != nil {
 				return nil, err
 			}
+			if p.peek().Type == TOKEN_COLON {
+				p.nextToken()
+
+				from := index
+				to, err := p.parseExpr()
+				if err != nil {
+					return nil, err
+				}
+
+				index = &SliceExpr{expr: expr{index.Pos()}, From: from, To: to}
+			}
 			if p.expect(TOKEN_RBRACKET) == nil {
 				return nil, fmt.Errorf("Expected `]`")
 			}

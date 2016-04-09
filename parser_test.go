@@ -60,6 +60,14 @@ func TestPrimaryExpr(t *testing.T) {
 				Left:  &Ident{expr{0}, "test", nil},
 				Right: &Ident{expr{5}, "tere", nil}},
 			Index: &BasicLit{expr{10}, nil, &Token{TOKEN_NUM, 10, 123}}})
+	testPrimaryExpr(t, "dywan[1:5]", &ArrayExpr{
+		expr: expr{5},
+		Left: &Ident{expr{0}, "dywan", nil},
+		Index: &SliceExpr{expr: expr{6},
+			From: &BasicLit{expr{6}, nil, &Token{TOKEN_NUM, 6, 1}},
+			To:   &BasicLit{expr{8}, nil, &Token{TOKEN_NUM, 8, 5}},
+		},
+	})
 	testPrimaryExpr(t, "{1,2}", &CompoundLit{})
 	testPrimaryExpr(t, "{1:2}.bla", &DotSelector{expr: expr{5},
 		Left:  &CompoundLit{expr: expr{0}},
