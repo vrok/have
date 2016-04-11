@@ -803,6 +803,11 @@ var y = x["bla"]`,
 			true,
 			"int",
 		},
+		{`var x map[string]int
+var y = x[5]`,
+			false,
+			"",
+		},
 	})
 }
 

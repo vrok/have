@@ -604,50 +604,41 @@ func (ex *DotSelector) GuessType() (ok bool, typ Type) {
 	return false, nil
 }
 
-func (ex *ArrayExpr) valueTypeForContainer(containerType Type) (ok bool, typ Type) {
+func (ex *ArrayExpr) baseTypesOfContainer(containerType Type) (ok bool, key, value Type) {
 	switch root := RootType(containerType); root.Kind() {
 	case KIND_MAP:
-		return true, root.(*MapType).Of
+		return true, root.(*MapType).By, root.(*MapType).Of
 	case KIND_SLICE:
-		return true, root.(*SliceType).Of
+		return true, &SimpleType{SIMPLE_TYPE_INT}, root.(*SliceType).Of
 	case KIND_ARRAY:
-		return true, root.(*ArrayType).Of
+		return true, &SimpleType{SIMPLE_TYPE_INT}, root.(*ArrayType).Of
 	case KIND_SIMPLE:
 		if root.(*SimpleType).ID == SIMPLE_TYPE_STRING {
-			return true, &SimpleType{SIMPLE_TYPE_BYTE}
+			return true, &SimpleType{SIMPLE_TYPE_INT}, &SimpleType{SIMPLE_TYPE_BYTE}
 		}
-		return false, &UnknownType{}
+		return false, &UnknownType{}, &UnknownType{}
+
 	case KIND_POINTER:
 		to := root.(*PointerType).To
 		if to.Kind() == KIND_ARRAY {
 			// Yep, that works in Golang too
-			return true, to.(*ArrayType).Of
+			return true, &SimpleType{SIMPLE_TYPE_INT}, to.(*ArrayType).Of
 		}
-		return false, &UnknownType{}
+		return false, &UnknownType{}, &UnknownType{}
 	default:
-		return false, &UnknownType{}
+		return false, &UnknownType{}, &UnknownType{}
 	}
 }
 
 func (ex *ArrayExpr) Type() Type {
-	ok, typ := ex.valueTypeForContainer(ex.Left.(TypedExpr).Type())
+	ok, _, valueType := ex.baseTypesOfContainer(ex.Left.(TypedExpr).Type())
 	if !ok {
 		return &UnknownType{}
 	}
-	return typ
+	return valueType
 }
 
 func (ex *ArrayExpr) ApplyType(typ Type) error {
-	if _, ok := ex.Index.(*SliceExpr); ok {
-		panic("todo")
-	}
-
-	// TODO: this doesn't work for maps
-	err := ex.Index.(TypedExpr).ApplyType(&SimpleType{SIMPLE_TYPE_INT})
-	if err != nil {
-		return err
-	}
-
 	lt := ex.Left.(TypedExpr).Type()
 	if !lt.Known() {
 		var ok bool
@@ -661,9 +652,18 @@ func (ex *ArrayExpr) ApplyType(typ Type) error {
 		return fmt.Errorf("Coudln't infer container's type")
 	}
 
-	ok, valueTyp := ex.valueTypeForContainer(lt)
+	ok, keyTyp, valueTyp := ex.baseTypesOfContainer(lt)
 	if !ok {
 		return fmt.Errorf("Coudln't infer container's type")
+	}
+
+	if _, ok := ex.Index.(*SliceExpr); ok {
+		panic("todo")
+	}
+
+	err := ex.Index.(TypedExpr).ApplyType(keyTyp)
+	if err != nil {
+		return err
 	}
 
 	if !IsAssignable(typ, valueTyp) {
@@ -679,7 +679,8 @@ func (ex *ArrayExpr) GuessType() (ok bool, typ Type) {
 		return false, &UnknownType{}
 	}
 
-	return ex.valueTypeForContainer(typ)
+	ok, _, valueType := ex.baseTypesOfContainer(typ)
+	return ok, valueType
 }
 
 func (ex *CompoundLit) Type() Type { return nonilTyp(ex.typ) }
