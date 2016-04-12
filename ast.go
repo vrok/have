@@ -293,6 +293,10 @@ func (t *SimpleType) Known() bool    { return true }
 func (t *SimpleType) String() string { return simpleTypeAsStr[t.ID] }
 func (t *SimpleType) Kind() Kind     { return KIND_SIMPLE }
 
+func IsTypeBool(t Type) bool {
+	return t.Kind() == KIND_SIMPLE && t.(*SimpleType).ID == SIMPLE_TYPE_BOOL
+}
+
 type ArrayType struct {
 	Size int
 	Of   Type

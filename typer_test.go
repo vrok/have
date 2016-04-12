@@ -808,6 +808,59 @@ var y = x[5]`,
 			false,
 			"",
 		},
+		{`var x []int
+var y, z = x[0]
+var a = y`,
+			false,
+			"",
+		},
+		{`var x map[string]int
+var y, z = x["a"]
+var a = y`,
+			true,
+			"int",
+		},
+		{`var x map[string]int
+var y, z = x["a"]
+var a = z`,
+			true,
+			"bool",
+		},
+		{`var x map[string]float32
+var y int, z bool
+y, z = x["a"]
+var a = y`,
+			false,
+			"",
+		},
+		{`var x map[string]int
+func f(a int, b bool) int:
+	pass
+var a = f(x["b"])`,
+			false,
+			"",
+		},
+		{`var x map[string]int
+var y int, z bool 
+y, z = x["a"]
+var a = y`,
+			true,
+			"int",
+		},
+		{`var x map[string]int
+var y int, z bool
+y, z = x["a"]
+var a = z`,
+			true,
+			"bool",
+		},
+		{`var x map[string]int
+var y, z int
+y, z = x["a"]
+var a = z`,
+			false,
+			"",
+		},
 	})
 }
 

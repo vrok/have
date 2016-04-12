@@ -210,7 +210,7 @@ func CheckCondition(expr TypedExpr) error {
 		return err
 	}
 
-	if boolTyp.Kind() != KIND_SIMPLE || boolTyp.(*SimpleType).ID != SIMPLE_TYPE_BOOL {
+	if !IsTypeBool(boolTyp) {
 		return fmt.Errorf("Error while negotiating types")
 	}
 	return nil
@@ -270,19 +270,55 @@ func (fs *ForStmt) NegotiateTypes() error {
 	return nil
 }
 
-// Helper function useful for situations where a function call expression returning
+// Helper function useful for situations where an expression returning
 // more than one result is assigned to multiple variables.
-func NegotiateTupleUnpackAssign(lhsTypes []*Type, rhs TypedExpr) error {
-	if _, ok := rhs.(*FuncCallExpr); !ok {
-		// Tuples cannot be stored explicitly at the moment.
-		return fmt.Errorf("Too few values on the right side")
-	}
+// In some situations only func calls unpacking works. Type assertions or map
+// inclusion testing doesn't work in non-assignment situtations, examples:
+//
+// func x() int, bool:
+//     return someMap[7] // Doesn't work (in Golang as well)
+//
+// func x(int, bool):
+//     pass
+// x(someMap[7]) // Doesn't work (in Golang as well)
+//
+// UseonlyFuncCalls argument to control this.
+func NegotiateTupleUnpackAssign(onlyFuncCalls bool, lhsTypes []*Type, rhs TypedExpr) error {
 
-	if rhs.Type().Kind() != KIND_TUPLE {
-		return fmt.Errorf("Too few values on the right side (function call returns only 1 result)")
-	}
+	var tuple *TupleType
 
-	tuple := rhs.Type().(*TupleType)
+	switch rhs.(type) {
+	case *FuncCallExpr:
+		if rhs.Type().Kind() != KIND_TUPLE {
+			return fmt.Errorf("Too few values on the right side (function call returns only 1 result)")
+		}
+		tuple = rhs.Type().(*TupleType)
+	default:
+		// In other cases (non-function-calls), tuples aren't returned explicitly - extra
+		// boolean is returned only if two variables are in the lhs expression.
+		if onlyFuncCalls {
+			// Tuples cannot be stored explicitly at the moment.
+			return fmt.Errorf("Too few values")
+		}
+
+		var ok, leftTyp = true, rhs.Type()
+		if !leftTyp.Known() {
+			ok, leftTyp = rhs.GuessType()
+		}
+
+		if !ok || !leftTyp.Known() {
+			return fmt.Errorf("Couldn't determine type of the right side of the assignment")
+		}
+
+		tuple = &TupleType{Members: []Type{
+			leftTyp,
+			&SimpleType{SIMPLE_TYPE_BOOL},
+		}}
+
+		if err := rhs.ApplyType(tuple); err != nil {
+			return err
+		}
+	}
 
 	for i, t := range lhsTypes {
 		typ, err := NegotiateTypes(*t, tuple.Members[i])
@@ -314,7 +350,7 @@ func (as *AssignStmt) NegotiateTypes() error {
 				types[i] = &typ
 			}
 
-			return NegotiateTupleUnpackAssign(types, as.Rhs[0].(TypedExpr))
+			return NegotiateTupleUnpackAssign(false, types, as.Rhs[0].(TypedExpr))
 		} else {
 			return fmt.Errorf("Different number of items on the left and right hand side")
 		}
@@ -341,7 +377,7 @@ func (vd *VarDecl) NegotiateTypes() error {
 			types[i] = &v.Type
 		}
 
-		return NegotiateTupleUnpackAssign(types, vd.Inits[0].(TypedExpr))
+		return NegotiateTupleUnpackAssign(false, types, vd.Inits[0].(TypedExpr))
 	}
 
 	var err error
@@ -498,7 +534,7 @@ func (ex *FuncCallExpr) ApplyType(typ Type) error {
 					types[i] = &v
 				}
 
-				return NegotiateTupleUnpackAssign(types, ex.Args[0].(TypedExpr))
+				return NegotiateTupleUnpackAssign(true, types, ex.Args[0].(TypedExpr))
 			}
 			return fmt.Errorf("Wrong number of arguments: %d instead of %d", len(ex.Args), len(asFunc.Args))
 		} else {
@@ -664,6 +700,20 @@ func (ex *ArrayExpr) ApplyType(typ Type) error {
 	err := ex.Index.(TypedExpr).ApplyType(keyTyp)
 	if err != nil {
 		return err
+	}
+
+	if typ.Kind() == KIND_TUPLE {
+		tuple := typ.(*TupleType)
+		if len(tuple.Members) != 2 || !IsTypeBool(tuple.Members[1]) {
+			return fmt.Errorf("Second value is bool")
+		}
+
+		if RootType(lt).Kind() != KIND_MAP {
+			return fmt.Errorf("Only map index expressions can return extra bool value")
+		}
+
+		// Unwrap the tuple
+		typ = tuple.Members[0]
 	}
 
 	if !IsAssignable(typ, valueTyp) {
@@ -894,7 +944,7 @@ func firstErr(errors ...error) error {
 func (ex *BinaryOp) applyTypeForComparisonOp(typ Type) error {
 	leftExpr, rightExpr := ex.Left.(TypedExpr), ex.Right.(TypedExpr)
 
-	if typ.Kind() != KIND_SIMPLE || typ.(*SimpleType).ID != SIMPLE_TYPE_BOOL {
+	if !IsTypeBool(typ) {
 		return fmt.Errorf("Comparison operators return bools, not %s", typ)
 	}
 
@@ -954,7 +1004,7 @@ func (ex *BinaryOp) ApplyType(typ Type) error {
 	}
 
 	if ex.op.IsLogicalOp() {
-		if typ.Kind() != KIND_SIMPLE || typ.(*SimpleType).ID != SIMPLE_TYPE_BOOL {
+		if !IsTypeBool(typ) {
 			return fmt.Errorf("Logical operators return bools, not %s", typ)
 		}
 	}
