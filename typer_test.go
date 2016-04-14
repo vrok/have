@@ -861,6 +861,36 @@ var a = z`,
 			false,
 			"",
 		},
+		{`var x []int
+var y = x[1:5]`,
+			true,
+			"[]int",
+		},
+		{`var x [7]int
+var y = x[1:5]`,
+			true,
+			"[]int",
+		},
+		{`var x string
+var y = x[1:5]`,
+			true,
+			"[]byte",
+		},
+		{`var x *[7]int
+var y = x[1:5]`,
+			true,
+			"[]int",
+		},
+		{`var x *[]int
+var y = x[1:5]`,
+			false,
+			"",
+		},
+		{`var x int
+var y = x[1:5]`,
+			false,
+			"",
+		},
 	})
 }
 

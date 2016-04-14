@@ -671,21 +671,68 @@ func (ex *ArrayExpr) Type() Type {
 	if !ok {
 		return &UnknownType{}
 	}
+	if _, ok := ex.Index.(*SliceExpr); ok {
+		return &SliceType{Of: valueType}
+	}
+
 	return valueType
 }
 
-func (ex *ArrayExpr) ApplyType(typ Type) error {
+func (ex *ArrayExpr) applyTypeSliceExpr(typ Type) error {
+	sliceExpr := ex.Index.(*SliceExpr)
+
+	ok, keyType, valueType := ex.baseTypesOfContainer(ex.leftExprType())
+
+	if !ok {
+		return fmt.Errorf("Couldn't infer cotainer type")
+	}
+
+	if !IsTypeInt(keyType) {
+		return fmt.Errorf("Type %s doesn't support slice expressions", ex.leftExprType())
+	}
+
+	err := firstErr(
+		sliceExpr.From.(TypedExpr).ApplyType(&SimpleType{SIMPLE_TYPE_INT}),
+		sliceExpr.To.(TypedExpr).ApplyType(&SimpleType{SIMPLE_TYPE_INT}),
+	)
+
+	// TODO: Handle second ':' and blank expressions on either side of ':'
+
+	if err != nil {
+		return err
+	}
+
+	// Slice expression always returns slices, even when used for non-slices.
+	resultType := &SliceType{Of: valueType}
+
+	if !IsAssignable(typ, resultType) {
+		return fmt.Errorf("Types %s and %s are not assignable", resultType, typ)
+	}
+
+	return nil
+}
+
+func (ex *ArrayExpr) leftExprType() Type {
 	lt := ex.Left.(TypedExpr).Type()
 	if !lt.Known() {
 		var ok bool
 		ok, lt = ex.Left.(TypedExpr).GuessType()
 		if !ok {
-			return fmt.Errorf("Coudln't infer container's type")
+			return &UnknownType{}
 		}
 	}
+	return lt
+}
+
+func (ex *ArrayExpr) ApplyType(typ Type) error {
+	lt := ex.leftExprType()
 
 	if !lt.Known() {
 		return fmt.Errorf("Coudln't infer container's type")
+	}
+
+	if err := ex.Left.(TypedExpr).ApplyType(lt); err != nil {
+		return err
 	}
 
 	ok, keyTyp, valueTyp := ex.baseTypesOfContainer(lt)
@@ -694,7 +741,7 @@ func (ex *ArrayExpr) ApplyType(typ Type) error {
 	}
 
 	if _, ok := ex.Index.(*SliceExpr); ok {
-		panic("todo")
+		return ex.applyTypeSliceExpr(typ)
 	}
 
 	err := ex.Index.(TypedExpr).ApplyType(keyTyp)
@@ -720,7 +767,7 @@ func (ex *ArrayExpr) ApplyType(typ Type) error {
 		return fmt.Errorf("Type %s cannot be assigned to %s", valueTyp, typ)
 	}
 
-	return ex.Left.(TypedExpr).ApplyType(lt)
+	return nil
 }
 
 func (ex *ArrayExpr) GuessType() (ok bool, typ Type) {
@@ -730,7 +777,15 @@ func (ex *ArrayExpr) GuessType() (ok bool, typ Type) {
 	}
 
 	ok, _, valueType := ex.baseTypesOfContainer(typ)
-	return ok, valueType
+	if !ok {
+		return false, valueType
+	}
+
+	if _, ok := ex.Index.(*SliceExpr); ok {
+		return true, &SliceType{Of: valueType}
+	}
+
+	return true, valueType
 }
 
 func (ex *CompoundLit) Type() Type { return nonilTyp(ex.typ) }
