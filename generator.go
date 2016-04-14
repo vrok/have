@@ -229,7 +229,11 @@ func (vd *VarDecl) Generate(current *CodeChunk) {
 	i, count := 0, len(vd.Vars)
 	vd.eachPair(func(v *Variable, init Expr) {
 		names.AddChprintf("%s", v.name)
-		inits.AddChprintf("(%s)(%C)", v.Type, init)
+		if init != nil {
+			inits.AddChprintf("(%s)(%C)", v.Type, init)
+		} else {
+			inits.AddChprintf("(%s)(%s)", v.Type, v.Type.ZeroValue())
+		}
 		if i+1 < count {
 			names.AddChprintf(", ")
 			inits.AddChprintf(", ")
@@ -248,7 +252,11 @@ func (dc DeclChain) Generate(current *CodeChunk) {
 	i, count := 0, dc.countVars()
 	dc.eachPair(func(v *Variable, init Expr) {
 		names.AddChprintf("%s", v.name)
-		inits.AddChprintf("(%s)(%C)", v.Type, init)
+		if init != nil {
+			inits.AddChprintf("(%s)(%C)", v.Type, init)
+		} else {
+			inits.AddChprintf("(%s)(%s)", v.Type, v.Type.ZeroValue())
+		}
 		if i+1 < count {
 			names.AddChprintf(", ")
 			inits.AddChprintf(", ")
@@ -320,6 +328,10 @@ func (as *AssignStmt) InlineGenerate(current *CodeChunk, noParenth bool) {
 		}
 	}
 
+}
+
+func (ae *ArrayExpr) Generate(current *CodeChunk) {
+	current.AddChprintf("%C[%C]", ae.Left, ae.Index)
 }
 
 func (fc *FuncCallExpr) Generate(current *CodeChunk) {

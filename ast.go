@@ -257,6 +257,7 @@ type Type interface {
 	Known() bool
 	String() string
 	Kind() Kind
+	ZeroValue() string
 	Negotiate(other Type) (Type, error)
 }
 
@@ -292,6 +293,16 @@ type SimpleType struct {
 func (t *SimpleType) Known() bool    { return true }
 func (t *SimpleType) String() string { return simpleTypeAsStr[t.ID] }
 func (t *SimpleType) Kind() Kind     { return KIND_SIMPLE }
+func (t *SimpleType) ZeroValue() string {
+	switch t.ID {
+	case SIMPLE_TYPE_STRING:
+		return `""`
+	case SIMPLE_TYPE_BOOL:
+		return "false"
+	default:
+		return "0"
+	}
+}
 
 func IsTypeBool(t Type) bool {
 	return t.Kind() == KIND_SIMPLE && t.(*SimpleType).ID == SIMPLE_TYPE_BOOL
@@ -311,22 +322,36 @@ type ArrayType struct {
 func (t *ArrayType) Known() bool    { return t.Of.Known() }
 func (t *ArrayType) String() string { return fmt.Sprintf("[%d]%s", t.Size, t.Of.String()) }
 func (t *ArrayType) Kind() Kind     { return KIND_ARRAY }
+func (t *ArrayType) ZeroValue() string {
+	b := bytes.Buffer{}
+	b.WriteString(fmt.Sprintf("%s{", t))
+	for i := 0; i < t.Size; i++ {
+		b.WriteString(t.Of.ZeroValue())
+		if i+1 < t.Size {
+			b.WriteString(", ")
+		}
+	}
+	b.WriteString("}")
+	return b.String()
+}
 
 type SliceType struct {
 	Of Type
 }
 
-func (t *SliceType) Known() bool    { return t.Of.Known() }
-func (t *SliceType) String() string { return "[]" + t.Of.String() }
-func (t *SliceType) Kind() Kind     { return KIND_SLICE }
+func (t *SliceType) Known() bool       { return t.Of.Known() }
+func (t *SliceType) String() string    { return "[]" + t.Of.String() }
+func (t *SliceType) Kind() Kind        { return KIND_SLICE }
+func (t *SliceType) ZeroValue() string { return "nil" }
 
 type MapType struct {
 	By, Of Type
 }
 
-func (t *MapType) Known() bool    { return t.By.Known() && t.Of.Known() }
-func (t *MapType) String() string { return "map[" + t.By.String() + "]" + t.Of.String() }
-func (t *MapType) Kind() Kind     { return KIND_MAP }
+func (t *MapType) Known() bool       { return t.By.Known() && t.Of.Known() }
+func (t *MapType) String() string    { return "map[" + t.By.String() + "]" + t.Of.String() }
+func (t *MapType) Kind() Kind        { return KIND_MAP }
+func (t *MapType) ZeroValue() string { return "nil" }
 
 type FuncType struct {
 	Args, Results []Type
@@ -377,15 +402,17 @@ func (t *FuncType) Header() string {
 	return out.String()
 }
 
-func (t *FuncType) Kind() Kind { return KIND_FUNC }
+func (t *FuncType) Kind() Kind        { return KIND_FUNC }
+func (t *FuncType) ZeroValue() string { return "nil" }
 
 type PointerType struct {
 	To Type
 }
 
-func (t *PointerType) Known() bool    { return t.To.Known() }
-func (t *PointerType) String() string { return "*" + t.To.String() }
-func (t *PointerType) Kind() Kind     { return KIND_POINTER }
+func (t *PointerType) Known() bool       { return t.To.Known() }
+func (t *PointerType) String() string    { return "*" + t.To.String() }
+func (t *PointerType) Kind() Kind        { return KIND_POINTER }
+func (t *PointerType) ZeroValue() string { return "nil" }
 
 type TupleType struct {
 	Members []Type
@@ -414,6 +441,8 @@ func (t *TupleType) String() string {
 }
 
 func (t *TupleType) Kind() Kind { return KIND_TUPLE }
+
+func (t *TupleType) ZeroValue() string { panic("this should not happen") }
 
 type StructType struct {
 	Members map[string]Type
@@ -453,7 +482,8 @@ func (t *StructType) String() string {
 	return out.String()
 }
 
-func (t *StructType) Kind() Kind { return KIND_STRUCT }
+func (t *StructType) Kind() Kind        { return KIND_STRUCT }
+func (t *StructType) ZeroValue() string { return fmt.Sprintf("%s{}", t) }
 
 type IfaceType struct {
 	// Keys in the order of declaration
@@ -479,6 +509,8 @@ func (t *IfaceType) String() string {
 	return out.String()
 }
 
+func (t *IfaceType) ZeroValue() string { return "nil" }
+
 type CustomType struct {
 	Name    string
 	Package string // "" means local
@@ -496,12 +528,15 @@ func (t *CustomType) RootType() Type {
 	return current
 }
 
+func (t *CustomType) ZeroValue() string { return t.RootType().ZeroValue() }
+
 type UnknownType struct {
 }
 
-func (t *UnknownType) Known() bool    { return false }
-func (t *UnknownType) String() string { return "_" }
-func (t *UnknownType) Kind() Kind     { return KIND_UNKNOWN }
+func (t *UnknownType) Known() bool       { return false }
+func (t *UnknownType) String() string    { return "_" }
+func (t *UnknownType) Kind() Kind        { return KIND_UNKNOWN }
+func (t *UnknownType) ZeroValue() string { return "nil" }
 
 type TypeExpr struct {
 	expr

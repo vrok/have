@@ -166,6 +166,42 @@ var x A = nil`,
 			reference: `
 type A interface{a() int}
 var x = (A)(nil)`},
+		{source: `var x map[int]string
+var y = x[1]`,
+			reference: `
+var x = (map[int]string)(nil)
+var y = (string)(x[1])
+`},
+	}
+	testCases(t, cases)
+}
+
+func TestGenerateUninitializedVar(t *testing.T) {
+	cases := []generatorTestCase{
+		{source: `var x map[int]string`,
+			reference: `var x = (map[int]string)(nil)`},
+		{source: `var x int`,
+			reference: `var x = (int)(0)`},
+		{source: `var x string`,
+			reference: `var x = (string)("")`},
+		{source: `var x bool`,
+			reference: `var x = (bool)(false)`},
+		{source: `var x [3]int`,
+			reference: `var x = ([3]int)([3]int{0, 0, 0})`},
+		{source: `var x [3][2]int`,
+			reference: `var x = ([3][2]int)([3][2]int{[2]int{0, 0}, [2]int{0, 0}, [2]int{0, 0}})`},
+		{source: `var x struct:
+	y int`, reference: `var x = (struct {y int})(struct {y int}{})`},
+
+		{source: `struct A:
+	y int
+var x A`, reference: `
+type A struct {
+	y int
+}
+
+var x = (A)(struct {y int}{})
+`},
 	}
 	testCases(t, cases)
 }
