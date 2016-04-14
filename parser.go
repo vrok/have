@@ -1316,7 +1316,7 @@ loop:
 			if p.expect(TOKEN_RBRACKET) == nil {
 				return nil, fmt.Errorf("Expected `]`")
 			}
-			left = &ArrayExpr{expr{token.Offset}, left, index}
+			left = &ArrayExpr{expr{token.Offset}, left, index, nil}
 		case TOKEN_LBRACE:
 			p.putBack(token)
 			literal, err := p.parseCompoundLit()

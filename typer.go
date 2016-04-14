@@ -137,6 +137,8 @@ func (vs *VarStmt) NegotiateTypes() error {
 	return nil
 }
 
+func (td *TypeDecl) NegotiateTypes() error { return nil }
+
 func (bs *BranchStmt) NegotiateTypes() error { return nil }
 
 func (ls *LabelStmt) NegotiateTypes() error { return nil }
@@ -667,6 +669,11 @@ func (ex *ArrayExpr) baseTypesOfContainer(containerType Type) (ok bool, key, val
 }
 
 func (ex *ArrayExpr) Type() Type {
+	if ex.typ != nil {
+		// Some type was negotiated already.
+		return ex.typ
+	}
+
 	ok, _, valueType := ex.baseTypesOfContainer(ex.Left.(TypedExpr).Type())
 	if !ok {
 		return &UnknownType{}
@@ -749,6 +756,8 @@ func (ex *ArrayExpr) ApplyType(typ Type) error {
 		return err
 	}
 
+	vt := typ
+
 	if typ.Kind() == KIND_TUPLE {
 		tuple := typ.(*TupleType)
 		if len(tuple.Members) != 2 || !IsTypeBool(tuple.Members[1]) {
@@ -760,13 +769,14 @@ func (ex *ArrayExpr) ApplyType(typ Type) error {
 		}
 
 		// Unwrap the tuple
-		typ = tuple.Members[0]
+		vt = tuple.Members[0]
 	}
 
-	if !IsAssignable(typ, valueTyp) {
+	if !IsAssignable(vt, valueTyp) {
 		return fmt.Errorf("Type %s cannot be assigned to %s", valueTyp, typ)
 	}
 
+	ex.typ = typ
 	return nil
 }
 

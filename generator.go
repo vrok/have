@@ -220,6 +220,11 @@ func (op *BinaryOp) Generate(current *CodeChunk) {
 	current.AddChprintf("(%C %s %C)", op.Left.(Generable), op.op.Value.(string), op.Right.(Generable))
 }
 
+func (td *TypeDecl) Generate(current *CodeChunk) {
+	current = current.NewChunk()
+	current.AddChprintf("type %s %s\n", td.Name(), td.AliasedType)
+}
+
 func (vd *VarDecl) Generate(current *CodeChunk) {
 	current = current.NewChunk()
 
@@ -227,17 +232,32 @@ func (vd *VarDecl) Generate(current *CodeChunk) {
 	inits := current.NewChunk()
 
 	i, count := 0, len(vd.Vars)
+	noMoreInits := false
+
 	vd.eachPair(func(v *Variable, init Expr) {
 		names.AddChprintf("%s", v.name)
-		if init != nil {
-			inits.AddChprintf("(%s)(%C)", v.Type, init)
+
+		if noMoreInits {
+		} else if init != nil && init.(TypedExpr).Type().Kind() == KIND_TUPLE {
+			// For tuples we can't do any type casting/conversion. It is a bit magical
+			// in Go, nothing can be in between.
+			inits.AddChprintf("%C", init)
+			noMoreInits = true
 		} else {
-			inits.AddChprintf("(%s)(%s)", v.Type, v.Type.ZeroValue())
+			if init != nil {
+				inits.AddChprintf("(%s)(%C)", v.Type, init)
+			} else {
+				inits.AddChprintf("(%s)(%s)", v.Type, v.Type.ZeroValue())
+			}
 		}
+
 		if i+1 < count {
 			names.AddChprintf(", ")
-			inits.AddChprintf(", ")
+			if !noMoreInits {
+				inits.AddChprintf(", ")
+			}
 		}
+		i++
 	})
 
 	names.AddChprintf(" = ")
@@ -261,6 +281,7 @@ func (dc DeclChain) Generate(current *CodeChunk) {
 			names.AddChprintf(", ")
 			inits.AddChprintf(", ")
 		}
+		i++
 	})
 
 	names.AddChprintf(" = ")
@@ -332,6 +353,20 @@ func (as *AssignStmt) InlineGenerate(current *CodeChunk, noParenth bool) {
 
 func (ae *ArrayExpr) Generate(current *CodeChunk) {
 	current.AddChprintf("%C[%C]", ae.Left, ae.Index)
+}
+
+func (se *SliceExpr) Generate(current *CodeChunk) {
+	if se.From != nil {
+		current.AddChprintf("%C", se.From)
+	}
+
+	current.AddChprintf(":")
+
+	if se.To != nil {
+		current.AddChprintf("%C", se.To)
+	}
+
+	// TODO: third component
 }
 
 func (fc *FuncCallExpr) Generate(current *CodeChunk) {

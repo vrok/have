@@ -629,6 +629,9 @@ type ArrayExpr struct {
 	expr
 
 	Left, Index Expr
+
+	// Type can be e.g. a tuple (X, bool) after type negotiation.
+	typ Type
 }
 
 // Represents subslice extraction - for x[a:b], it represents a:b.

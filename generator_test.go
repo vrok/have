@@ -167,10 +167,54 @@ var x A = nil`,
 type A interface{a() int}
 var x = (A)(nil)`},
 		{source: `var x map[int]string
-var y = x[1]`,
+var y = x[1]
+y = x[1]`,
 			reference: `
 var x = (map[int]string)(nil)
 var y = (string)(x[1])
+y = x[1]
+`},
+		{source: `var x string = "blah"
+var y = x[1]
+y = x[1]`,
+			reference: `
+var x = (string)("blah")
+var y = (byte)(x[1])
+y = x[1]
+`},
+		{source: `var x []string
+var y = x[1:4]
+y = x[1:4]`,
+			reference: `
+var x = ([]string)(nil)
+var y = ([]string)(x[1:4])
+y = x[1:4]
+`},
+	}
+	testCases(t, cases)
+}
+
+func TestMapIndexTupleAssign(t *testing.T) {
+	cases := []generatorTestCase{
+		{source: `var x map[string]int
+var a, ok = x["ech"]
+a, ok = x["ech"]`,
+			reference: `
+var x = (map[string]int)(nil)
+var a, ok = x["ech"]
+a, ok = x["ech"]
+`},
+
+		{source: `
+type A map[string]int		
+var x A
+var a, ok = x["ech"]
+a, ok = x["ech"]`,
+			reference: `
+type A map[string]int
+var x = (A)(nil)
+var a, ok = x["ech"]
+a, ok = x["ech"]
 `},
 	}
 	testCases(t, cases)
