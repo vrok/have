@@ -3,6 +3,9 @@ package have
 import (
 	"fmt"
 	"unicode"
+
+	goscanner "go/scanner"
+	gotoken "go/token"
 )
 
 type TokenType int
@@ -218,6 +221,41 @@ func (l *Lexer) retNewToken(typ TokenType, val interface{}) (*Token, error) {
 	return l.newToken(typ, val), nil
 }
 
+func (l *Lexer) scanGoToken() (token gotoken.Token, lit string, err error) {
+	// TODO: We shouldn't be setting everything up from scratch every time.
+
+	fs := gotoken.NewFileSet()
+	code := make([]byte, len(l.buf))
+
+	// TODO: Don't use []rune, if Golang doesn't need it neither do we and it leads
+	// to stuff like this.
+	for i := 0; i < len(l.buf); i++ {
+		code[i] = byte(l.buf[i])
+	}
+
+	f := fs.AddFile("", fs.Base(), len(code))
+	s := &goscanner.Scanner{}
+
+	errorHandler := func(pos gotoken.Position, msg string) {
+		err = fmt.Errorf("Scanner error: %s, %s", pos, msg)
+	}
+
+	s.Init(f, []byte(code), errorHandler, 0)
+	_, tok, lit := s.Scan()
+	l.skipBy(len(lit))
+
+	return tok, lit, err
+}
+
+func (l *Lexer) fromGoToken(token gotoken.Token, lit string) (*Token, error) {
+	switch token {
+	case gotoken.INT, gotoken.FLOAT, gotoken.IMAG:
+		// TODO: Don't lump everything together
+		return l.retNewToken(TOKEN_NUM, lit)
+	}
+	return nil, fmt.Errorf("Unexpected Go token: %s", token)
+}
+
 func (l *Lexer) Next() (*Token, error) {
 	l.curTokenPos = l.skipped
 
@@ -353,8 +391,11 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.retNewToken(TOKEN_EQ_GT, alt)
 		}
 	case unicode.IsNumber(ch):
-		word := l.scanWord()
-		return l.retNewToken(TOKEN_NUM, string(word))
+		gotok, lit, err := l.scanGoToken()
+		if err != nil {
+			return nil, err
+		}
+		return l.fromGoToken(gotok, lit)
 	case ch == '"':
 		str, err := l.loadEscapedString()
 		if err != nil {
