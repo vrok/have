@@ -59,13 +59,13 @@ func TestPrimaryExpr(t *testing.T) {
 				expr:  expr{4},
 				Left:  &Ident{expr{0}, "test", nil},
 				Right: &Ident{expr{5}, "tere", nil}},
-			Index: &BasicLit{expr{10}, nil, &Token{TOKEN_NUM, 10, 123}}})
+			Index: &BasicLit{expr{10}, nil, &Token{TOKEN_INT, 10, 123}}})
 	testPrimaryExpr(t, "dywan[1:5]", &ArrayExpr{
 		expr: expr{5},
 		Left: &Ident{expr{0}, "dywan", nil},
 		Index: &SliceExpr{expr: expr{6},
-			From: &BasicLit{expr{6}, nil, &Token{TOKEN_NUM, 6, 1}},
-			To:   &BasicLit{expr{8}, nil, &Token{TOKEN_NUM, 8, 5}},
+			From: &BasicLit{expr{6}, nil, &Token{TOKEN_INT, 6, 1}},
+			To:   &BasicLit{expr{8}, nil, &Token{TOKEN_INT, 8, 5}},
 		},
 	})
 	testPrimaryExpr(t, "{1,2}", &CompoundLit{})
@@ -185,9 +185,9 @@ func testArgs(t *testing.T, code string, expected []Expr) {
 func TestArgs(t *testing.T) {
 	testArgs(t, "", []Expr{})
 	testArgs(t, ")", []Expr{})
-	testArgs(t, "1,bla", []Expr{&BasicLit{expr{0}, nil, &Token{TOKEN_NUM, 0, "1"}},
+	testArgs(t, "1,bla", []Expr{&BasicLit{expr{0}, nil, &Token{TOKEN_INT, 0, "1"}},
 		&Ident{expr{2}, "bla", nil}})
-	testArgs(t, "1,bla)", []Expr{&BasicLit{expr{0}, nil, &Token{TOKEN_NUM, 0, "1"}},
+	testArgs(t, "1,bla)", []Expr{&BasicLit{expr{0}, nil, &Token{TOKEN_INT, 0, "1"}},
 		&Ident{expr{2}, "bla", nil}})
 }
 
@@ -661,11 +661,11 @@ func TestVarDecl(t *testing.T) {
 							expr: expr{pos: 14},
 							Left: &BasicLit{
 								expr:  expr{pos: 12},
-								token: &Token{Type: TOKEN_NUM, Offset: 12, Value: "1"},
+								token: &Token{Type: TOKEN_INT, Offset: 12, Value: "1"},
 							},
 							Right: &BasicLit{
 								expr:  expr{pos: 16},
-								token: &Token{Type: TOKEN_NUM, Offset: 16, Value: "2"},
+								token: &Token{Type: TOKEN_INT, Offset: 16, Value: "2"},
 							},
 							op: &Token{Type: TOKEN_PLUS, Offset: 14, Value: "+"},
 						},
@@ -692,11 +692,11 @@ func TestVarDecl(t *testing.T) {
 					Inits: []Expr{
 						&BasicLit{
 							expr:  expr{pos: 14},
-							token: &Token{Type: TOKEN_NUM, Offset: 14, Value: "1"},
+							token: &Token{Type: TOKEN_INT, Offset: 14, Value: "1"},
 						},
 						&BasicLit{
 							expr:  expr{pos: 17},
-							token: &Token{Type: TOKEN_NUM, Offset: 17, Value: "2"},
+							token: &Token{Type: TOKEN_INT, Offset: 17, Value: "2"},
 						},
 					},
 				}},
@@ -781,7 +781,7 @@ func TestVarDecl(t *testing.T) {
 						&BasicLit{
 							expr: expr{pos: 15},
 							token: &Token{
-								Type:   TOKEN_NUM,
+								Type:   TOKEN_INT,
 								Offset: 15,
 								Value:  "1",
 							},
@@ -789,7 +789,7 @@ func TestVarDecl(t *testing.T) {
 						&BasicLit{
 							expr: expr{pos: 19},
 							token: &Token{
-								Type:   TOKEN_NUM,
+								Type:   TOKEN_INT,
 								Offset: 19,
 								Value:  "2",
 							},

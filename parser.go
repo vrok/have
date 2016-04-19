@@ -1155,7 +1155,7 @@ func (p *Parser) parseType() (Type, error) {
 				return nil, err
 			}
 			return &SliceType{sliceOf}, nil
-		case TOKEN_NUM:
+		case TOKEN_INT:
 			if p.expect(TOKEN_RBRACKET) == nil {
 				// TODO: add location info
 				return nil, fmt.Errorf("Expected ']'")
@@ -1258,7 +1258,7 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 		left = ident
 	case TOKEN_STR:
 		left = &BasicLit{expr{token.Offset}, nil, token}
-	case TOKEN_NUM, TOKEN_FLOAT, TOKEN_IMAG, TOKEN_TRUE, TOKEN_FALSE:
+	case TOKEN_INT, TOKEN_FLOAT, TOKEN_IMAG, TOKEN_TRUE, TOKEN_FALSE:
 		return &BasicLit{expr{token.Offset}, nil, token}, nil
 	case TOKEN_NIL:
 		return &NilExpr{}, nil

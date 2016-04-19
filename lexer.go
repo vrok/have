@@ -60,7 +60,7 @@ const (
 	TOKEN_EQ_LT                  // <=
 	TOKEN_EQ_GT                  // >=
 	TOKEN_NEGATE                 // !
-	TOKEN_NUM                    // Integer number literal
+	TOKEN_INT                    // Integer number literal
 	TOKEN_FLOAT                  // Float number literal
 	TOKEN_IMAG                   // Imaginary part literal
 	TOKEN_STR                    // string literal
@@ -252,7 +252,7 @@ func (l *Lexer) scanGoToken() (token gotoken.Token, lit string, err error) {
 func (l *Lexer) fromGoToken(token gotoken.Token, lit string) (*Token, error) {
 	switch token {
 	case gotoken.INT:
-		return l.retNewToken(TOKEN_NUM, lit)
+		return l.retNewToken(TOKEN_INT, lit)
 	case gotoken.FLOAT:
 		return l.retNewToken(TOKEN_FLOAT, lit)
 	case gotoken.IMAG:

@@ -170,7 +170,7 @@ func (lit *BasicLit) Generate(current *CodeChunk) {
 	case TOKEN_FALSE:
 		current.AddString("false")
 		return
-	case TOKEN_NUM:
+	case TOKEN_INT:
 		val = lit.token.Value.(string)
 	case TOKEN_STR:
 		val = fmt.Sprintf("\"%s\"", lit.token.Value.(string))

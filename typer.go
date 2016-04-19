@@ -1228,7 +1228,7 @@ func (ex *BasicLit) ApplyType(typ Type) error {
 	case ex.token.Type == TOKEN_STR &&
 		actualType.(*SimpleType).ID == SIMPLE_TYPE_STRING:
 		fallthrough
-	case ex.token.Type == TOKEN_NUM && IsTypeNumeric(actualType):
+	case ex.token.Type == TOKEN_INT && IsTypeNumeric(actualType):
 		fallthrough
 	case ex.token.Type == TOKEN_FLOAT && (IsTypeFloatKind(actualType) || IsTypeComplexType(actualType)):
 		fallthrough
@@ -1247,7 +1247,7 @@ func (ex *BasicLit) GuessType() (ok bool, typ Type) {
 	switch ex.token.Type {
 	case TOKEN_STR:
 		return true, &SimpleType{ID: SIMPLE_TYPE_STRING}
-	case TOKEN_NUM:
+	case TOKEN_INT:
 		// TODO: handle anything else than just integers
 		return true, &SimpleType{ID: SIMPLE_TYPE_INT}
 	case TOKEN_FLOAT:

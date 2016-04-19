@@ -73,7 +73,7 @@ func TestEquals(t *testing.T) {
 
 func TestNumbers(t *testing.T) {
 	testTokens(t, []rune("123"), []*Token{
-		&Token{TOKEN_NUM, 0, "123"},
+		&Token{TOKEN_INT, 0, "123"},
 		&Token{TOKEN_EOF, 3, nil}})
 }
 
@@ -98,7 +98,7 @@ func TestString(t *testing.T) {
 func TestBraces(t *testing.T) {
 	testTokens(t, []rune("(1)"), []*Token{
 		&Token{TOKEN_LPARENTH, 0, nil},
-		&Token{TOKEN_NUM, 1, "1"},
+		&Token{TOKEN_INT, 1, "1"},
 		&Token{TOKEN_RPARENTH, 2, nil},
 		&Token{TOKEN_EOF, 3, nil}})
 }
