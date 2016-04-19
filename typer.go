@@ -1220,17 +1220,21 @@ func (ex *BasicLit) Type() Type {
 func (ex *BasicLit) ApplyType(typ Type) error {
 	actualType := RootType(typ)
 
+	if actualType.Kind() != KIND_SIMPLE {
+		return fmt.Errorf("Can't use this literal for type %s", typ)
+	}
+
 	switch {
 	case ex.token.Type == TOKEN_STR &&
-		actualType.Kind() == KIND_SIMPLE &&
 		actualType.(*SimpleType).ID == SIMPLE_TYPE_STRING:
 		fallthrough
-	case ex.token.Type == TOKEN_NUM &&
-		actualType.Kind() == KIND_SIMPLE &&
-		actualType.(*SimpleType).ID == SIMPLE_TYPE_INT:
+	case ex.token.Type == TOKEN_NUM && IsTypeNumeric(actualType):
+		fallthrough
+	case ex.token.Type == TOKEN_FLOAT && (IsTypeFloatKind(actualType) || IsTypeComplexType(actualType)):
+		fallthrough
+	case ex.token.Type == TOKEN_IMAG && IsTypeComplexType(actualType):
 		fallthrough
 	case (ex.token.Type == TOKEN_TRUE || ex.token.Type == TOKEN_FALSE) &&
-		actualType.Kind() == KIND_SIMPLE &&
 		actualType.(*SimpleType).ID == SIMPLE_TYPE_BOOL:
 
 		ex.typ = typ
@@ -1246,6 +1250,10 @@ func (ex *BasicLit) GuessType() (ok bool, typ Type) {
 	case TOKEN_NUM:
 		// TODO: handle anything else than just integers
 		return true, &SimpleType{ID: SIMPLE_TYPE_INT}
+	case TOKEN_FLOAT:
+		return true, &SimpleType{ID: SIMPLE_TYPE_FLOAT64}
+	case TOKEN_IMAG:
+		return true, &SimpleType{ID: SIMPLE_TYPE_COMPLEX128}
 	case TOKEN_TRUE, TOKEN_FALSE:
 		return true, &SimpleType{ID: SIMPLE_TYPE_BOOL}
 	}

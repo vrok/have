@@ -674,6 +674,35 @@ var b = a.x()
 	})
 }
 
+func TestTypesNumberLiterals(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`var b = 1e10`,
+			true,
+			"float64",
+		},
+		{`var b = 0.5`,
+			true,
+			"float64",
+		},
+		{`var b float32 = 0.5`,
+			true,
+			"float32",
+		},
+		{`var b = 50`,
+			true,
+			"int",
+		},
+		{`var b float32 = 50`,
+			true,
+			"float32",
+		},
+		{`var b = 50i`,
+			true,
+			"complex128",
+		},
+	})
+}
+
 func TestTypesNil(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`var a *int = nil`,

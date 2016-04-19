@@ -712,11 +712,11 @@ func TestVarDecl(t *testing.T) {
 						Vars: []*Variable{
 							&Variable{
 								name: "x",
-								Type: &SimpleType{ID: 1},
+								Type: &SimpleType{ID: SIMPLE_TYPE_INT},
 							},
 							&Variable{
 								name: "y",
-								Type: &SimpleType{ID: 1},
+								Type: &SimpleType{ID: SIMPLE_TYPE_INT},
 							},
 						},
 						Inits: []Expr{
@@ -809,7 +809,7 @@ func TestVarDecl(t *testing.T) {
 						Vars: []*Variable{
 							&Variable{
 								name: "x",
-								Type: &SimpleType{ID: 1},
+								Type: &SimpleType{ID: SIMPLE_TYPE_INT},
 							},
 						},
 						Inits: nil,

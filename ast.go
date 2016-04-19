@@ -264,18 +264,49 @@ type Type interface {
 type SimpleTypeID int
 
 const (
-	SIMPLE_TYPE_INT = SimpleTypeID(iota + 1)
-	SIMPLE_TYPE_STRING
-	SIMPLE_TYPE_BOOL
+	SIMPLE_TYPE_BOOL = SimpleTypeID(iota + 1)
 	SIMPLE_TYPE_BYTE
-	// TODO: add others
+	SIMPLE_TYPE_COMPLEX128
+	SIMPLE_TYPE_COMPLEX64
+	SIMPLE_TYPE_ERROR
+	SIMPLE_TYPE_FLOAT32
+	SIMPLE_TYPE_FLOAT64
+	SIMPLE_TYPE_INT
+	SIMPLE_TYPE_INT16
+	SIMPLE_TYPE_INT32
+	SIMPLE_TYPE_INT64
+	SIMPLE_TYPE_INT8
+	SIMPLE_TYPE_RUNE
+	SIMPLE_TYPE_STRING
+	SIMPLE_TYPE_UINT
+	SIMPLE_TYPE_UINT16
+	SIMPLE_TYPE_UINT32
+	SIMPLE_TYPE_UINT64
+	SIMPLE_TYPE_UINT8
+	SIMPLE_TYPE_UINTPTR
 )
 
 var simpleTypeAsStr = map[SimpleTypeID]string{
-	SIMPLE_TYPE_INT:    "int",
-	SIMPLE_TYPE_STRING: "string",
-	SIMPLE_TYPE_BOOL:   "bool",
-	SIMPLE_TYPE_BYTE:   "byte",
+	SIMPLE_TYPE_BOOL:       "bool",
+	SIMPLE_TYPE_BYTE:       "byte",
+	SIMPLE_TYPE_COMPLEX128: "complex128",
+	SIMPLE_TYPE_COMPLEX64:  "complex64",
+	SIMPLE_TYPE_ERROR:      "error",
+	SIMPLE_TYPE_FLOAT32:    "float32",
+	SIMPLE_TYPE_FLOAT64:    "float64",
+	SIMPLE_TYPE_INT:        "int",
+	SIMPLE_TYPE_INT16:      "int16",
+	SIMPLE_TYPE_INT32:      "int32",
+	SIMPLE_TYPE_INT64:      "int64",
+	SIMPLE_TYPE_INT8:       "int8",
+	SIMPLE_TYPE_RUNE:       "rune",
+	SIMPLE_TYPE_STRING:     "string",
+	SIMPLE_TYPE_UINT:       "uint",
+	SIMPLE_TYPE_UINT16:     "uint16",
+	SIMPLE_TYPE_UINT32:     "uint32",
+	SIMPLE_TYPE_UINT64:     "uint64",
+	SIMPLE_TYPE_UINT8:      "uint8",
+	SIMPLE_TYPE_UINTPTR:    "uintptr",
 }
 
 var simpleTypeStrToID = map[string]SimpleTypeID{}
@@ -312,6 +343,44 @@ func IsTypeInt(t Type) bool {
 }
 func IsTypeString(t Type) bool {
 	return t.Kind() == KIND_SIMPLE && t.(*SimpleType).ID == SIMPLE_TYPE_STRING
+}
+func IsTypeSimple(t Type, simpleType SimpleTypeID) bool {
+	return t.Kind() == KIND_SIMPLE && t.(*SimpleType).ID == simpleType
+}
+func IsTypeIntKind(t Type) bool {
+	if t.Kind() != KIND_SIMPLE {
+		return false
+	}
+	switch t.(*SimpleType).ID {
+	case SIMPLE_TYPE_INT, SIMPLE_TYPE_INT8, SIMPLE_TYPE_INT16, SIMPLE_TYPE_INT32, SIMPLE_TYPE_INT64,
+		SIMPLE_TYPE_UINT8, SIMPLE_TYPE_UINT16, SIMPLE_TYPE_UINT32, SIMPLE_TYPE_UINT64, SIMPLE_TYPE_UINT,
+		SIMPLE_TYPE_BYTE:
+		return true
+	}
+	return false
+}
+func IsTypeFloatKind(t Type) bool {
+	if t.Kind() != KIND_SIMPLE {
+		return false
+	}
+	switch t.(*SimpleType).ID {
+	case SIMPLE_TYPE_FLOAT32, SIMPLE_TYPE_FLOAT64:
+		return true
+	}
+	return false
+}
+func IsTypeComplexType(t Type) bool {
+	if t.Kind() != KIND_SIMPLE {
+		return false
+	}
+	switch t.(*SimpleType).ID {
+	case SIMPLE_TYPE_COMPLEX64, SIMPLE_TYPE_COMPLEX128:
+		return true
+	}
+	return false
+}
+func IsTypeNumeric(t Type) bool {
+	return IsTypeIntKind(t) || IsTypeFloatKind(t) || IsTypeComplexType(t)
 }
 
 type ArrayType struct {
