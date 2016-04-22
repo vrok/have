@@ -1230,6 +1230,8 @@ func (ex *BasicLit) ApplyType(typ Type) error {
 		fallthrough
 	case ex.token.Type == TOKEN_INT && IsTypeNumeric(actualType):
 		fallthrough
+	case ex.token.Type == TOKEN_RUNE && IsTypeNumeric(actualType):
+		fallthrough
 	case ex.token.Type == TOKEN_FLOAT && (IsTypeFloatKind(actualType) || IsTypeComplexType(actualType)):
 		fallthrough
 	case ex.token.Type == TOKEN_IMAG && IsTypeComplexType(actualType):
@@ -1256,6 +1258,8 @@ func (ex *BasicLit) GuessType() (ok bool, typ Type) {
 		return true, &SimpleType{ID: SIMPLE_TYPE_COMPLEX128}
 	case TOKEN_TRUE, TOKEN_FALSE:
 		return true, &SimpleType{ID: SIMPLE_TYPE_BOOL}
+	case TOKEN_RUNE:
+		return true, &SimpleType{ID: SIMPLE_TYPE_RUNE}
 	}
 	return false, nil
 }

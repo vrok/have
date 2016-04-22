@@ -3,6 +3,7 @@ package have
 import (
 	"fmt"
 	"unicode"
+	"unicode/utf8"
 
 	goscanner "go/scanner"
 	gotoken "go/token"
@@ -64,6 +65,7 @@ const (
 	TOKEN_FLOAT                  // Float number literal
 	TOKEN_IMAG                   // Imaginary part literal
 	TOKEN_STR                    // string literal
+	TOKEN_RUNE                   // rune literal
 	TOKEN_DOT                    // .
 	TOKEN_LPARENTH               // (
 	TOKEN_RPARENTH               // )
@@ -227,12 +229,14 @@ func (l *Lexer) scanGoToken() (token gotoken.Token, lit string, err error) {
 	// TODO: We shouldn't be setting everything up from scratch every time.
 
 	fs := gotoken.NewFileSet()
-	code := make([]byte, len(l.buf))
+	code := make([]byte, 0, len(l.buf))
+	tmp := make([]byte, 3)
 
 	// TODO: Don't use []rune, if Golang doesn't need it neither do we and it leads
 	// to stuff like this.
 	for i := 0; i < len(l.buf); i++ {
-		code[i] = byte(l.buf[i])
+		l := utf8.EncodeRune(tmp, l.buf[i])
+		code = append(code, tmp[:l]...)
 	}
 
 	f := fs.AddFile("", fs.Base(), len(code))
@@ -244,7 +248,7 @@ func (l *Lexer) scanGoToken() (token gotoken.Token, lit string, err error) {
 
 	s.Init(f, []byte(code), errorHandler, 0)
 	_, tok, lit := s.Scan()
-	l.skipBy(len(lit))
+	l.skipBy(len([]rune(lit)))
 
 	return tok, lit, err
 }
@@ -259,6 +263,8 @@ func (l *Lexer) fromGoToken(token gotoken.Token, lit string) (*Token, error) {
 		return l.retNewToken(TOKEN_IMAG, lit)
 	case gotoken.STRING:
 		return l.retNewToken(TOKEN_STR, lit)
+	case gotoken.CHAR:
+		return l.retNewToken(TOKEN_RUNE, lit)
 	}
 	return nil, fmt.Errorf("Unexpected Go token: %s", token)
 }
@@ -397,7 +403,7 @@ func (l *Lexer) Next() (*Token, error) {
 		case ">=":
 			return l.retNewToken(TOKEN_EQ_GT, alt)
 		}
-	case unicode.IsNumber(ch) || ch == '"' || ch == '`':
+	case unicode.IsNumber(ch) || ch == '"' || ch == '`' || ch == '\'':
 		gotok, lit, err := l.scanGoToken()
 		if err != nil {
 			return nil, err

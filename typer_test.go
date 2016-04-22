@@ -674,6 +674,29 @@ var b = a.x()
 	})
 }
 
+func TestTypesRunes(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+var a rune = 'a'
+`,
+			true,
+			"rune",
+		},
+		{`
+var a rune = 100
+`,
+			true,
+			"rune",
+		},
+		{`
+var a = 'a'
+`,
+			true,
+			"rune",
+		},
+	})
+}
+
 func TestTypesNumberLiterals(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`var b = 1e10`,

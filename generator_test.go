@@ -54,6 +54,8 @@ func TestGenerateExpr(t *testing.T) {
 		{source: "\"bla\"", reference: "\"bla\"\n"},
 		{source: "true", reference: "true\n"},
 		{source: "false", reference: "false\n"},
+		{source: "'a'", reference: "'a'\n"},
+		{source: "'ą'", reference: "'ą'\n"},
 		{source: "1+1", reference: "(1 + 1)\n"},
 		{source: "1+(-1)", reference: "(1 + (-1))\n"},
 		{source: "func a():\n 1", reference: "func a() {\n\t1\n}\n"},

@@ -100,6 +100,13 @@ func TestString(t *testing.T) {
 		&Token{TOKEN_EOF, 10, nil}})
 }
 
+func TestRune(t *testing.T) {
+	testTokens(t, []rune("'@'"), []*Token{
+		&Token{TOKEN_RUNE, 0, "'@'"}})
+	testTokens(t, []rune("'ą'"), []*Token{
+		&Token{TOKEN_RUNE, 0, "'ą'"}})
+}
+
 func TestBraces(t *testing.T) {
 	testTokens(t, []rune("(1)"), []*Token{
 		&Token{TOKEN_LPARENTH, 0, nil},

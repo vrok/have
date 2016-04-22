@@ -380,7 +380,7 @@ func IsTypeComplexType(t Type) bool {
 	return false
 }
 func IsTypeNumeric(t Type) bool {
-	return IsTypeIntKind(t) || IsTypeFloatKind(t) || IsTypeComplexType(t)
+	return IsTypeIntKind(t) || IsTypeFloatKind(t) || IsTypeComplexType(t) || IsTypeSimple(t, SIMPLE_TYPE_RUNE)
 }
 
 type ArrayType struct {

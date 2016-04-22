@@ -170,7 +170,7 @@ func (lit *BasicLit) Generate(current *CodeChunk) {
 	case TOKEN_FALSE:
 		current.AddString("false")
 		return
-	case TOKEN_INT, TOKEN_STR:
+	case TOKEN_INT, TOKEN_STR, TOKEN_RUNE:
 		val = lit.token.Value.(string)
 	default:
 		panic("impossible")
