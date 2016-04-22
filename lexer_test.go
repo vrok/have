@@ -86,13 +86,18 @@ func TestKeywords(t *testing.T) {
 
 func TestString(t *testing.T) {
 	testTokens(t, []rune("\"123\""), []*Token{
-		&Token{TOKEN_STR, 0, "123"},
+		&Token{TOKEN_STR, 0, `"123"`},
 		&Token{TOKEN_EOF, 5, nil}})
 
 	testTokens(t, []rune("\"12\\\"3\" hej"), []*Token{
-		&Token{TOKEN_STR, 0, "12\\\"3"},
+		&Token{TOKEN_STR, 0, "\"12\\\"3\""},
 		&Token{TOKEN_WORD, 8, "hej"},
 		&Token{TOKEN_EOF, 11, nil}})
+
+	testTokens(t, []rune("`12\"3` hej"), []*Token{
+		&Token{TOKEN_STR, 0, "`12\"3`"},
+		&Token{TOKEN_WORD, 7, "hej"},
+		&Token{TOKEN_EOF, 10, nil}})
 }
 
 func TestBraces(t *testing.T) {

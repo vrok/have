@@ -257,6 +257,8 @@ func (l *Lexer) fromGoToken(token gotoken.Token, lit string) (*Token, error) {
 		return l.retNewToken(TOKEN_FLOAT, lit)
 	case gotoken.IMAG:
 		return l.retNewToken(TOKEN_IMAG, lit)
+	case gotoken.STRING:
+		return l.retNewToken(TOKEN_STR, lit)
 	}
 	return nil, fmt.Errorf("Unexpected Go token: %s", token)
 }
@@ -395,18 +397,12 @@ func (l *Lexer) Next() (*Token, error) {
 		case ">=":
 			return l.retNewToken(TOKEN_EQ_GT, alt)
 		}
-	case unicode.IsNumber(ch):
+	case unicode.IsNumber(ch) || ch == '"' || ch == '`':
 		gotok, lit, err := l.scanGoToken()
 		if err != nil {
 			return nil, err
 		}
 		return l.fromGoToken(gotok, lit)
-	case ch == '"':
-		str, err := l.loadEscapedString()
-		if err != nil {
-			return nil, err
-		}
-		return l.retNewToken(TOKEN_STR, str)
 	case ch == '(':
 		l.skip()
 		return l.retNewToken(TOKEN_LPARENTH, nil)
