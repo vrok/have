@@ -143,6 +143,33 @@ func (bs *BranchStmt) NegotiateTypes() error { return nil }
 
 func (ls *LabelStmt) NegotiateTypes() error { return nil }
 
+func (ls *SendStmt) NegotiateTypes() error {
+	ltyp, rtyp := Type(&UnknownType{}), Type(&UnknownType{})
+
+	if err := NegotiateExprType(&ltyp, ls.Lhs.(TypedExpr)); err != nil {
+		return err
+	}
+
+	if err := NegotiateExprType(&rtyp, ls.Rhs.(TypedExpr)); err != nil {
+		return err
+	}
+
+	lroot := RootType(ltyp)
+	if lroot.Kind() != KIND_CHAN {
+		return fmt.Errorf("Not a chan used for sending")
+	}
+
+	channel := lroot.(*ChanType)
+	if channel.Dir == CHAN_DIR_RECEIVE {
+		return fmt.Errorf("Channel is receive-only")
+	}
+	if !IsAssignable(channel.Of, rtyp) {
+		return fmt.Errorf("Send value has to be assignable to channel's base type")
+	}
+
+	return nil
+}
+
 func (ss *StructStmt) NegotiateTypes() error {
 	for _, m := range ss.Struct.Methods {
 		if err := m.Code.CheckTypes(); err != nil {

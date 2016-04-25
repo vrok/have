@@ -674,6 +674,39 @@ var b = a.x()
 	})
 }
 
+func TestTypesSendExpr(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+var x chan int
+x <- 1
+var y = x`,
+			true,
+			"chan int",
+		},
+		{`
+var x chan int
+x <- "bla"
+var y = x`,
+			false,
+			"",
+		},
+		{`
+var x chan<- int
+x <- 5
+var y = x`,
+			true,
+			"chan<- int",
+		},
+		{`
+var x <-chan int
+x <- 5
+var y = x`,
+			false,
+			"",
+		},
+	})
+}
+
 func TestTypesRunes(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
