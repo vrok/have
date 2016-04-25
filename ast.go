@@ -249,6 +249,7 @@ const (
 	KIND_INTERFACE
 	KIND_TUPLE
 	KIND_FUNC
+	KIND_CHAN
 	KIND_UNKNOWN
 )
 
@@ -473,6 +474,33 @@ func (t *FuncType) Header() string {
 
 func (t *FuncType) Kind() Kind        { return KIND_FUNC }
 func (t *FuncType) ZeroValue() string { return "nil" }
+
+type ChanDir int
+
+const (
+	CHAN_DIR_BI = ChanDir(iota)
+	CHAN_DIR_RECEIVE
+	CHAN_DIR_SEND
+)
+
+type ChanType struct {
+	Of  Type
+	Dir ChanDir
+}
+
+func (t *ChanType) Known() bool { return t.Of.Known() }
+func (t *ChanType) String() string {
+	switch t.Dir {
+	case CHAN_DIR_RECEIVE:
+		return fmt.Sprintf("<-chan %s", t.Of)
+	case CHAN_DIR_SEND:
+		return fmt.Sprintf("chan<- %s", t.Of)
+	default:
+		return fmt.Sprintf("chan %s", t.Of)
+	}
+}
+func (t *ChanType) Kind() Kind        { return KIND_CHAN }
+func (t *ChanType) ZeroValue() string { return "nil" }
 
 type PointerType struct {
 	To Type

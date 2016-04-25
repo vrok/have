@@ -575,6 +575,18 @@ type Ble interface:
 	validityTest(t, cases)
 }
 
+func TestParseChannels(t *testing.T) {
+	cases := []validityTestCase{
+		{`var x chan int`, true},
+		{`var x <-chan int`, true},
+		{`var x chan<- int`, true},
+		{`var x <-chan<- int`, false},
+		{`var x chan`, false},
+		{`var x chan chan int`, true},
+	}
+	validityTest(t, cases)
+}
+
 func TestBranchStmt(t *testing.T) {
 	cases := []validityTestCase{
 		{`break`, true},

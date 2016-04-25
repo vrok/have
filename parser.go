@@ -1117,6 +1117,35 @@ func (p *Parser) parseInterface(named bool) (*IfaceType, error) {
 	}
 }
 
+func (p *Parser) parseChanType() (*ChanType, error) {
+	dir := CHAN_DIR_BI
+
+	if p.peek().Type == TOKEN_SEND {
+		dir = CHAN_DIR_RECEIVE
+		p.nextToken()
+	}
+
+	if t := p.expect(TOKEN_CHAN); t == nil {
+		return nil, fmt.Errorf("Expected `chan` after `<-`")
+	}
+
+	if p.peek().Type == TOKEN_SEND {
+		if dir != CHAN_DIR_BI {
+			return nil, fmt.Errorf("Invalid channel declaration")
+		}
+
+		dir = CHAN_DIR_SEND
+		p.nextToken()
+	}
+
+	typ, err := p.parseType()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ChanType{Of: typ, Dir: dir}, nil
+}
+
 func (p *Parser) parseType() (Type, error) {
 	token := p.nextToken()
 	switch token.Type {
@@ -1205,6 +1234,9 @@ func (p *Parser) parseType() (Type, error) {
 	case TOKEN_INTERFACE:
 		p.putBack(token)
 		return p.parseInterface(false)
+	case TOKEN_CHAN, TOKEN_SEND:
+		p.putBack(token)
+		return p.parseChanType()
 	default:
 		// TODO add location info
 		return nil, fmt.Errorf("Expected type name, got %s", spew.Sdump(token))
