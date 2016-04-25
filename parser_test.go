@@ -587,6 +587,18 @@ func TestParseChannels(t *testing.T) {
 	validityTest(t, cases)
 }
 
+func TestParseSendExpr(t *testing.T) {
+	cases := []validityTestCase{
+		{`var x chan int
+x <- 7`, true},
+		{`var x chan int
+x <-`, false},
+		{`var x chan int
+<- 7`, false},
+	}
+	validityTest(t, cases)
+}
+
 func TestBranchStmt(t *testing.T) {
 	cases := []validityTestCase{
 		{`break`, true},

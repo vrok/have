@@ -1746,6 +1746,18 @@ func (p *Parser) parseSimpleStmt(labelPossible bool) (SimpleStmt, error) {
 	firstTok := p.peek()
 
 	switch firstTok.Type {
+	case TOKEN_SEND:
+		if len(lhs) > 1 {
+			return nil, fmt.Errorf("More than one expression on the left side of the send expression")
+		}
+
+		p.nextToken()
+		rhs, err := p.parseExpr()
+		if err != nil {
+			return nil, err
+		}
+
+		return &SendStmt{stmt{expr: expr{firstTok.Offset}}, lhs[0], rhs}, nil
 	case TOKEN_PLUS_ASSIGN, TOKEN_MINUS_ASSIGN: // TODO: add other ops
 		if len(lhs) > 1 {
 			return nil, fmt.Errorf("More than one expression on the left side of assignment")

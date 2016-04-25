@@ -130,6 +130,12 @@ type AssignStmt struct {
 }
 
 // implements Stmt
+type SendStmt struct {
+	stmt
+	Lhs, Rhs Expr
+}
+
+// implements Stmt
 type StructStmt struct {
 	stmt
 	Struct *StructType
