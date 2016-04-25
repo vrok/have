@@ -1395,7 +1395,7 @@ loop:
 func (p *Parser) parseMaybeUnaryExpr() (Expr, error) {
 	token := p.nextToken()
 	isOp, _ := opSet[token.Type] // FIXME we should create another set with just unary operators
-	if isOp {
+	if isOp || token.Type == TOKEN_SEND {
 		primaryExpr, err := p.parseMaybeUnaryExpr()
 		if err != nil {
 			return nil, err

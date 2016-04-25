@@ -594,7 +594,9 @@ x <- 7`, true},
 		{`var x chan int
 x <-`, false},
 		{`var x chan int
-<- 7`, false},
+<- 7`, true},
+		{`var x chan int
+var y = <-x`, true},
 	}
 	validityTest(t, cases)
 }
