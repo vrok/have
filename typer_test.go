@@ -707,6 +707,42 @@ var y = x`,
 	})
 }
 
+func TestTypesRecvExpr(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+var a chan int
+var b = <-a`,
+			true,
+			"int",
+		},
+		{`
+var a <-chan int
+var b = <-a`,
+			true,
+			"int",
+		},
+		{`
+var a chan<- int
+var b = <-a`,
+			false,
+			"",
+		},
+		{`
+var a string
+var b = <-a`,
+			false,
+			"",
+		},
+		{`
+type Ch chan int
+var a Ch
+var b = <-a`,
+			true,
+			"int",
+		},
+	})
+}
+
 func TestTypesRunes(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`

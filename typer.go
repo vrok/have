@@ -1147,6 +1147,12 @@ func (ex *UnaryOp) Type() Type {
 		return subType.(*PointerType).To
 	case TOKEN_AMP:
 		return &PointerType{To: right.Type()}
+	case TOKEN_SEND:
+		rootTyp := RootType(right.Type())
+		if rootTyp.Kind() != KIND_CHAN {
+			return &UnknownType{}
+		}
+		return rootTyp.(*ChanType).Of
 	default:
 		panic("todo")
 	}
@@ -1169,6 +1175,18 @@ func (ex *UnaryOp) ApplyType(typ Type) error {
 		}
 		to := typ.(*PointerType).To
 		return right.ApplyType(to)
+	case TOKEN_SEND:
+		rootTyp := RootType(right.Type())
+		if rootTyp.Kind() != KIND_CHAN {
+			return fmt.Errorf("Type %s is not a channel", right.Type())
+		}
+		if rootTyp.(*ChanType).Dir == CHAN_DIR_SEND {
+			return fmt.Errorf("Type %s is a send-only channel", right.Type())
+		}
+		if !IsAssignable(rootTyp.(*ChanType).Of, typ) {
+			return fmt.Errorf("Types %s and %s are not assignable", rootTyp.(*ChanType).Of, typ)
+		}
+		return nil
 	default:
 		panic("todo")
 	}
@@ -1194,6 +1212,12 @@ func (ex *UnaryOp) GuessType() (ok bool, typ Type) {
 			return false, nil
 		}
 		return true, &PointerType{To: typ}
+	case TOKEN_SEND:
+		ok, typ := right.GuessType()
+		if !ok {
+			return false, nil
+		}
+		return true, &ChanType{Of: typ}
 	default:
 		panic("todo")
 	}
