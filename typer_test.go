@@ -766,6 +766,20 @@ var b = <-a`,
 			true,
 			"int",
 		},
+		{`
+var a chan int
+var b, c = <-a
+var d = c`,
+			true,
+			"bool",
+		},
+		{`
+var a chan int
+var b, c = <-a
+var d = b`,
+			true,
+			"int",
+		},
 	})
 }
 

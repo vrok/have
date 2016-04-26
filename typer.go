@@ -245,7 +245,7 @@ func CheckCondition(expr TypedExpr) error {
 		return err
 	}
 
-	if !IsTypeBool(boolTyp) {
+	if !IsBoolAssignable(boolTyp) {
 		return fmt.Errorf("Error while negotiating types")
 	}
 	return nil
@@ -793,7 +793,7 @@ func (ex *ArrayExpr) ApplyType(typ Type) error {
 
 	if typ.Kind() == KIND_TUPLE {
 		tuple := typ.(*TupleType)
-		if len(tuple.Members) != 2 || !IsTypeBool(tuple.Members[1]) {
+		if len(tuple.Members) != 2 || !IsBoolAssignable(tuple.Members[1]) {
 			return fmt.Errorf("Second value is bool")
 		}
 
@@ -1042,7 +1042,7 @@ func firstErr(errors ...error) error {
 func (ex *BinaryOp) applyTypeForComparisonOp(typ Type) error {
 	leftExpr, rightExpr := ex.Left.(TypedExpr), ex.Right.(TypedExpr)
 
-	if !IsTypeBool(typ) {
+	if !IsBoolAssignable(typ) {
 		return fmt.Errorf("Comparison operators return bools, not %s", typ)
 	}
 
@@ -1102,7 +1102,7 @@ func (ex *BinaryOp) ApplyType(typ Type) error {
 	}
 
 	if ex.op.IsLogicalOp() {
-		if !IsTypeBool(typ) {
+		if !IsBoolAssignable(typ) {
 			return fmt.Errorf("Logical operators return bools, not %s", typ)
 		}
 	}
@@ -1189,6 +1189,20 @@ func (ex *UnaryOp) ApplyType(typ Type) error {
 		if rootTyp.(*ChanType).Dir == CHAN_DIR_SEND {
 			return fmt.Errorf("Type %s is a send-only channel", right.Type())
 		}
+
+		if typ.Kind() == KIND_TUPLE {
+			tuple := typ.(*TupleType)
+			if len(tuple.Members) != 2 {
+				fmt.Errorf("Wrong number of elements on channel receive (max. 2)")
+			}
+
+			if !IsBoolAssignable(tuple.Members[1]) {
+				fmt.Errorf("Second value returned from chan receive is bool, and bools aren't assignable to %s", tuple.Members[1])
+			}
+
+			typ = tuple.Members[0]
+		}
+
 		if !IsAssignable(rootTyp.(*ChanType).Of, typ) {
 			return fmt.Errorf("Types %s and %s are not assignable", rootTyp.(*ChanType).Of, typ)
 		}

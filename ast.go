@@ -342,6 +342,9 @@ func (t *SimpleType) ZeroValue() string {
 	}
 }
 
+func IsBoolAssignable(t Type) bool {
+	return IsAssignable(&SimpleType{SIMPLE_TYPE_BOOL}, t)
+}
 func IsTypeBool(t Type) bool {
 	return t.Kind() == KIND_SIMPLE && t.(*SimpleType).ID == SIMPLE_TYPE_BOOL
 }
