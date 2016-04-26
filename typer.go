@@ -218,10 +218,16 @@ func NegotiateExprType(varType *Type, value TypedExpr) error {
 			// Example where this is used: assigning builtin types to the empty interface.
 			ok, guessedType := value.GuessType()
 			if ok {
+				if !IsAssignable(typ, guessedType) {
+					return fmt.Errorf("Types %s and %s are not assignable", typ, guessedType)
+				}
 				return value.ApplyType(guessedType)
 			}
 			return value.ApplyType(typ)
 		default:
+			if !IsAssignable(typ, value.Type()) {
+				return fmt.Errorf("Types %s and %s are not assignable", typ, value.Type())
+			}
 			// Run value.ApplyType with value's own type - seems unnecessary,
 			// but ApplyType might do some extra checks as side effects.
 			return value.ApplyType(value.Type())

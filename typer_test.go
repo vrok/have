@@ -564,6 +564,32 @@ var b = a
 			true,
 			"A",
 		},
+		{`
+interface A:
+	func x()
+struct Abc:
+	func *x():
+		pass
+var a A
+var b *Abc = &Abc{}
+var c A = 7
+`,
+			false,
+			"",
+		},
+		{`
+interface A:
+	func x()
+struct Abc:
+	func *x():
+		pass
+var b *Abc = &Abc{}
+var c A = b
+var d = "placeholder for current test framework - remove this line to see why"
+`,
+			true,
+			"string",
+		},
 		// TODO: Below case doesn't compile as it should, but the error msg is very non-intuitive:
 		{`
 interface A:
