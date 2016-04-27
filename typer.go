@@ -852,11 +852,11 @@ func (ex *CompoundLit) Type() Type { return nonilTyp(ex.typ) }
 func (ex *CompoundLit) ApplyType(typ Type) error {
 	var apply = false
 
-	typ = RootType(typ)
+	rootTyp := RootType(typ)
 
-	switch typ.Kind() {
+	switch rootTyp.Kind() {
 	case KIND_SLICE:
-		asSlice := typ.(*SliceType)
+		asSlice := rootTyp.(*SliceType)
 
 		switch ex.kind {
 		case COMPOUND_EMPTY:
@@ -870,7 +870,7 @@ func (ex *CompoundLit) ApplyType(typ Type) error {
 			apply = true
 		}
 	case KIND_ARRAY:
-		asArray := typ.(*ArrayType)
+		asArray := rootTyp.(*ArrayType)
 
 		switch ex.kind {
 		case COMPOUND_EMPTY:
@@ -886,7 +886,7 @@ func (ex *CompoundLit) ApplyType(typ Type) error {
 			}
 		}
 	case KIND_STRUCT:
-		asStruct := typ.(*StructType)
+		asStruct := rootTyp.(*StructType)
 
 		switch ex.kind {
 		case COMPOUND_EMPTY:
@@ -925,7 +925,7 @@ func (ex *CompoundLit) ApplyType(typ Type) error {
 		}
 		//panic("todo")
 	case KIND_MAP:
-		asMap := typ.(*MapType)
+		asMap := rootTyp.(*MapType)
 
 		switch ex.kind {
 		case COMPOUND_EMPTY:

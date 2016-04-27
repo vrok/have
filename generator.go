@@ -390,7 +390,7 @@ func (fd *FuncDecl) Generate(current *CodeChunk) {
 
 	fd.Args.eachPair(func(arg *Variable, init Expr) {
 		current.AddChprintf("%s %s", arg.name, arg.Type)
-		if i+1 < len(fd.Args) {
+		if i+1 < fd.Args.countVars() {
 			current.AddString(", ")
 		}
 		i++
@@ -400,9 +400,13 @@ func (fd *FuncDecl) Generate(current *CodeChunk) {
 	if len(fd.Results) > 0 {
 		current.AddString(" (")
 		i = 0
-		fd.Args.eachPair(func(arg *Variable, init Expr) {
-			current.AddChprintf("%s %s", arg.name, arg.Type)
-			if i+1 < len(fd.Args) {
+		fd.Results.eachPair(func(arg *Variable, init Expr) {
+			if arg.name == "" {
+				current.AddChprintf("%s", arg.Type)
+			} else {
+				current.AddChprintf("%s %s", arg.name, arg.Type)
+			}
+			if i+1 < fd.Results.countVars() {
 				current.AddString(", ")
 			}
 			i++
@@ -492,6 +496,17 @@ func (bs *BranchStmt) Generate(current *CodeChunk) {
 	} else {
 		current.AddChprintf("%s %C\n", typ, bs.Right)
 	}
+}
+
+func (rs *ReturnStmt) Generate(current *CodeChunk) {
+	current.AddChprintf("return")
+	for i, v := range rs.Values {
+		current.AddChprintf(" %C", v)
+		if i+1 < len(rs.Values) {
+			current.AddChprintf(",")
+		}
+	}
+	current.AddChprintf("\n")
 }
 
 func (ls *LabelStmt) Generate(current *CodeChunk) {

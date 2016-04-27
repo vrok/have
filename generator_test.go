@@ -59,6 +59,7 @@ func TestGenerateExpr(t *testing.T) {
 		{source: "1+1", reference: "(1 + 1)\n"},
 		{source: "1+(-1)", reference: "(1 + (-1))\n"},
 		{source: "func a():\n 1", reference: "func a() {\n\t1\n}\n"},
+		{source: "func a(x, y int):\n 1", reference: "func a(x int, y int) {\n\t1\n}\n"},
 		{source: "print(\"test\")", reference: "print(\"test\")\n"},
 		{source: "if 1 == 2:\n 1", reference: `
 if (1 == 2) {
@@ -240,6 +241,36 @@ a, b = <-x`,
 			reference: `var x = (chan int)(nil)
 var a, b = (<-x)
 a, b = (<-x)`},
+	}
+	testCases(t, cases)
+}
+
+func TestGenerateReturnStmts(t *testing.T) {
+	cases := []generatorTestCase{
+		{source: `func a() int:
+	return 7`,
+			reference: `func a() (int) {
+	return 7
+}`},
+		{source: `func a() int, string:
+	return 7, "ble"`,
+			reference: `func a() (int, string) {
+	return 7, "ble"
+}`},
+		{source: `
+struct A:
+	x int
+func a() *A:
+	return &A{x: 10}`,
+			reference: `type A struct {
+	x int
+}
+
+func a() (*A) {
+	return (&A{
+		x: 10,
+	})
+}`},
 	}
 	testCases(t, cases)
 }
