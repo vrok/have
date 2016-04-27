@@ -601,6 +601,17 @@ var y = <-x`, true},
 	validityTest(t, cases)
 }
 
+func TestParseReturnStmt(t *testing.T) {
+	cases := []validityTestCase{
+		{`return 1`, true},
+		{`return 1, "piesek"`, true},
+		{`return`, true},
+		{`return
+`, true},
+	}
+	validityTest(t, cases)
+}
+
 func TestBranchStmt(t *testing.T) {
 	cases := []validityTestCase{
 		{`break`, true},

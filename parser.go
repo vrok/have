@@ -1709,6 +1709,28 @@ func (p *Parser) parseBranchStmt() (*BranchStmt, error) {
 	return r, nil
 }
 
+func (p *Parser) parseReturnStmt() (*ReturnStmt, error) {
+	tok := p.expect(TOKEN_RETURN)
+	if tok == nil {
+		return nil, fmt.Errorf("Expected `return` keyword")
+	}
+
+	s := &ReturnStmt{stmt: stmt{expr: expr{tok.Offset}}}
+
+	switch p.peek().Type {
+	case TOKEN_INDENT, TOKEN_EOF:
+		// This is a blank
+		return s, nil
+	default:
+		exps, err := p.parseExprList()
+		if err != nil {
+			return nil, err
+		}
+		s.Values = exps
+		return s, nil
+	}
+}
+
 func (p *Parser) parseExprList() ([]Expr, error) {
 	result := []Expr{}
 	for {
@@ -1862,6 +1884,9 @@ func (p *Parser) parseStmt() (Stmt, error) {
 		case TOKEN_GOTO, TOKEN_BREAK, TOKEN_CONTINUE, TOKEN_FALLTHROUGH:
 			p.putBack(token)
 			return p.parseBranchStmt()
+		case TOKEN_RETURN:
+			p.putBack(token)
+			return p.parseReturnStmt()
 		case TOKEN_EOF:
 			return nil, nil
 		case TOKEN_STRUCT:

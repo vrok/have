@@ -242,6 +242,12 @@ type BranchStmt struct {
 	Branchable Stmt
 }
 
+type ReturnStmt struct {
+	stmt
+
+	Values []Expr
+}
+
 type Kind int
 
 const (
