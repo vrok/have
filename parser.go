@@ -8,13 +8,11 @@ import (
 import "github.com/davecgh/go-spew/spew"
 
 type Parser struct {
-	lex         *Lexer
-	tokensBuf   []*Token
-	indentStack []string
-	identStack  *IdentStack
-	//branchStmts BranchStmtsMap
-	//branchStmts *BranchStmtsTree
-	branchTreesStack []*BranchStmtsTree
+	lex              *Lexer
+	tokensBuf        []*Token
+	indentStack      []string
+	identStack       *IdentStack
+	branchTreesStack BranchTreesStack
 
 	ignoreUnknowns, dontLookup bool
 
@@ -41,18 +39,20 @@ func NewBranchStmtsTree() *BranchStmtsTree {
 	}
 }
 
-func (p *Parser) topBranchStmtsTree() *BranchStmtsTree {
-	return p.branchTreesStack[len(p.branchTreesStack)-1]
+type BranchTreesStack []*BranchStmtsTree
+
+func (bts *BranchTreesStack) top() *BranchStmtsTree {
+	return (*bts)[len(*bts)-1]
 }
 
-func (p *Parser) pushNewBranchStmtsTree() *BranchStmtsTree {
-	b := p.topBranchStmtsTree().NewChild()
-	p.branchTreesStack = append(p.branchTreesStack, b)
+func (bts *BranchTreesStack) pushNew() *BranchStmtsTree {
+	b := bts.top().NewChild()
+	*bts = append(*bts, b)
 	return b
 }
 
-func (p *Parser) popBranchStmtsTree() {
-	p.branchTreesStack = p.branchTreesStack[:len(p.branchTreesStack)-1]
+func (bts *BranchTreesStack) pop() {
+	*bts = (*bts)[:len(*bts)-1]
 }
 
 func (b *BranchStmtsTree) FindAll(label string) []*BranchStmt {
@@ -453,8 +453,8 @@ func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
 	p.identStack.pushScope()
 	defer p.identStack.popScope()
 
-	p.pushNewBranchStmtsTree()
-	defer p.popBranchStmtsTree()
+	p.branchTreesStack.pushNew()
+	defer p.branchTreesStack.pop()
 
 	for t := p.nextToken(); t.Type != TOKEN_EOF; t = p.nextToken() {
 		p.putBack(t) // So that we can use handleIndentEnd
@@ -480,7 +480,7 @@ func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
 		result.Statements = append(result.Statements, stmt)
 	}
 
-	p.topBranchStmtsTree().MatchGotoLabels(result.Labels)
+	p.branchTreesStack.top().MatchGotoLabels(result.Labels)
 
 	return result, nil
 }
@@ -582,8 +582,8 @@ func (p *Parser) parseForStmt(lbl *LabelStmt) (stmt *ForStmt, err error) {
 	// Without this extra tree, for's MatchBranchableStmt would be called
 	// for the surrounding block's tree. Another option would be to plug
 	// it into for's CodeBlock, but it would result in nasty code.
-	p.pushNewBranchStmtsTree()
-	defer p.popBranchStmtsTree()
+	p.branchTreesStack.pushNew()
+	defer p.branchTreesStack.pop()
 
 	threeClause := p.scanForSemicolon()
 
@@ -596,9 +596,9 @@ func (p *Parser) parseForStmt(lbl *LabelStmt) (stmt *ForStmt, err error) {
 		panic("todo")
 	}
 
-	p.topBranchStmtsTree().MatchBranchableStmt(stmt, "", TOKEN_BREAK, TOKEN_CONTINUE)
+	p.branchTreesStack.top().MatchBranchableStmt(stmt, "", TOKEN_BREAK, TOKEN_CONTINUE)
 	if lbl != nil {
-		p.topBranchStmtsTree().MatchBranchableStmt(stmt, lbl.Name(), TOKEN_BREAK, TOKEN_CONTINUE)
+		p.branchTreesStack.top().MatchBranchableStmt(stmt, lbl.Name(), TOKEN_BREAK, TOKEN_CONTINUE)
 	}
 
 	return
@@ -1658,8 +1658,8 @@ func (p *Parser) parseFunc() (*FuncDecl, error) {
 		return nil, err
 	}
 
-	if p.topBranchStmtsTree().CountBranchStmts() > 0 {
-		return nil, fmt.Errorf("Unmatched branch statements: %#v", p.topBranchStmtsTree())
+	if p.branchTreesStack.top().CountBranchStmts() > 0 {
+		return nil, fmt.Errorf("Unmatched branch statements: %#v", p.branchTreesStack.top())
 	}
 
 	fd.Code = block
@@ -1704,7 +1704,7 @@ func (p *Parser) parseBranchStmt() (*BranchStmt, error) {
 	}
 
 	r := &BranchStmt{stmt{expr: expr{tok.Offset}}, tok, id, nil, nil}
-	p.topBranchStmtsTree().Members.Add(r)
+	p.branchTreesStack.top().Members.Add(r)
 
 	return r, nil
 }
