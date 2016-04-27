@@ -245,6 +245,7 @@ type BranchStmt struct {
 type ReturnStmt struct {
 	stmt
 
+	Func   *FuncDecl
 	Values []Expr
 }
 

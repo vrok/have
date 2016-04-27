@@ -143,6 +143,23 @@ func (bs *BranchStmt) NegotiateTypes() error { return nil }
 
 func (ls *LabelStmt) NegotiateTypes() error { return nil }
 
+func (rs *ReturnStmt) NegotiateTypes() error {
+	if rs.Func.Results.countVars() != len(rs.Values) {
+		return fmt.Errorf("Different number of return values")
+	}
+
+	i, err := 0, error(nil)
+	rs.Func.Results.eachPair(func(v *Variable, init Expr) {
+		if err != nil {
+			return
+		}
+		err = NegotiateExprType(&v.Type, rs.Values[i].(TypedExpr))
+		i++
+	})
+
+	return err
+}
+
 func (ls *SendStmt) NegotiateTypes() error {
 	ltyp, rtyp := Type(&UnknownType{}), Type(&UnknownType{})
 

@@ -733,6 +733,35 @@ var y = x`,
 	})
 }
 
+func TestTypesReturnStmt(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+func a() int:
+	return 7
+var x = a()
+`,
+			true,
+			"int",
+		},
+		{`
+func a() string:
+	return 7
+var x = a()
+`,
+			false,
+			"",
+		},
+		{`
+func a() int, int:
+	return 1
+var x = a()
+`,
+			false,
+			"",
+		},
+	})
+}
+
 func TestTypesRecvExpr(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`

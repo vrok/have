@@ -13,6 +13,7 @@ type Parser struct {
 	indentStack      []string
 	identStack       *IdentStack
 	branchTreesStack BranchTreesStack
+	funcStack        []*FuncDecl
 
 	ignoreUnknowns, dontLookup bool
 
@@ -1653,6 +1654,10 @@ func (p *Parser) parseFunc() (*FuncDecl, error) {
 		p.identStack.addObject(r)
 	})
 
+	// This is used to connect return statements with functions at the time of writing.
+	p.funcStack = append(p.funcStack, fd)
+	defer func() { p.funcStack = p.funcStack[:len(p.funcStack)-1] }()
+
 	block, err := p.parseCodeBlock()
 	if err != nil {
 		return nil, err
@@ -1715,7 +1720,11 @@ func (p *Parser) parseReturnStmt() (*ReturnStmt, error) {
 		return nil, fmt.Errorf("Expected `return` keyword")
 	}
 
-	s := &ReturnStmt{stmt: stmt{expr: expr{tok.Offset}}}
+	if len(p.funcStack) == 0 {
+		return nil, fmt.Errorf("Return statement used outside a function")
+	}
+
+	s := &ReturnStmt{stmt: stmt{expr: expr{tok.Offset}}, Func: p.funcStack[len(p.funcStack)-1]}
 
 	switch p.peek().Type {
 	case TOKEN_INDENT, TOKEN_EOF:

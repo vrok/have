@@ -603,11 +603,16 @@ var y = <-x`, true},
 
 func TestParseReturnStmt(t *testing.T) {
 	cases := []validityTestCase{
-		{`return 1`, true},
-		{`return 1, "piesek"`, true},
-		{`return`, true},
-		{`return
+		{`func a():
+	return 1`, true},
+		{`func a():
+	return 1, "piesek"`, true},
+		{`func a():
+	return`, true},
+		{`func a():
+	return
 `, true},
+		{`return`, false},
 	}
 	validityTest(t, cases)
 }
