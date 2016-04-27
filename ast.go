@@ -724,6 +724,8 @@ type UnaryOp struct {
 
 	Right Expr
 	op    *Token
+	// Type can be e.g. a tuple (X, bool) after type negotiation.
+	typ Type
 }
 
 type PrimaryExpr interface {

@@ -222,6 +222,28 @@ a, ok = x["ech"]
 	testCases(t, cases)
 }
 
+func TestGenerateChannels(t *testing.T) {
+	cases := []generatorTestCase{
+		{source: `var x chan int`,
+			reference: `var x = (chan int)(nil)`},
+		{source: `var x chan<- int`,
+			reference: `var x = (chan<- int)(nil)`},
+		{source: `var x <-chan int`,
+			reference: `var x = (<-chan int)(nil)`},
+		{source: `var x chan int
+var b = <-x`,
+			reference: `var x = (chan int)(nil)
+var b = (int)((<-x))`},
+		{source: `var x chan int
+var a, b = <-x
+a, b = <-x`,
+			reference: `var x = (chan int)(nil)
+var a, b = (<-x)
+a, b = (<-x)`},
+	}
+	testCases(t, cases)
+}
+
 func TestGenerateUninitializedVar(t *testing.T) {
 	cases := []generatorTestCase{
 		{source: `var x map[int]string`,

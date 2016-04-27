@@ -1141,6 +1141,11 @@ func (ex *BinaryOp) GuessType() (ok bool, typ Type) {
 }
 
 func (ex *UnaryOp) Type() Type {
+	if ex.typ != nil {
+		// Some type was negotiated already.
+		return ex.typ
+	}
+
 	switch right := ex.Right.(TypedExpr); ex.op.Type {
 	case TOKEN_PLUS, TOKEN_MINUS, TOKEN_SHR, TOKEN_SHL:
 		return right.Type()
@@ -1200,7 +1205,7 @@ func (ex *UnaryOp) ApplyType(typ Type) error {
 				fmt.Errorf("Second value returned from chan receive is bool, and bools aren't assignable to %s", tuple.Members[1])
 			}
 
-			typ = tuple.Members[0]
+			ex.typ, typ = typ, tuple.Members[0]
 		}
 
 		if !IsAssignable(rootTyp.(*ChanType).Of, typ) {
