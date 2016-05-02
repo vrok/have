@@ -452,6 +452,16 @@ var z = b(a())`,
 			false,
 			"",
 		},
+		{`
+type B []int
+func a() int, []int:
+	return 1, {}
+var x int, y B
+x, y = a()
+var z = y`,
+			true,
+			"B",
+		},
 	})
 }
 
@@ -758,6 +768,31 @@ var x = a()
 `,
 			false,
 			"",
+		},
+		{`
+struct A:
+	x int
+func a() *A:
+	return &{1}
+var x = a()
+`,
+			true,
+			"*A",
+		},
+	})
+}
+
+func TestTypesTmp(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+type B []int
+func a() int, []int:
+	return 1, {}
+var x int, y B
+x, y = a()
+var z = y`,
+			true,
+			"B",
 		},
 	})
 }

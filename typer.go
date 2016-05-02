@@ -204,30 +204,27 @@ func (is *IfaceStmt) NegotiateTypes() error {
 func NegotiateExprType(varType *Type, value TypedExpr) error {
 	*varType = nonilTyp(*varType)
 
-	typ, err := NegotiateTypes(*varType, value.Type())
-	if err != nil || !typ.Known() {
+	typ := firstKnown(*varType, value.Type())
+	if typ == nil {
 		// Try guessing. Literals like "1", or "{1, 2}" can be used
 		// to initialize variables of many types (int/double/etc,
-		// array/slice/struct), but if the type of the variable is
-		// unknown, we try to guess the type (for these examples
+		// array/slice/struct), but if type of the variable is
+		// not known, we try to guess it (for these examples,
 		// it would be "int" and "[]int").
 		ok, guessedType := value.GuessType()
-		if ok {
-			typ, err = NegotiateTypes(*varType, guessedType)
+		if !ok || !guessedType.Known() {
+			return fmt.Errorf("Too little information to infer types")
 		}
 
-		if err != nil {
-			return err
-		}
+		typ = guessedType
 	}
 
 	*varType = typ
 
-	if IsInterface(typ) {
+	if !value.Type().Known() {
 		// Don't always run ApplyType for interfaces - lhs and rhs expressions
 		// might have different types and that is on purpose.
-		switch value.Type().Kind() {
-		case KIND_UNKNOWN:
+		if IsInterface(typ) {
 			// If we're dealing with interfaces then we don't want to apply that
 			// interface type to the value (unless that's explicitly specified).
 			// But we don't know the type of the value. But, we still haven't run
@@ -240,18 +237,16 @@ func NegotiateExprType(varType *Type, value TypedExpr) error {
 				}
 				return value.ApplyType(guessedType)
 			}
-			return value.ApplyType(typ)
-		default:
-			if !IsAssignable(typ, value.Type()) {
-				return fmt.Errorf("Types %s and %s are not assignable", typ, value.Type())
-			}
-			// Run value.ApplyType with value's own type - seems unnecessary,
-			// but ApplyType might do some extra checks as side effects.
-			return value.ApplyType(value.Type())
 		}
+		return value.ApplyType(typ)
+	} else {
+		if !IsAssignable(typ, value.Type()) {
+			return fmt.Errorf("Types %s and %s are not assignable", typ, value.Type())
+		}
+		// Run value.ApplyType with value's own type - seems unnecessary,
+		// but ApplyType might do some extra checks as side effects.
+		return value.ApplyType(value.Type())
 	}
-
-	return value.ApplyType(typ)
 }
 
 func CheckCondition(expr TypedExpr) error {
@@ -373,20 +368,20 @@ func NegotiateTupleUnpackAssign(onlyFuncCalls bool, lhsTypes []*Type, rhs TypedE
 	}
 
 	for i, t := range lhsTypes {
-		typ, err := NegotiateTypes(*t, tuple.Members[i])
-		if err != nil {
-			return err
+		typ := firstKnown(*t, tuple.Members[i])
+		if typ == nil {
+			return fmt.Errorf("Too little information to infer types")
 		}
 
-		if typ.String() != tuple.Members[i].String() && !IsInterface(typ) {
-			return fmt.Errorf("Variable and function result have different types: %s and %s", typ, tuple.Members[i])
+		if !tuple.Members[i].Known() {
+			return fmt.Errorf("Unknown type in a tuple")
 		}
 
-		if (*t).Kind() != KIND_UNKNOWN && (*t).String() != typ.String() {
-			return fmt.Errorf("Variables initialized from unpacked tuples must have inferred types")
+		if (*t).Kind() == KIND_UNKNOWN {
+			*t = typ
+		} else if !IsAssignable(*t, tuple.Members[i]) {
+			return fmt.Errorf("Types %s and %s aren't assignable", *t, tuple.Members[i])
 		}
-
-		*t = typ
 	}
 	return nil
 }
@@ -443,12 +438,6 @@ func (vd *VarDecl) NegotiateTypes() error {
 	})
 	return err
 }
-
-/*
-func (vd *Variable) NegotiateTypes() error {
-	return NegotiateExprType(&vd.Type, vd.Init.(TypedExpr))
-}
-*/
 
 func (es *ExprStmt) NegotiateTypes() error {
 	uk := Type(&UnknownType{})
@@ -1357,110 +1346,12 @@ func (ex *BasicLit) GuessType() (ok bool, typ Type) {
 	return false, nil
 }
 
-func (t *SimpleType) Negotiate(other Type) (Type, error) {
-	if other, ok := other.(*SimpleType); !ok {
-		return nil, fmt.Errorf("Not a simple type")
-	} else if t.ID == other.ID {
-		return t, nil
-	} else {
-		return nil, fmt.Errorf("Different simple types, %s and %s",
-			simpleTypeAsStr[t.ID], simpleTypeAsStr[other.ID])
-	}
-}
-
-func (t *ArrayType) Negotiate(other Type) (Type, error) {
-	if other, ok := other.(*ArrayType); !ok {
-		return nil, fmt.Errorf("Not an array type")
-	} else if t.Size == other.Size {
-		typ, err := NegotiateTypes(t.Of, other.Of)
-		if err != nil {
-			return nil, err
+func firstKnown(types... Type) Type {
+	for _, t := range types {
+		if t.Known() {
+			return t
 		}
-		return &ArrayType{Size: t.Size, Of: typ}, nil
-	} else {
-		return nil, fmt.Errorf("Different array sizes, %d and %d", t.Size, other.Size)
-	}
-}
-
-func (t *SliceType) Negotiate(other Type) (Type, error) {
-	if other, ok := other.(*SliceType); !ok {
-		return nil, fmt.Errorf("Not a slice type")
-	} else {
-		typ, err := NegotiateTypes(t.Of, other.Of)
-		if err != nil {
-			return nil, err
-		}
-		return &SliceType{Of: typ}, nil
-	}
-}
-
-func (t *CustomType) Negotiate(other Type) (Type, error) {
-	panic("todo")
-}
-
-func (t *UnknownType) Negotiate(other Type) (Type, error) {
-	return other, nil
-}
-
-func (t *PointerType) Negotiate(other Type) (Type, error) {
-	panic("todo")
-}
-
-func (t *MapType) Negotiate(other Type) (Type, error) {
-	panic("todo")
-}
-
-func (t *StructType) Negotiate(other Type) (Type, error) {
-	panic("todo")
-}
-
-func (t *TupleType) Negotiate(other Type) (Type, error) {
-	panic("todo")
-}
-
-func (t *FuncType) Negotiate(other Type) (Type, error) {
-	panic("todo")
-}
-
-func (t *IfaceType) Negotiate(other Type) (Type, error) {
-	panic("todo")
-}
-
-func (t *ChanType) Negotiate(other Type) (Type, error) {
-	panic("todo")
-}
-
-func NegotiateTypes(t1, t2 Type) (Type, error) {
-	if t1.Known() && t2.Known() {
-		// Both types are fully known, no negotiation needed, just
-		// check if they are the same.
-		if !IsAssignable(t1, t2) {
-			return nil, fmt.Errorf("Wanted type %s, but got type %s",
-				t1.String(), t2.String())
-		}
-		return t1, nil
 	}
 
-	if t1.Kind() == t2.Kind() {
-		if t1.Kind() == KIND_UNKNOWN { // && t2.Kind() == KIND_UNKNOWN
-			return nil, fmt.Errorf("Too little information to infer data types")
-		}
-		// TODO: Maybe Negotiate() for types won't be needed at all?
-		//return t1.Negotiate(t2)
-		return nil, fmt.Errorf("Too little information to infer data types")
-	} else if t1.Kind() == KIND_UNKNOWN {
-		if !t2.Known() {
-			// If one type is completely unknown, the other has to be fully known.
-			return nil, fmt.Errorf("Couldn't infer type, too little information")
-		}
-		return t2, nil
-	} else if t2.Kind() == KIND_UNKNOWN {
-		if !t1.Known() {
-			// If one type is completely unknown, the other has to be fully known.
-			return nil, fmt.Errorf("Couldn't infer type, too little information")
-		}
-		return t1, nil
-	}
-	// TODO: use stringer
-	return nil, fmt.Errorf("Different type kinds: %#v and %#v", t1.Kind(), t2.Kind())
+	return nil
 }

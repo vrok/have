@@ -272,7 +272,6 @@ type Type interface {
 	String() string
 	Kind() Kind
 	ZeroValue() string
-	Negotiate(other Type) (Type, error)
 }
 
 type SimpleTypeID int
