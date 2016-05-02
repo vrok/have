@@ -97,14 +97,12 @@ var splitter = regexp.MustCompile("%i?C")
 var forcedIndentChunk = &CodeChunk{}
 var ForcedIndent = &forcedIndent{}
 
-// Format with fmt.Sprintf, but one addition: "%C" can be use to add Generables.
+// Format using fmt.Sprintf, but with one addition: "%C" can be used to add Generables.
 // Use "%iC" variant for InlineGenerables.
 // Indents are inserted automatically, but for multi-line statements that need
-// extra indents to be added in the middle, use the ForcedIndent generable.
+// extra indents in the middle, use the ForcedIndent generable.
 func (cc *CodeChunk) AddChprintf(format string, a ...interface{}) {
 	var nonGenerables []interface{}
-
-	//format = strings.Replace(format, "%I", cc.indent, -1)
 
 	ops := splitter.FindAllString(format, -1)
 	parts := splitter.Split(format, -1)
@@ -117,7 +115,6 @@ func (cc *CodeChunk) AddChprintf(format string, a ...interface{}) {
 
 		switch v := arg.(type) {
 		case Generable:
-			//generables = append(generables, v)
 			cc.AddString(fmt.Sprintf(parts[i], nonGenerables...))
 			nonGenerables = nil
 
@@ -301,24 +298,21 @@ func (vs *VarStmt) InlineGenerate(current *CodeChunk, noParenth bool) {
 	}
 
 	i := 0
+	left, right := current.NewChunk(), current.NewChunk()
+
 	vs.Vars.eachPair(func(vd *Variable, init Expr) {
-		current.AddString(vd.name)
+		left.AddString(vd.name)
+		right.AddChprintf("(%s)(%C)", vd.Type, init.(Generable))
+
 		if i+1 < len(vs.Vars) {
-			current.AddString(", ")
+			left.AddString(", ")
+			right.AddString(", ")
 		}
+
 		i++
 	})
 
-	current.AddString(" := ")
-
-	i = 0
-	vs.Vars.eachPair(func(vd *Variable, init Expr) {
-		current.AddChprintf("(%s)(%C)", vd.Type, init.(Generable))
-		if i+1 < len(vs.Vars) {
-			current.AddString(", ")
-		}
-		i++
-	})
+	left.AddString(" := ")
 }
 
 func (ds *DotSelector) Generate(current *CodeChunk) {
@@ -346,7 +340,6 @@ func (as *AssignStmt) InlineGenerate(current *CodeChunk, noParenth bool) {
 			current.AddString(", ")
 		}
 	}
-
 }
 
 func (ae *ArrayExpr) Generate(current *CodeChunk) {
