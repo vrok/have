@@ -1346,7 +1346,7 @@ func (ex *BasicLit) GuessType() (ok bool, typ Type) {
 	return false, nil
 }
 
-func firstKnown(types... Type) Type {
+func firstKnown(types ...Type) Type {
 	for _, t := range types {
 		if t.Known() {
 			return t

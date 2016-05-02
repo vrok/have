@@ -85,6 +85,7 @@ const (
 	TOKEN_ELIF                   // the "elif" keyword
 	TOKEN_SWITCH                 // the "switch" keyword
 	TOKEN_CASE                   // the "case" keyword
+	TOKEN_DEFAULT                // the "default" keyword
 	TOKEN_RETURN                 // the "return" keyword
 	TOKEN_TRUE                   // the "true" keyword
 	TOKEN_FALSE                  // the "false" keyword
@@ -317,6 +318,8 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.retNewToken(TOKEN_SWITCH, nil)
 		case "case":
 			return l.retNewToken(TOKEN_CASE, nil)
+		case "default":
+			return l.retNewToken(TOKEN_DEFAULT, nil)
 		case "return", "ret":
 			return l.retNewToken(TOKEN_RETURN, nil)
 		case "true":

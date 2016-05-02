@@ -486,13 +486,21 @@ func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
 	return result, nil
 }
 
-// Check if token `forWhat` is present before `untilWhat.
-// It restores intitial state of the parser before returning.
-func (p *Parser) scanForToken(forWhat, untilWhat TokenType) bool {
+// Check if token `forWhat` is present before `untilWhat`.
+// It restores initial state of the parser before returning.
+func (p *Parser) scanForToken(forWhat TokenType, untilWhat []TokenType) bool {
 	nopeStack := []*Token{}
 	token := p.nextToken()
 	semicolon := false
-	for token.Type != untilWhat && token.Type != TOKEN_EOF {
+	hit := func(typ TokenType) bool {
+		for _, t := range untilWhat {
+			if t == typ {
+				return true
+			}
+		}
+		return false
+	}
+	for !hit(token.Type) && token.Type != TOKEN_EOF {
 		if token.Type == forWhat {
 			semicolon = true
 			break
@@ -506,14 +514,14 @@ func (p *Parser) scanForToken(forWhat, untilWhat TokenType) bool {
 	return semicolon
 }
 
-// Scan for ";" to see which version of statement will be parsed.
-// For 'if' that can mean if there's a scoped variable declaration,
-// for 'for' that can be a range/foreach loop or 3-expression one.
+// Scan for `;` to see which version of statement is being parsed.
+// For `if` that tells us if there's a scoped variable declaration,
+// for `for` that can be a range/foreach loop or a 3-expression one.
 // We could also always initially assume scoped variable and backtrack
 // on parse error, but this seems simpler.
-// It restores intitial state of the parser before returning.
+// It restores initial state of the parser before returning.
 func (p *Parser) scanForSemicolon() bool {
-	return p.scanForToken(TOKEN_SEMICOLON, TOKEN_COLON)
+	return p.scanForToken(TOKEN_SEMICOLON, []TokenType{TOKEN_COLON})
 }
 
 // Expects the keyword "for" to be already consumed.
@@ -605,6 +613,15 @@ func (p *Parser) parseForStmt(lbl *LabelStmt) (stmt *ForStmt, err error) {
 	return
 }
 
+func (p *Parser) parseColonWithCodeBlock() (*CodeBlock, error) {
+	colon := p.expect(TOKEN_COLON)
+	if colon == nil {
+		return nil, fmt.Errorf("Expected `:` at the end of `if` condition")
+	}
+
+	return p.parseCodeBlock()
+}
+
 func (p *Parser) parseIf() (*IfStmt, error) {
 	ident := p.expect(TOKEN_IF)
 	if ident == nil {
@@ -639,12 +656,7 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 			return nil, nil, fmt.Errorf("Couldn't parse the condition expression: %s", err)
 		}
 
-		colon := p.expect(TOKEN_COLON)
-		if colon == nil {
-			return nil, nil, fmt.Errorf("Expected `:` at the end of `if` condition")
-		}
-
-		block, err = p.parseCodeBlock()
+		block, err = p.parseColonWithCodeBlock()
 		if err != nil {
 			return nil, nil, err
 		}
@@ -708,6 +720,94 @@ loop:
 
 	return &IfStmt{
 		stmt{expr: expr{ident.Offset}},
+		branches,
+	}, nil
+}
+
+func (p *Parser) parseSwitchStmt() (*SwitchStmt, error) {
+	ident := p.expect(TOKEN_SWITCH)
+	if ident == nil {
+		return nil, fmt.Errorf("Impossible happened")
+	}
+
+	//scopedVar := p.scanForSemicolon()
+	scopedVar := p.scanForToken(TOKEN_SEMICOLON, []TokenType{TOKEN_CASE, TOKEN_DEFAULT})
+
+	var (
+		err                     error
+		scopedVarStmt, mainStmt Stmt
+		branches                []*SwitchBranch
+	)
+
+	if scopedVar {
+		p.identStack.pushScope()
+		defer p.identStack.popScope()
+
+		scopedVarStmt, err = p.parseInitOrAssign()
+		if err != nil {
+			return nil, err
+		}
+
+		scolon := p.expect(TOKEN_SEMICOLON)
+		if scolon == nil {
+			return nil, fmt.Errorf("`;` expected")
+		}
+	}
+
+	switch p.peek().Type {
+	case TOKEN_DEFAULT, TOKEN_CASE, TOKEN_INDENT:
+		// No main stmt/expr
+	default:
+		mainStmt, err = p.parseSimpleStmt(false)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+loop:
+	for {
+		isBranch, t := p.checkForBranch(TOKEN_CASE, TOKEN_DEFAULT)
+		if !isBranch {
+			break loop
+		}
+
+		switch t.Type {
+		case TOKEN_CASE:
+			val, err := p.parseSimpleStmt(false)
+			if err != nil {
+				return nil, err
+			}
+
+			block, err := p.parseColonWithCodeBlock()
+			if err != nil {
+				return nil, err
+			}
+
+			branches = append(branches, &SwitchBranch{
+				stmt:  stmt{expr: expr{t.Offset}},
+				Value: val,
+				Code:  block,
+			})
+		case TOKEN_DEFAULT:
+			block, err := p.parseColonWithCodeBlock()
+			if err != nil {
+				return nil, err
+			}
+
+			branches = append(branches, &SwitchBranch{
+				stmt: stmt{expr: expr{t.Offset}},
+				Code: block,
+			})
+		default:
+			p.putBack(t)
+			break loop
+		}
+	}
+
+	return &SwitchStmt{
+		stmt{expr: expr{ident.Offset}},
+		scopedVarStmt,
+		mainStmt,
 		branches,
 	}, nil
 }
@@ -1758,6 +1858,29 @@ func (p *Parser) parseExprList() ([]Expr, error) {
 	return result, nil
 }
 
+// Parse either initialization or `=` assignment. Return error for other statements.
+func (p *Parser) parseInitOrAssign() (Stmt, error) {
+	if p.peek().Type == TOKEN_VAR {
+		return p.parseVarStmt(true)
+	}
+
+	s, err := p.parseSimpleStmt(false)
+	if err != nil {
+		return nil, err
+	}
+
+	assign, ok := s.(*AssignStmt)
+	if !ok {
+		return nil, fmt.Errorf("Expected assignment")
+	}
+
+	if assign.Token.Type != TOKEN_ASSIGN {
+		return nil, fmt.Errorf("Only `=` assignment allowed")
+	}
+
+	return s, nil
+}
+
 func (p *Parser) parseSimpleStmt(labelPossible bool) (SimpleStmt, error) {
 	// We make an exception if the next token is TOKEN_COLON, because TOKEN_COLON means
 	// that we're parsing a new label statement, so we don't want any ident lookups
@@ -1875,6 +1998,9 @@ func (p *Parser) parseStmt() (Stmt, error) {
 		case TOKEN_IF:
 			p.putBack(token)
 			return p.parseIf()
+		case TOKEN_SWITCH:
+			p.putBack(token)
+			return p.parseSwitchStmt()
 		case TOKEN_FOR:
 			p.putBack(token)
 			return p.parseForStmt(lbl)

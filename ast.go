@@ -212,6 +212,31 @@ type IfStmt struct {
 }
 
 // implements Stmt
+type SwitchBranch struct {
+	stmt
+
+	// This can carry different kinds of expression depending on the switch variant:
+	//   - usually it can be any expression comparable to the switch expression
+	//   - for free-form switches this has to be assignable to bool
+	//   - for type switches this is a TypeExpr
+	//   - `nil` for `default`
+	Value Expr
+	Code  *CodeBlock
+}
+
+// implements Stmt
+type SwitchStmt struct {
+	stmt
+
+	// Either AssignStmt or VarStmt
+	ScopedVar Stmt
+	// For free-form switch statements it is nil, for type switches it is either
+	// `a.(someType)` or `var b = a.(someType)`, and for the rest it is ExprStmt.
+	Value    Stmt
+	Branches []*SwitchBranch
+}
+
+// implements Stmt
 type ForStmt struct {
 	stmt
 

@@ -297,6 +297,41 @@ else
 	}
 }
 
+func TestParseSwitchStmt(t *testing.T) {
+	cases := []validityTestCase{
+		{`switch 7
+case 7:
+	pass`, true},
+		{`switch 7
+	case 7:
+	pass`, false},
+		{`switch 7
+case 7:
+	pass
+default:
+	pass`, true},
+		{`switch var x = 1; x
+case 7:
+	pass`, true},
+		{`var x int
+switch x = 1; x
+case 7:
+	pass`, true},
+		// Only `=` assignment allowed
+		{`var x int
+switch x += 1; x
+case 7:
+	pass`, false},
+		{`switch x = 1; x
+case 7:
+	pass`, false},
+		{`switch
+case 1 == 1:
+	pass`, true},
+	}
+	validityTest(t, cases)
+}
+
 func TestParseInlineStruct(t *testing.T) {
 	cases := []string{
 		`struct:
