@@ -696,10 +696,7 @@ loop:
 				block,
 			})
 		case TOKEN_ELSE:
-			if colon := p.expect(TOKEN_COLON); colon == nil {
-				return nil, fmt.Errorf("Expected `:` after `else`")
-			}
-			block, err := p.parseCodeBlock()
+			block, err := p.parseColonWithCodeBlock()
 			if err != nil {
 				return nil, err
 			}
