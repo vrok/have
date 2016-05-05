@@ -330,15 +330,14 @@ func (ss *SwitchStmt) NegotiateTypes() error {
 			}
 
 			for _, val := range b.Values {
-				var t Type = &UnknownType{}
-				err := NegotiateExprType(&t, val.(TypedExpr))
+				err := NegotiateExprType(&valType, val.(TypedExpr))
 				if err != nil {
 					return fmt.Errorf("Error with switch clause: %s", i + 1, err)
 				}
 
-				if !AreComparable(t, valType) {
+				if !AreComparable(valType, val.(TypedExpr).Type()) {
 					return fmt.Errorf("Error with switch clause, %s is not comparable to %s",
-						t, valType)
+						valType, val.(TypedExpr).Type())
 				}
 			}
 		} else {

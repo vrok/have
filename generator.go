@@ -148,7 +148,8 @@ type InlineGenerable interface {
 
 type EmptyGenerable struct{}
 
-func (eg EmptyGenerable) Generate(current *CodeChunk) {}
+func (eg EmptyGenerable) Generate(current *CodeChunk)                       {}
+func (vs EmptyGenerable) InlineGenerate(current *CodeChunk, noParenth bool) {}
 
 func (id *Ident) Generate(current *CodeChunk) {
 	current.AddString(id.name)
@@ -156,6 +157,10 @@ func (id *Ident) Generate(current *CodeChunk) {
 
 func (n *NilExpr) Generate(current *CodeChunk) {
 	current.AddString("nil")
+}
+
+func (n *PassStmt) Generate(current *CodeChunk) {
+	current.AddString("// pass\n")
 }
 
 func (lit *BasicLit) Generate(current *CodeChunk) {
@@ -456,6 +461,37 @@ func (fs *IfStmt) Generate(current *CodeChunk) {
 	}
 
 	current.AddString("\n")
+}
+
+func (ss *SwitchStmt) Generate(current *CodeChunk) {
+	current = current.NewChunk()
+
+	if ss.ScopedVar != nil {
+		current.AddChprintf("switch %iC; %iC {\n", ss.ScopedVar, ss.Value)
+	} else {
+		current.AddChprintf("switch %iC {\n", ss.Value)
+	}
+
+	for _, branch := range ss.Branches {
+		if len(branch.Values) == 0 {
+			current.AddChprintf("default:\n")
+		} else {
+			current.AddChprintf("case ")
+
+			for i, val := range branch.Values {
+				current.AddChprintf("%C", val)
+				if i+1 < len(branch.Values) {
+					current.AddChprintf(", ")
+				}
+			}
+
+			current.AddChprintf(":\n")
+		}
+
+		branch.Code.Generate(current)
+	}
+
+	current.AddChprintf("}\n")
 }
 
 func (fs *ForStmt) Generate(current *CodeChunk) {

@@ -304,3 +304,32 @@ var x = (A)(struct {y int}{})
 	}
 	testCases(t, cases)
 }
+
+
+func TestGenerateSwitchStmt(t *testing.T) {
+	cases := []generatorTestCase{
+		{source: `switch 7
+case 7:
+	pass
+case 1, 2, 3:
+	pass`,
+			reference: `switch 7 {
+case 7:
+	// pass
+case 1, 2, 3:
+	// pass
+}`},
+		{source: `switch
+case true || false:
+	pass
+default:
+	print("a")`,
+			reference: `switch  {
+case (true || false):
+	// pass
+default:
+	print("a")
+}`},
+	}
+	testCases(t, cases)
+}
