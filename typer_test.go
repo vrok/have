@@ -797,6 +797,89 @@ var z = y`,
 	})
 }
 
+func TestTypesSwitch(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+var a = 7
+switch a
+case 1:
+	pass
+default:
+	pass
+var c = true
+`,
+			true,
+			"bool",
+		},
+				{`
+var a = 7
+switch a
+case "bla":
+	pass
+var c = true
+`,
+			false,
+			"",
+		},
+				{`
+var a = 7
+switch a
+case 1, 2, 3:
+	pass
+var c = true
+`,
+			true,
+			"bool",
+		},
+		{`
+var a = 7
+switch a
+case 1, 4.5, 3:
+	pass
+var c = true
+`,
+			false,
+			"",
+		},
+		{`
+switch
+case 1 == 2:
+	pass
+var c = true
+`,
+			true,
+			"bool",
+		},
+		{`
+switch
+case 1 == 2, true:
+	pass
+var c = true
+`,
+			false,
+			"",
+		},
+		{`
+switch
+case "bla":
+	pass
+var c = true
+`,
+			false,
+			"",
+		},
+		{`
+switch
+case true:
+	var c int = "not_an_int"
+var c = true
+`,
+			false,
+			"",
+		},
+	})
+}
+
 func TestTypesRecvExpr(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`

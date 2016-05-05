@@ -285,6 +285,78 @@ func (is *IfStmt) NegotiateTypes() error {
 	return nil
 }
 
+func (ss *SwitchStmt) NegotiateTypes() error {
+	if ss.ScopedVar != nil {
+		switch scoped := ss.ScopedVar.(type) {
+		case *VarStmt:
+		// ok
+		case *AssignStmt:
+			if scoped.Token.Type != TOKEN_ASSIGN {
+				return fmt.Errorf("Only `=` assignment allowed in scoped declarations")
+			}
+		default:
+			return fmt.Errorf("Not a var declaration or assignment")
+		}
+
+		err := ss.ScopedVar.(ExprToProcess).NegotiateTypes()
+		if err != nil {
+			return err
+		}
+	}
+
+	var valType Type = &SimpleType{SIMPLE_TYPE_BOOL}
+
+	if ss.Value != nil {
+		switch val := ss.Value.(type) {
+		// TODO
+		// case *AssignStmt:
+		// // check if contains TypeCastExpr
+		case *ExprStmt:
+			err := val.NegotiateTypes()
+			if err != nil {
+				return err
+			}
+
+			valType = val.Expression.(TypedExpr).Type()
+		}
+	}
+
+	wasDefault := false
+
+	for i, b := range ss.Branches {
+		if len(b.Values) > 0 {
+			if ss.Value == nil && len(b.Values) > 1 {
+				return fmt.Errorf("List of values in freeform switch")
+			}
+
+			for _, val := range b.Values {
+				var t Type = &UnknownType{}
+				err := NegotiateExprType(&t, val.(TypedExpr))
+				if err != nil {
+					return fmt.Errorf("Error with switch clause: %s", i + 1, err)
+				}
+
+				if !AreComparable(t, valType) {
+					return fmt.Errorf("Error with switch clause, %s is not comparable to %s",
+						t, valType)
+				}
+			}
+		} else {
+			if wasDefault {
+				return fmt.Errorf("Error - more than one `default` clause")
+			}
+			wasDefault = true
+		}
+
+		err := b.Code.CheckTypes()
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (p *PassStmt) NegotiateTypes() error {
 	return nil
 }

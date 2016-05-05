@@ -306,6 +306,9 @@ case 7:
 	case 7:
 	pass`, false},
 		{`switch 7
+case 7, 8, 9:
+	pass`, true},
+		{`switch 7
 case 7:
 	pass
 default:

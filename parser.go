@@ -770,7 +770,7 @@ loop:
 
 		switch t.Type {
 		case TOKEN_CASE:
-			val, err := p.parseSimpleStmt(false)
+			val, err := p.parseExprList()
 			if err != nil {
 				return nil, err
 			}
@@ -782,7 +782,7 @@ loop:
 
 			branches = append(branches, &SwitchBranch{
 				stmt:  stmt{expr: expr{t.Offset}},
-				Value: val,
+				Values: val,
 				Code:  block,
 			})
 		case TOKEN_DEFAULT:

@@ -216,11 +216,11 @@ type SwitchBranch struct {
 	stmt
 
 	// This can carry different kinds of expression depending on the switch variant:
-	//   - usually it can be any expression comparable to the switch expression
-	//   - for free-form switches this has to be assignable to bool
+	//   - usually it can be any expressions comparable to the switch expression
+	//   - for free-form switches this has to be one expression assignable to bool
 	//   - for type switches this is a TypeExpr
 	//   - `nil` for `default`
-	Value Expr
+	Values []Expr
 	Code  *CodeBlock
 }
 
