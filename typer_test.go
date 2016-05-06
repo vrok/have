@@ -877,6 +877,25 @@ var c = true
 			false,
 			"",
 		},
+		{`
+switch var x = 7; x
+case 5:
+	x = 8
+var c = true
+`,
+			true,
+			"bool",
+		},
+		{`
+var x int
+switch x = 7; x
+case 5:
+	x = 8
+var c = true
+`,
+			true,
+			"bool",
+		},
 	})
 }
 

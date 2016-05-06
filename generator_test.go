@@ -319,6 +319,13 @@ case 7:
 case 1, 2, 3:
 	// pass
 }`},
+		{source: `switch var x = 1; x + 2
+case 1, 2, 3:
+	pass`,
+			reference: `switch x := (int)(1); (x + 2) {
+case 1, 2, 3:
+	// pass
+}`},
 		{source: `switch
 case true || false:
 	pass

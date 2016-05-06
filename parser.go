@@ -326,7 +326,7 @@ func (p *Parser) expectNewIndent() (*Token, error) {
 func (p *Parser) isIndentEnd() (end bool, err error) {
 	token := p.expect(TOKEN_INDENT)
 	if token == nil {
-		return false, fmt.Errorf("Indent expected, got %s", token.Type)
+		return false, fmt.Errorf("Indent expected")
 	}
 	defer p.putBack(token)
 
