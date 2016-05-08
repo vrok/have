@@ -221,7 +221,7 @@ type SwitchBranch struct {
 	//   - for type switches this is a TypeExpr
 	//   - `nil` for `default`
 	Values []Expr
-	Code  *CodeBlock
+	Code   *CodeBlock
 }
 
 // implements Stmt
@@ -781,11 +781,23 @@ type SliceExpr struct {
 	From, To Expr
 }
 
+// implements Expr
 type DotSelector struct {
 	expr
 
 	Left  Expr
 	Right *Ident
+}
+
+// implements Expr
+type TypeAssertion struct {
+	expr
+
+	// When true, no concrete type was given in the parentheses, just
+	// the "type" keyword.
+	ForSwitch bool
+	Left      Expr
+	Right     *TypeExpr
 }
 
 // implements PrimaryExpr

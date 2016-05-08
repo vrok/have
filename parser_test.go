@@ -639,6 +639,21 @@ var y = <-x`, true},
 	validityTest(t, cases)
 }
 
+func TestParseTypeAssertion(t *testing.T) {
+	cases := []validityTestCase{
+		{`var x = "bla".(string)`, true},
+		{`var x = "bla".(type)`, true},
+		{`var x = "bla".(nil)`, false},
+		{`var x = 123
+var y = x.(float32)`, true},
+		{`var x = 123
+var y, z = x.(float32)`, true},
+		{`var x = 123
+var y = x.()`, false},
+	}
+	validityTest(t, cases)
+}
+
 func TestParseReturnStmt(t *testing.T) {
 	cases := []validityTestCase{
 		{`func a():

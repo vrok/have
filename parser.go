@@ -781,9 +781,9 @@ loop:
 			}
 
 			branches = append(branches, &SwitchBranch{
-				stmt:  stmt{expr: expr{t.Offset}},
+				stmt:   stmt{expr: expr{t.Offset}},
 				Values: val,
-				Code:  block,
+				Code:   block,
 			})
 		case TOKEN_DEFAULT:
 			block, err := p.parseColonWithCodeBlock()
@@ -1416,8 +1416,26 @@ loop:
 		switch token.Type {
 		case TOKEN_DOT:
 			// TODO: parse type assertions
-			selector := p.expect(TOKEN_WORD)
-			left = &DotSelector{expr{token.Offset}, left, &Ident{expr{selector.Offset}, selector.Value.(string), nil}}
+			switch t := p.nextToken(); t.Type {
+			case TOKEN_LPARENTH:
+				var te *TypeExpr
+				if p.peek().Type == TOKEN_TYPE {
+					p.nextToken()
+				} else {
+					te, err = p.parseTypeExpr()
+					if err != nil {
+						return nil, err
+					}
+				}
+				if p.expect(TOKEN_RPARENTH) == nil {
+					return nil, fmt.Errorf("Expected `)`")
+				}
+				return &TypeAssertion{expr{token.Offset}, te == nil, left, te}, nil
+			case TOKEN_WORD:
+				left = &DotSelector{expr{token.Offset}, left, &Ident{expr{t.Offset}, t.Value.(string), nil}}
+			default:
+				return nil, fmt.Errorf("Unexpected token after `.`")
+			}
 		case TOKEN_LPARENTH:
 			args, err := p.parseArgs(0)
 			if err != nil {

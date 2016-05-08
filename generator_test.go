@@ -305,7 +305,6 @@ var x = (A)(struct {y int}{})
 	testCases(t, cases)
 }
 
-
 func TestGenerateSwitchStmt(t *testing.T) {
 	cases := []generatorTestCase{
 		{source: `switch 7

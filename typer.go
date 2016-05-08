@@ -332,7 +332,7 @@ func (ss *SwitchStmt) NegotiateTypes() error {
 			for _, val := range b.Values {
 				err := NegotiateExprType(&valType, val.(TypedExpr))
 				if err != nil {
-					return fmt.Errorf("Error with switch clause: %s", i + 1, err)
+					return fmt.Errorf("Error with switch clause: %s", i+1, err)
 				}
 
 				if !AreComparable(valType, val.(TypedExpr).Type()) {

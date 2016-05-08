@@ -811,7 +811,7 @@ var c = true
 			true,
 			"bool",
 		},
-				{`
+		{`
 var a = 7
 switch a
 case "bla":
@@ -821,7 +821,7 @@ var c = true
 			false,
 			"",
 		},
-				{`
+		{`
 var a = 7
 switch a
 case 1, 2, 3:
