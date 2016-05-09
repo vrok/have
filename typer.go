@@ -701,6 +701,69 @@ func (ex *TypeExpr) ApplyType(typ Type) error {
 }
 func (ex *TypeExpr) GuessType() (ok bool, typ Type) { return false, nil }
 
+func (ex *TypeAssertion) Type() Type {
+	if ex.typ != nil {
+		return ex.typ
+	}
+	if ex.ForSwitch {
+		return &UnknownType{}
+	}
+	return nonilTyp(ex.Right.typ)
+}
+func (ex *TypeAssertion) ApplyType(typ Type) error {
+	if ex.ForSwitch {
+		return fmt.Errorf("This is only allowed in switch statements")
+	}
+
+	if typ.Kind() == KIND_TUPLE {
+		tuple := typ.(*TupleType)
+		if len(tuple.Members) != 2 {
+			fmt.Errorf("Wrong number of elements on left of type assertion (max. 2)")
+		}
+
+		if !IsBoolAssignable(tuple.Members[1]) {
+			fmt.Errorf("Second value returned from type assertion is bool, bools aren't assignable to %s", tuple.Members[1])
+		}
+
+		ex.typ, typ = typ, tuple.Members[0]
+	}
+
+	if ex.Right.typ.String() != typ.String() {
+		return fmt.Errorf("Different types: %s and %s", typ, ex.Right.typ)
+	}
+
+	te := ex.Left.(TypedExpr)
+
+	if !te.Type().Known() {
+		err := te.ApplyType(typ)
+		if err != nil {
+			ok, typ := te.GuessType()
+			if !ok {
+				return err
+			}
+
+			err = te.ApplyType(typ)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	if !IsInterface(te.Type()) {
+		return fmt.Errorf("Invalid type assertion, non-interface %s on left", te.Type())
+	}
+
+	if !IsInterface(ex.Right.typ) {
+		if !Implements(te.Type(), ex.Right.typ) {
+			return fmt.Errorf("Impossible type assertion: %s doesn't implement %s",
+				ex.Right.typ, te.Type())
+		}
+	}
+
+	return nil
+}
+func (ex *TypeAssertion) GuessType() (ok bool, typ Type) { return false, nil }
+
 func (ex *DotSelector) Type() Type {
 	leftType := ex.Left.(TypedExpr).Type()
 

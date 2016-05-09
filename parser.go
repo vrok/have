@@ -1430,7 +1430,7 @@ loop:
 				if p.expect(TOKEN_RPARENTH) == nil {
 					return nil, fmt.Errorf("Expected `)`")
 				}
-				return &TypeAssertion{expr{token.Offset}, te == nil, left, te}, nil
+				return &TypeAssertion{expr{token.Offset}, te == nil, left, te, nil}, nil
 			case TOKEN_WORD:
 				left = &DotSelector{expr{token.Offset}, left, &Ident{expr{t.Offset}, t.Value.(string), nil}}
 			default:

@@ -797,6 +797,54 @@ var z = y`,
 	})
 }
 
+func TestTypesTypeAssertion(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+interface A:
+	func x()
+struct B:
+	func x():
+		pass
+var x A
+var y = x.(B)`,
+			true,
+			"B",
+		},
+		{`
+interface A:
+	func x()
+struct B:
+	func xx():
+		pass
+var x A
+var y = x.(B)`,
+			false, // B doesn't implement A
+			"",
+		},
+		{`
+struct B:
+	func x():
+		pass
+var x B
+var y = x.(B)`,
+			false, // non-interface on left
+			"",
+		},
+		{`
+interface A:
+	func x()
+struct B:
+	func x():
+		pass
+var x A
+var y, z = x.(B)
+var final = z`,
+			true,
+			"bool",
+		},
+	})
+}
+
 func TestTypesSwitch(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`

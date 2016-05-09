@@ -798,6 +798,9 @@ type TypeAssertion struct {
 	ForSwitch bool
 	Left      Expr
 	Right     *TypeExpr
+
+	// Type can be e.g. a tuple (X, bool) after type negotiation.
+	typ Type
 }
 
 // implements PrimaryExpr
