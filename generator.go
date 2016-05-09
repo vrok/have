@@ -324,6 +324,10 @@ func (ds *DotSelector) Generate(current *CodeChunk) {
 	current.AddChprintf("%C.%C", ds.Left, ds.Right)
 }
 
+func (ta *TypeAssertion) Generate(current *CodeChunk) {
+	current.AddChprintf("%C.(%s)", ta.Left, ta.Right.typ)
+}
+
 func (as *AssignStmt) Generate(current *CodeChunk) {
 	as.InlineGenerate(current, true)
 	current.AddString("\n")

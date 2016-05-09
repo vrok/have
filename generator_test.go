@@ -305,6 +305,46 @@ var x = (A)(struct {y int}{})
 	testCases(t, cases)
 }
 
+func TestGenerateTypeAssertions(t *testing.T) {
+	cases := []generatorTestCase{
+		{source: `interface A:
+	func x()
+struct B:
+	func x():
+		pass
+var x A
+var y = x.(B)`,
+			reference: `type A interface{x()}
+type B struct {
+}
+
+func (self B) x() {
+	// pass
+}
+
+var x = (A)(nil)
+var y = (B)(x.(B))`},
+				{source: `interface A:
+	func x()
+struct B:
+	func x():
+		pass
+var x A
+var y, z = x.(B)`,
+			reference: `type A interface{x()}
+type B struct {
+}
+
+func (self B) x() {
+	// pass
+}
+
+var x = (A)(nil)
+var y, z = x.(B)`},
+	}
+	testCases(t, cases)
+}
+
 func TestGenerateSwitchStmt(t *testing.T) {
 	cases := []generatorTestCase{
 		{source: `switch 7
