@@ -16,7 +16,7 @@ type Parser struct {
 
 	// TODO: Remove after implementing unboundVars
 	ignoreUnknowns bool
-	unboundTypes   unboundTypes
+	unboundTypes   *unboundTypes
 
 	dontLookup bool
 
@@ -52,7 +52,8 @@ func NewParser(lex *Lexer) *Parser {
 func NewParserWithoutBuiltins(lex *Lexer) *Parser {
 	return &Parser{lex: lex,
 		identStack:       &IdentStack{map[string]Object{}},
-		branchTreesStack: []*BranchStmtsTree{NewBranchStmtsTree()}}
+		branchTreesStack: []*BranchStmtsTree{NewBranchStmtsTree()},
+		unboundTypes:     newUnboundTypes()}
 }
 
 // Put back a token.
@@ -1448,7 +1449,7 @@ func (p *Parser) typesToVars(types []Type, varsType Type) ([]*Variable, error) {
 func (p *Parser) makeUnnamedVars(types []Type) []*Variable {
 	var result []*Variable
 	for _, t := range types {
-		result = append(result, &Variable{name: NoName, Type: t})
+		result = append(result, &Variable{Type: t})
 	}
 	return result
 }
@@ -1483,7 +1484,7 @@ loop:
 		types = append(types, t)
 
 		switch p.peek().Type {
-		case TOKEN_RPARENTH:
+		case TOKEN_RPARENTH, TOKEN_COLON, TOKEN_INDENT:
 			if named {
 				return nil, fmt.Errorf("Type name expected before `)`")
 			}
@@ -1492,6 +1493,7 @@ loop:
 			return DeclChain{&VarDecl{Vars: p.makeUnnamedVars(types)}}, nil
 		case TOKEN_COMMA:
 			p.nextToken()
+			p.skipIndents()
 			continue loop
 		default:
 			named = true
@@ -1519,51 +1521,6 @@ loop:
 				return nil, fmt.Errorf("Unexpected token after parameter type: %s", tok.Type)
 			}
 		}
-	}
-}
-
-func (p *Parser) parseResultDecl() (DeclChain, error) {
-	t := p.nextToken()
-	if t.Type == TOKEN_LPARENTH {
-		result, err := p.parseVarDecl()
-		if err != nil {
-			return nil, err
-		}
-		if t := p.expect(TOKEN_RPARENTH); t == nil {
-			return nil, fmt.Errorf("Expected `)`")
-		}
-		return result, err
-	} else {
-		vars := []*Variable{}
-
-		if t.Type == TOKEN_COLON {
-			return []*VarDecl{&VarDecl{Vars: vars}}, nil
-		}
-
-		p.putBack(t)
-
-	loop:
-		for {
-			typ, err := p.parseType()
-			if err != nil {
-				return nil, err
-			}
-			vars = append(vars, &Variable{
-				name: "",
-				Type: typ,
-			})
-
-			switch t := p.nextToken(); t.Type {
-			case TOKEN_COMMA:
-				// Go on
-			case TOKEN_COLON, TOKEN_INDENT:
-				p.putBack(t)
-				break loop
-			default:
-				return nil, fmt.Errorf("Unexpected token %s", t.Type)
-			}
-		}
-		return []*VarDecl{&VarDecl{Vars: vars}}, nil
 	}
 }
 
@@ -1617,12 +1574,25 @@ func (p *Parser) parseFuncHeader() (*FuncDecl, error) {
 
 	results := DeclChain(nil)
 
-	// Check if ':' is next - if so, function doesn't return anything.
-	t = p.peek()
-	if t.Type != TOKEN_COLON && t.Type != TOKEN_INDENT {
-		results, err = p.parseResultDecl()
+	if p.peek().Type == TOKEN_LPARENTH {
+		p.nextToken()
+
+		results, err = p.parseArgsDecl()
 		if err != nil {
 			return nil, err
+		}
+
+		if p.expect(TOKEN_RPARENTH) == nil {
+			return nil, fmt.Errorf("Expected `)`")
+		}
+	} else {
+		// Check if ':' is next - if so, function doesn't return anything.
+		t = p.peek()
+		if t.Type != TOKEN_COLON && t.Type != TOKEN_INDENT {
+			results, err = p.parseArgsDecl()
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -1747,6 +1717,12 @@ func (p *Parser) parseReturnStmt() (*ReturnStmt, error) {
 	}
 }
 
+func (p *Parser) skipIndents() {
+	for p.peek().Type == TOKEN_INDENT {
+		p.nextToken()
+	}
+}
+
 func (p *Parser) parseExprList() ([]Expr, error) {
 	result := []Expr{}
 	for {
@@ -1761,6 +1737,7 @@ func (p *Parser) parseExprList() ([]Expr, error) {
 			break
 		}
 		p.nextToken()
+		p.skipIndents()
 	}
 	return result, nil
 }
