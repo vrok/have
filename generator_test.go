@@ -324,7 +324,7 @@ func (self B) x() {
 
 var x = (A)(nil)
 var y = (B)(x.(B))`},
-				{source: `interface A:
+		{source: `interface A:
 	func x()
 struct B:
 	func x():
@@ -376,6 +376,14 @@ case (true || false):
 default:
 	print("a")
 }`},
+		//
+		//		{source: `
+		//func apply(l []int, f func(x int) int)) []int:
+		//	pass
+		//var l = apply({1, 2, 3}, func(x int):
+		//	return x + 2)
+		//`,
+		//		reference: ``},
 	}
 	testCases(t, cases)
 }

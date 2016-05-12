@@ -5,6 +5,8 @@ import (
 	"fmt"
 )
 
+const NoName = "_"
+
 type Expr interface {
 	Pos() int
 }

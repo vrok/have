@@ -14,9 +14,11 @@ type Parser struct {
 	branchTreesStack BranchTreesStack
 	funcStack        []*FuncDecl
 
-	unboundTypes map[string]*CustomType
+	// TODO: Remove after implementing unboundVars
+	ignoreUnknowns bool
+	unboundTypes   unboundTypes
 
-	ignoreUnknowns, dontLookup bool
+	dontLookup bool
 
 	prevLbl *LabelStmt // Just declared labal is stored here temporarily
 }
@@ -835,7 +837,6 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 	for i := 0; true; i++ {
 		p.skipWhiteSpace()
 
-		// FIXME: ideas to do it concisely without parser-wide variables?
 		p.ignoreUnknowns = true
 		el, err := p.parseExpr()
 		p.ignoreUnknowns = false
@@ -1120,13 +1121,16 @@ func (p *Parser) parseType() (Type, error) {
 		var decl *TypeDecl = nil
 		if !p.dontLookup {
 			decl = p.identStack.findTypeDecl(name)
-			if !p.ignoreUnknowns && decl == nil {
-				return nil, fmt.Errorf("Type %s is unknown", name)
-			}
-			if decl.AliasedType == nil {
+			switch {
+			case decl == nil:
+				r := &CustomType{Name: name}
+				p.unboundTypes.add(name, r)
+				return r, nil
+			case decl.AliasedType == nil:
 				return &SimpleType{ID: simpleTypeStrToID[name]}, nil
+			default:
+				return &CustomType{Name: name, Decl: decl}, nil
 			}
-			return &CustomType{Name: name, Decl: decl}, nil
 		} else {
 			// TODO: we don't want so much code which is mostly used just for tests
 			if _, ok := GetBuiltinType(name); ok {
@@ -1428,13 +1432,94 @@ func (p *Parser) parseArgs(max int) ([]Expr, error) {
 	}
 }
 
+func (p *Parser) typesToVars(types []Type, varsType Type) ([]*Variable, error) {
+	var result []*Variable
+	for _, t := range types {
+		switch ct := t.(type) {
+		case *CustomType:
+			result = append(result, &Variable{name: ct.Name, Type: varsType})
+		default:
+			return nil, fmt.Errorf("Invalid type name: %s", t)
+		}
+	}
+	return result, nil
+}
+
+func (p *Parser) makeUnnamedVars(types []Type) []*Variable {
+	var result []*Variable
+	for _, t := range types {
+		result = append(result, &Variable{name: NoName, Type: t})
+	}
+	return result
+}
+
 func (p *Parser) parseArgsDecl() (DeclChain, error) {
-	// TODO: check default values are set only for parameters at the end
 	if p.peek().Type == TOKEN_RPARENTH {
 		return nil, nil
 	}
 
-	return p.parseVarDecl()
+	var result []*Variable
+	var types []Type
+
+	commit := false
+	p.unboundTypes.enableDirtyMode()
+	defer func() {
+		if commit {
+			p.unboundTypes.commit()
+		} else {
+			p.unboundTypes.abandon()
+		}
+	}()
+
+	named := false
+
+loop:
+	for {
+		t, err := p.parseType()
+		if err != nil {
+			return nil, err
+		}
+
+		types = append(types, t)
+
+		switch p.peek().Type {
+		case TOKEN_RPARENTH:
+			if named {
+				return nil, fmt.Errorf("Type name expected before `)`")
+			}
+			p.unboundTypes.matchWithStack(p.identStack)
+			commit = true
+			return DeclChain{&VarDecl{Vars: p.makeUnnamedVars(types)}}, nil
+		case TOKEN_COMMA:
+			p.nextToken()
+			continue loop
+		default:
+			named = true
+			p.unboundTypes.abandon()
+			t, err := p.parseType()
+			p.unboundTypes.enableDirtyMode()
+			if err != nil {
+				return nil, err
+			}
+
+			vars, err := p.typesToVars(types, t)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, vars...)
+			types = nil
+
+			switch tok := p.peek(); tok.Type {
+			case TOKEN_RPARENTH:
+				return DeclChain{&VarDecl{Vars: result}}, nil
+			case TOKEN_COMMA:
+				p.nextToken()
+				continue loop
+			default:
+				return nil, fmt.Errorf("Unexpected token after parameter type: %s", tok.Type)
+			}
+		}
+	}
 }
 
 func (p *Parser) parseResultDecl() (DeclChain, error) {

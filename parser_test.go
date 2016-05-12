@@ -528,9 +528,6 @@ func TestFuncDecl(t *testing.T) {
 		{`func abc(x, y int) int:
 		  var x = 1
 		`, true},
-		{`func abc(x, y int, z int = 5) int:
-		  var x = 1
-		`, true},
 		{`func abc() int, float64:
   var x = 1
 `, true},
@@ -583,6 +580,22 @@ func TestParseInterfaces(t *testing.T) {
 type Ble interface:
 	func x()
 `, true},
+		{`
+type Ble interface:
+	func x(a, b int)
+`, true},
+		{`
+type Ble interface:
+	func x(a, b int, c string)
+`, true},
+		{`
+type Ble interface:
+	func x(int, string)
+`, true},
+		{`
+type Ble interface:
+	func x(a int, string)
+`, false},
 		{`
 type Ble interface:
 	func x() int
