@@ -135,11 +135,11 @@ func (p *Parser) expectNewIndent() (*Token, error) {
 // returns a parse error if it notices something wrong.
 // It doesn't change the parser state (as opposed to handleIndentEnd).
 func (p *Parser) isIndentEnd() (end bool, err error) {
-	token := p.expect(TOKEN_INDENT)
-	if token == nil {
+	token := p.nextToken()
+	defer p.putBack(token)
+	if token.Type != TOKEN_INDENT {
 		return false, fmt.Errorf("Indent expected")
 	}
-	defer p.putBack(token)
 
 	ident := token.Value.(string)
 	curIdent := ""
@@ -160,8 +160,17 @@ func (p *Parser) isIndentEnd() (end bool, err error) {
 // If `end` is true then this indented block ends here, and parser
 // will be pointed to the beginning of the next line.
 // `err` not being nil indicates some indent mismatch.
+// If parser is pointed to a token that is not indent, it will return
+// true as well, this is useful in code like this:
+//
+// apply({1, 2, 3}, func(x int) int:
+//     return x * 2) // <- block ended by ')'
 func (p *Parser) handleIndentEnd() (end bool, err error) {
 	end, err = p.isIndentEnd()
+	if !end && p.peek().Type != TOKEN_INDENT {
+		end, err = true, nil
+	}
+
 	if end {
 		// Pop current indent
 		p.indentStack = p.indentStack[:len(p.indentStack)-1]
@@ -172,41 +181,29 @@ func (p *Parser) handleIndentEnd() (end bool, err error) {
 }
 
 // This is very similar to handleIndentEnd, but the indented block
-// of code can also be ended by an occurence of a token (not necessarily
-// preceded by an end of indentation, or precended by an unmatched indent).
+// of code can also be ended by an occurence of a token not in tokenTypes
+// (not necessarily preceded by an end of indentation, or precended by an
+// unmatched indent).
 // Example:
+//
 // var y = struct:
 //     x int
 //      {x: 1}  // <- '{' ends the indented block of code
-// Another:
+//
+// Another one:
+//
 // var y = struct:
 //     x int
 //   {x: 1}  // <- unmatched indent, but it's all right
+//
 // The special character is put back to the tokenizer, so that things
 // like compount initializers of nested structures work.
-func (p *Parser) handleIndentEndOrToken(tokenType TokenType) (end bool, err error) {
-	end, err = p.handleIndentEnd()
-	if end {
-		return end, err
-	}
-	next := p.nextToken()
-	defer p.putBack(next)
-	if next.Type == tokenType {
-		return true, nil
-	}
-	return false, err
-}
-
-// Very similar to handleIndentEndOrToken, but checks if the next token
-// is NOT one of tokenTypes type.
 func (p *Parser) handleIndentEndOrNoToken(tokenTypes ...TokenType) (end bool, err error) {
 	end, err = p.handleIndentEnd()
 	if end {
 		return end, err
 	}
-	next := p.nextToken()
-	defer p.putBack(next)
-
+	next := p.peek()
 	for _, tokenType := range tokenTypes {
 		if next.Type == tokenType {
 			return false, err
@@ -1054,6 +1051,14 @@ func (p *Parser) parseChanType() (*ChanType, error) {
 	return &ChanType{Of: typ, Dir: dir}, nil
 }
 
+func (p *Parser) parseFuncType() (*FuncType, error) {
+	hdr, err := p.parseFuncHeader()
+	if err != nil {
+		return nil, err
+	}
+	return hdr.typ, nil
+}
+
 func (p *Parser) parseType() (Type, error) {
 	token := p.nextToken()
 	switch token.Type {
@@ -1148,6 +1153,9 @@ func (p *Parser) parseType() (Type, error) {
 	case TOKEN_CHAN, TOKEN_SEND:
 		p.putBack(token)
 		return p.parseChanType()
+	case TOKEN_FUNC:
+		p.putBack(token)
+		return p.parseFuncType()
 	default:
 		// TODO add location info
 		return nil, fmt.Errorf("Expected type name, got %s", token.Type)
@@ -1165,6 +1173,23 @@ func (p *Parser) parseTypeExpr() (*TypeExpr, error) {
 	}
 
 	return &TypeExpr{expr{loc}, typ}, nil
+}
+
+// Parses either a function type name or a function literal. It's useful because they
+// begin similarily and can both be used in primary expressions.
+// Returns either TypeExpr with function type or FuncDecl.
+func (p *Parser) parseFuncTypeOrLit() (Expr, error) {
+	loc := p.peek().Offset
+	fd, err := p.parseFuncHeader()
+	if err != nil {
+		return nil, err
+	}
+
+	if p.peek().Type == TOKEN_COLON {
+		return p.parseFuncBody(fd)
+	} else {
+		return &TypeExpr{expr{loc}, fd.typ}, nil
+	}
 }
 
 func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
@@ -1205,6 +1230,12 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 		return &BasicLit{expr{token.Offset}, nil, token}, nil
 	case TOKEN_NIL:
 		return &NilExpr{}, nil
+	case TOKEN_FUNC:
+		p.putBack(token)
+		left, err = p.parseFuncTypeOrLit()
+		if err != nil {
+			return nil, err
+		}
 	case TOKEN_MAP, TOKEN_STRUCT, TOKEN_LBRACKET:
 		p.putBack(token)
 		left, err = p.parseTypeExpr()
@@ -1588,7 +1619,7 @@ func (p *Parser) parseFuncHeader() (*FuncDecl, error) {
 	} else {
 		// Check if ':' is next - if so, function doesn't return anything.
 		t = p.peek()
-		if t.Type != TOKEN_COLON && t.Type != TOKEN_INDENT {
+		if t.Type != TOKEN_COLON && t.Type != TOKEN_INDENT && t.Type != TOKEN_RPARENTH {
 			results, err = p.parseArgsDecl()
 			if err != nil {
 				return nil, err
@@ -1614,6 +1645,11 @@ func (p *Parser) parseFunc() (*FuncDecl, error) {
 		return nil, err
 	}
 
+	return p.parseFuncBody(fd)
+}
+
+// Parse function body assuming that its header has been already parsed.
+func (p *Parser) parseFuncBody(fd *FuncDecl) (*FuncDecl, error) {
 	if t := p.expect(TOKEN_COLON); t == nil {
 		return nil, fmt.Errorf("Expected `:`")
 	}

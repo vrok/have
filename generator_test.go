@@ -382,14 +382,49 @@ case (true || false):
 default:
 	print("a")
 }`},
-		//
-		//		{source: `
-		//func apply(l []int, f func(x int) int)) []int:
-		//	pass
-		//var l = apply({1, 2, 3}, func(x int):
-		//	return x + 2)
-		//`,
-		//		reference: ``},
+		{source: `
+func apply(l []int, f func(x int) int) []int:
+	pass
+var l = apply({1, 2, 3}, func(x int) int:
+	return x + 2)
+`,
+			reference: `func apply(l []int, f func(int) int) ([]int) {
+	// pass
+}
+var l = ([]int)(apply([]int{
+	1,
+	2,
+	3,
+}, func (x int) (int) {
+	return (x + 2)
+}))`},
+	}
+	testCases(t, cases)
+}
+
+func TestGenerateNestedBlocks(t *testing.T) {
+	cases := []generatorTestCase{
+		{source: `
+func a():
+	func b():
+		func c():
+			func d():
+				pass
+	func e():
+		pass
+`,
+			reference: `func a() {
+	func b() {
+		func c() {
+			func d() {
+				// pass
+			}
+		}
+	}
+	func e() {
+		// pass
+	}
+}`},
 	}
 	testCases(t, cases)
 }

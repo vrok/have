@@ -120,7 +120,13 @@ func (cc *CodeChunk) AddChprintf(format string, a ...interface{}) {
 
 			switch ops[i] {
 			case "%iC":
-				v.(InlineGenerable).InlineGenerate(cc, false)
+				ig, ok := v.(InlineGenerable)
+				if ok {
+					ig.InlineGenerate(cc, false)
+				} else {
+					// Fallback to Generable
+					v.Generate(cc)
+				}
 			case "%C":
 				v.Generate(cc)
 			}
@@ -370,9 +376,9 @@ func (se *SliceExpr) Generate(current *CodeChunk) {
 }
 
 func (fc *FuncCallExpr) Generate(current *CodeChunk) {
-	current.AddChprintf("%C(", fc.Left.(Generable))
+	current.AddChprintf("%iC(", fc.Left.(Generable))
 	for i, arg := range fc.Args {
-		arg.(Generable).Generate(current)
+		current.AddChprintf("%iC", arg)
 		if i+1 < len(fc.Args) {
 			current.AddString(", ")
 		}
@@ -381,6 +387,11 @@ func (fc *FuncCallExpr) Generate(current *CodeChunk) {
 }
 
 func (fd *FuncDecl) Generate(current *CodeChunk) {
+	fd.InlineGenerate(current, true)
+	current.AddChprintf("\n")
+}
+
+func (fd *FuncDecl) InlineGenerate(current *CodeChunk, noParenth bool) {
 	current = current.NewChunk()
 	if fd.Receiver == nil {
 		current.AddChprintf("func %s(", fd.name)
@@ -419,7 +430,7 @@ func (fd *FuncDecl) Generate(current *CodeChunk) {
 	current.AddString(" {\n")
 	fd.Code.Generate(current)
 
-	current.AddString("}\n")
+	current.AddChprintf("%C}", ForcedIndent)
 }
 
 func (bl *CodeBlock) Generate(current *CodeChunk) {
