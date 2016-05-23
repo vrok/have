@@ -122,3 +122,15 @@ func TestPlus(t *testing.T) {
 		&Token{TOKEN_PLUS_ASSIGN, 5, "+="},
 		&Token{TOKEN_EOF, 7, nil}})
 }
+
+func TestComments(t *testing.T) {
+	testTokens(t, []rune("\n#bla\n \n  for"), []*Token{
+		&Token{TOKEN_INDENT, 7, "  "},
+		&Token{TOKEN_FOR, 10, nil},
+		&Token{TOKEN_EOF, 13, nil}})
+	testTokens(t, []rune("123#bla\nfor"), []*Token{
+		&Token{TOKEN_INT, 0, "123"},
+		&Token{TOKEN_INDENT, 7, ""},
+		&Token{TOKEN_FOR, 8, nil},
+		&Token{TOKEN_EOF, 11, nil}})
+}

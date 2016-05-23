@@ -118,6 +118,7 @@ const (
 	TOKEN_PERCENT                // %
 	TOKEN_AND                    // &&
 	TOKEN_OR                     // ||
+	TOKEN_SHARP                  // #
 )
 
 type Lexer struct {
@@ -147,6 +148,33 @@ func (l *Lexer) skipWhiteChars() []rune {
 	whitespace := l.buf[:i]
 	l.skipBy(i)
 	return whitespace
+}
+
+func (l *Lexer) skipInlineComment() []rune {
+	if !l.isEnd() && l.buf[0] == '#' {
+		l.skip()
+		c := 0
+		for c < len(l.buf) && l.buf[c] != '\n' {
+			c++
+		}
+		cmt := l.buf[0:c]
+		l.skipBy(c)
+		return cmt
+	}
+	return nil
+}
+
+// Skip whitespace and comments
+func (l *Lexer) skipFluff() {
+	for {
+		before := len(l.buf)
+		l.skipWhiteChars()
+		l.skipInlineComment()
+		after := len(l.buf)
+		if before == after {
+			break
+		}
+	}
 }
 
 // Read an alphanumeric word from the buffer, advancing it.
@@ -292,6 +320,7 @@ func (l *Lexer) Next() (*Token, error) {
 	case ch == '\n':
 		l.skip()
 		indent := string(l.skipWhiteChars())
+		l.skipInlineComment()
 		l.tokenIndent = l.newToken(TOKEN_INDENT, indent)
 		return l.Next()
 	case unicode.IsSpace(ch):
@@ -436,6 +465,9 @@ func (l *Lexer) Next() (*Token, error) {
 	case ch == '.':
 		l.skip()
 		return l.retNewToken(TOKEN_DOT, nil)
+	case ch == '#':
+		l.skipInlineComment()
+		return l.Next()
 	case ch == '*':
 		alt, _ := l.checkAlt("*=", "*")
 		switch alt {
