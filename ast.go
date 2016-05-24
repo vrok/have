@@ -224,6 +224,12 @@ type SwitchBranch struct {
 	//   - `nil` for `default`
 	Values []Expr
 	Code   *CodeBlock
+	// Type switches can declare a variable that has different type in each switch
+	// branch. To keep things independent and invariant (and make the generator code less
+	// fragile), we actually declare a separate variable internally for each branch
+	// (all with the same name).
+	// For non-type-switches this is nil.
+	TypeSwitchVar *Variable
 }
 
 // implements Stmt

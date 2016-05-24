@@ -306,38 +306,73 @@ func (ss *SwitchStmt) NegotiateTypes() error {
 
 	var valType Type = &SimpleType{SIMPLE_TYPE_BOOL}
 
+	typeSwitch, assertion := false, (*TypeAssertion)(nil)
+
 	if ss.Value != nil {
 		switch val := ss.Value.(type) {
-		// TODO
-		// case *AssignStmt:
-		// // check if contains TypeCastExpr
-		case *ExprStmt:
-			err := val.NegotiateTypes()
-			if err != nil {
-				return err
+		case *VarStmt:
+			typeSwitch = true
+			init := val.Vars[0].Inits[0]
+			var ok bool
+			assertion, ok = init.(*TypeAssertion)
+			if !ok {
+				return fmt.Errorf("Variable not initialized with type assertion")
 			}
+			if !assertion.ForSwitch {
+				return fmt.Errorf("Type switch should use v.(type)")
+			}
+		case *ExprStmt:
+			var ok bool
+			if assertion, ok = val.Expression.(*TypeAssertion); ok {
+				typeSwitch = true
+				//typeAssert.Left.Type()
 
-			valType = val.Expression.(TypedExpr).Type()
+				// HERE, use CheckTypeAssert too
+			} else {
+				err := val.NegotiateTypes()
+				if err != nil {
+					return err
+				}
+
+				valType = val.Expression.(TypedExpr).Type()
+			}
 		}
 	}
 
 	wasDefault := false
-
 	for i, b := range ss.Branches {
 		if len(b.Values) > 0 {
-			if ss.Value == nil && len(b.Values) > 1 {
-				return fmt.Errorf("List of values in freeform switch")
-			}
-
-			for _, val := range b.Values {
-				err := NegotiateExprType(&valType, val.(TypedExpr))
-				if err != nil {
-					return fmt.Errorf("Error with switch clause: %s", i+1, err)
+			if typeSwitch {
+				if len(b.Values) != 1 {
+					return fmt.Errorf("More than 1 value in a branch of type switch")
+				}
+				typ, isTyp := ExprToTypeName(b.Values[0])
+				if !isTyp {
+					return fmt.Errorf("Not a type name in type switch")
 				}
 
-				if !AreComparable(valType, val.(TypedExpr).Type()) {
-					return fmt.Errorf("Error with switch clause, %s is not comparable to %s",
-						valType, val.(TypedExpr).Type())
+				if b.TypeSwitchVar != nil {
+					b.TypeSwitchVar.Type = typ
+				}
+
+				if err := CheckTypeAssert(assertion.Left.(TypedExpr), typ); err != nil {
+					return err
+				}
+			} else {
+				if ss.Value == nil && len(b.Values) > 1 {
+					return fmt.Errorf("List of values in freeform switch")
+				}
+
+				for _, val := range b.Values {
+					err := NegotiateExprType(&valType, val.(TypedExpr))
+					if err != nil {
+						return fmt.Errorf("Error with switch clause: %s", i+1, err)
+					}
+
+					if !AreComparable(valType, val.(TypedExpr).Type()) {
+						return fmt.Errorf("Error with switch clause, %s is not comparable to %s",
+							valType, val.(TypedExpr).Type())
+					}
 				}
 			}
 		} else {
@@ -735,34 +770,38 @@ func (ex *TypeAssertion) ApplyType(typ Type) error {
 	te := ex.Left.(TypedExpr)
 
 	if !te.Type().Known() {
-		err := te.ApplyType(typ)
+		err := te.ApplyType(ex.Right.typ)
 		if err != nil {
-			ok, typ := te.GuessType()
+			ok, guessedTyp := te.GuessType()
 			if !ok {
 				return err
 			}
 
-			err = te.ApplyType(typ)
+			err = te.ApplyType(guessedTyp)
 			if err != nil {
 				return err
 			}
 		}
 	}
 
-	if !IsInterface(te.Type()) {
-		return fmt.Errorf("Invalid type assertion, non-interface %s on left", te.Type())
-	}
-
-	if !IsInterface(ex.Right.typ) {
-		if !Implements(te.Type(), ex.Right.typ) {
-			return fmt.Errorf("Impossible type assertion: %s doesn't implement %s",
-				ex.Right.typ, te.Type())
-		}
-	}
-
-	return nil
+	return CheckTypeAssert(te, ex.Right.typ)
 }
 func (ex *TypeAssertion) GuessType() (ok bool, typ Type) { return false, nil }
+
+// Check if type assertion is sane.
+func CheckTypeAssert(src TypedExpr, target Type) error {
+	if !IsInterface(src.Type()) {
+		return fmt.Errorf("Invalid type assertion, non-interface `%s` used as a source", src.Type())
+	}
+
+	if !IsInterface(target) {
+		if !Implements(src.Type(), target) {
+			return fmt.Errorf("Impossible type assertion: `%s` doesn't implement `%s`",
+				target, src.Type())
+		}
+	}
+	return nil
+}
 
 func (ex *DotSelector) Type() Type {
 	leftType := ex.Left.(TypedExpr).Type()

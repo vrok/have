@@ -559,14 +559,29 @@ func (p *Parser) parseSwitchStmt() (*SwitchStmt, error) {
 		}
 	}
 
+	var typeSwitchVar *Variable
+
 	switch p.peek().Type {
 	case TOKEN_DEFAULT, TOKEN_CASE, TOKEN_INDENT:
 		// No main stmt/expr
+	case TOKEN_VAR:
+		var varStmt *VarStmt
+		// Push and pop scope so that this variable isn't available for binding,
+		// we use its copies instead (type switches are a bit odd).
+		p.identStack.pushScope()
+		varStmt, err = p.parseVarStmt(true)
+		p.identStack.popScope()
+		if len(varStmt.Vars) != 1 || len(varStmt.Vars[0].Vars) != 1 {
+			return nil, fmt.Errorf("Invalid variable declaration in switch header")
+		}
+		typeSwitchVar = varStmt.Vars[0].Vars[0]
+		mainStmt = varStmt
 	default:
 		mainStmt, err = p.parseSimpleStmt(false)
-		if err != nil {
-			return nil, err
-		}
+	}
+
+	if err != nil {
+		return nil, err
 	}
 
 loop:
@@ -583,15 +598,26 @@ loop:
 				return nil, err
 			}
 
+			// Scope just for easy disposal of typeSwitchVar.
+			p.identStack.pushScope()
+
+			var typeSwitchVarCopy *Variable
+			if typeSwitchVar != nil {
+				typeSwitchVarCopy = &(*typeSwitchVar)
+				p.identStack.addObject(typeSwitchVarCopy)
+			}
+
 			block, err := p.parseColonWithCodeBlock()
+			p.identStack.popScope()
 			if err != nil {
 				return nil, err
 			}
 
 			branches = append(branches, &SwitchBranch{
-				stmt:   stmt{expr: expr{t.Offset}},
-				Values: val,
-				Code:   block,
+				stmt:          stmt{expr: expr{t.Offset}},
+				Values:        val,
+				Code:          block,
+				TypeSwitchVar: typeSwitchVarCopy,
 			})
 		case TOKEN_DEFAULT:
 			block, err := p.parseColonWithCodeBlock()
@@ -954,6 +980,7 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl) (*StructType, error) {
 			result.Methods[fun.name] = fun
 			result.Keys = append(result.Keys, fun.name)
 			p.identStack.popScope()
+		case TOKEN_PASS:
 		default:
 			p.putBack(token)
 			p.forceIndentEnd()
@@ -1014,6 +1041,7 @@ func (p *Parser) parseInterface(named bool) (*IfaceType, error) {
 			fun.PtrReceiver = ptrReceiver
 			result.Methods[fun.name] = fun
 			result.Keys = append(result.Keys, fun.name)
+		case TOKEN_PASS:
 		default:
 			p.putBack(token)
 			p.forceIndentEnd()

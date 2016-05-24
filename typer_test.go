@@ -947,6 +947,88 @@ var c = true
 	})
 }
 
+func TestTypesTypeSwitch(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+var bla interface:
+	pass
+switch bla.(type)
+case int:
+	pass
+var y = true`, true, "bool"},
+		{`
+var bla interface:
+	func a()
+struct x:
+	func a():
+		pass
+switch bla.(type)
+case x: # Error: impossible assertion, x doesn't implement the interface
+	pass
+var y = true`, true, "bool"},
+		{`
+var bla interface:
+	func a()
+struct x:
+	pass
+switch bla.(type)
+case x: # Error: impossible assertion, x doesn't implement the interface
+	pass
+var y = true`, false, ""},
+		{`
+var bla int
+switch bla.(type) # Error: non-interface used for type switch
+case int:
+	pass
+var y = true`, false, ""},
+		{`
+var bla interface:
+	pass
+switch var x = bla.(type)
+case int:
+	pass
+var y = true`, true, "bool"},
+		{`
+var bla interface:
+	pass
+switch var x = bla.(int) # "int" instead of "type"
+case int:
+	pass
+var y = true`, false, ""},
+		{`
+var bla interface:
+	pass
+switch var x = bla.(type)
+case "ble": # Error: not a type name
+	pass
+var y = true`, false, ""},
+		{`
+var bla interface:
+	pass
+switch var x = bla.(type)
+case int:
+	var z int = x
+var y = true`, true, "bool"},
+		{`
+var bla interface:
+	pass
+switch var x = bla.(type)
+case int:
+	var z string = x # Error: string and int are not assignable
+var y = true`, false, ""},
+		{`
+var bla = 123
+var bla interface:
+	pass
+switch var x = bla.(type)
+case int:
+	var z int = x
+case string:
+	var z string = x
+var y = true`, true, "bool"},
+	})
+}
+
 func TestTypesRecvExpr(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
