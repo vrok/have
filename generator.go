@@ -331,7 +331,11 @@ func (ds *DotSelector) Generate(current *CodeChunk) {
 }
 
 func (ta *TypeAssertion) Generate(current *CodeChunk) {
-	current.AddChprintf("%C.(%s)", ta.Left, ta.Right.typ)
+	if ta.ForSwitch {
+		current.AddChprintf("%C.(type)", ta.Left)
+	} else {
+		current.AddChprintf("%C.(%s)", ta.Left, ta.Right.typ)
+	}
 }
 
 func (as *AssignStmt) Generate(current *CodeChunk) {

@@ -402,6 +402,36 @@ var l = ([]int)(apply([]int{
 	testCases(t, cases)
 }
 
+func TestGenerateTypeSwitchStmt(t *testing.T) {
+	cases := []generatorTestCase{
+		{source: `
+var bla interface:
+	func a()
+struct x:
+	func a():
+		pass
+switch bla.(type)
+case x: # Error: impossible assertion, x doesn't implement the interface
+	pass
+`,
+			reference: `
+var bla = (interface{a()})(nil)
+type x struct {
+}
+
+func (self x) a() {
+	// pass
+}
+
+switch bla.(type) {
+case x:
+	// pass
+}
+`},
+	}
+	testCases(t, cases)
+}
+
 func TestGenerateNestedBlocks(t *testing.T) {
 	cases := []generatorTestCase{
 		{source: `
