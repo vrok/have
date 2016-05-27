@@ -528,6 +528,12 @@ func TestFuncDecl(t *testing.T) {
 		{`func abc(x, y int) int:
 		  var x = 1
 		`, true},
+		{`func abc(x, y int, z string) int:
+	pass`, true},
+		{`func abc(x, y int, z) int: # Error: last parameter needs type
+	pass`, false},
+		{`func abc(x, y int int, z string) int: # Error: unexpected token (double int)
+	pass`, false},
 		{`func abc() int, float64:
   var x = 1
 `, true},

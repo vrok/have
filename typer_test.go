@@ -1566,3 +1566,19 @@ func TestSimple(t *testing.T) {
 		}
 	}
 }
+
+/*
+func TestTypesLateIdentLookup(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+var a A
+struct A:
+	pass
+var b = a
+`,
+			true,
+			"A",
+		},
+	})
+}
+*/

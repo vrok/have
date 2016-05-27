@@ -1087,6 +1087,29 @@ func (p *Parser) parseFuncType() (*FuncType, error) {
 	return hdr.typ, nil
 }
 
+func (p *Parser) typeFromWord(name string) Type {
+	var decl *TypeDecl = nil
+	if !p.dontLookup {
+		decl = p.identStack.findTypeDecl(name)
+		switch {
+		case decl == nil:
+			r := &CustomType{Name: name}
+			p.unboundTypes.add(name, r)
+			return r
+		case decl.AliasedType == nil:
+			return &SimpleType{ID: simpleTypeStrToID[name]}
+		default:
+			return &CustomType{Name: name, Decl: decl}
+		}
+	} else {
+		// TODO: we don't want so much code which is mostly used just for tests
+		if _, ok := GetBuiltinType(name); ok {
+			return &SimpleType{ID: simpleTypeStrToID[name]}
+		}
+		return &CustomType{Name: name, Decl: decl}
+	}
+}
+
 func (p *Parser) parseType() (Type, error) {
 	token := p.nextToken()
 	switch token.Type {
@@ -1152,26 +1175,7 @@ func (p *Parser) parseType() (Type, error) {
 		}
 	case TOKEN_WORD:
 		name := token.Value.(string)
-		var decl *TypeDecl = nil
-		if !p.dontLookup {
-			decl = p.identStack.findTypeDecl(name)
-			switch {
-			case decl == nil:
-				r := &CustomType{Name: name}
-				p.unboundTypes.add(name, r)
-				return r, nil
-			case decl.AliasedType == nil:
-				return &SimpleType{ID: simpleTypeStrToID[name]}, nil
-			default:
-				return &CustomType{Name: name, Decl: decl}, nil
-			}
-		} else {
-			// TODO: we don't want so much code which is mostly used just for tests
-			if _, ok := GetBuiltinType(name); ok {
-				return &SimpleType{ID: simpleTypeStrToID[name]}, nil
-			}
-			return &CustomType{Name: name, Decl: decl}, nil
-		}
+		return p.typeFromWord(name), nil
 	case TOKEN_STRUCT:
 		p.putBack(token)
 		return p.parseStruct(nil)
@@ -1521,66 +1525,82 @@ func (p *Parser) parseArgsDecl() (DeclChain, error) {
 	var result []*Variable
 	var types []Type
 
-	commit := false
-	p.unboundTypes.enableDirtyMode()
-	defer func() {
-		if commit {
-			p.unboundTypes.commit()
-		} else {
-			p.unboundTypes.abandon()
-		}
-	}()
+	var names []*Token
 
-	named := false
+	type knowledgeState int
+	const undecided, named, anon knowledgeState = 0, 1, 2
+	state := undecided
 
 loop:
 	for {
-		t, err := p.parseType()
-		if err != nil {
-			return nil, err
+		switch state {
+		case undecided:
+			if p.peek().Type == TOKEN_WORD {
+				// We don't know yet if it's a paramether name or type name.
+				names = append(names, p.nextToken())
+			} else {
+				// This surely isn't a parameter name, but could be a type name.
+				state = anon
+				continue loop
+			}
+		case named:
+			names = append(names, p.nextToken())
+		case anon:
+			t, err := p.parseType()
+			if err != nil {
+				return nil, err
+			}
+			types = append(types, t)
 		}
-
-		types = append(types, t)
 
 		switch p.peek().Type {
 		case TOKEN_RPARENTH, TOKEN_COLON, TOKEN_INDENT:
-			if named {
-				return nil, fmt.Errorf("Type name expected before `)`")
+			switch state {
+			case undecided, anon:
+				for _, name := range names {
+					result = append(result, &Variable{Type: p.typeFromWord(name.Value.(string))})
+				}
+				for _, typ := range types {
+					result = append(result, &Variable{Type: typ})
+				}
+				names = nil
+				break loop
+			case named:
+				return nil, fmt.Errorf("Last parameter needs a type")
 			}
-			p.unboundTypes.matchWithStack(p.identStack)
-			commit = true
-			return DeclChain{&VarDecl{Vars: p.makeUnnamedVars(types)}}, nil
 		case TOKEN_COMMA:
 			p.nextToken()
-			p.skipIndents()
-			continue loop
+			p.skipWhiteSpace()
 		default:
-			named = true
-			p.unboundTypes.abandon()
-			t, err := p.parseType()
-			p.unboundTypes.enableDirtyMode()
-			if err != nil {
-				return nil, err
+			switch state {
+			case anon:
+				fmt.Errorf("Invalid arguments declaration: comma missing or a typo in argument name")
+			case undecided:
+				state = named
+				fallthrough
+			case named:
+				t, err := p.parseType()
+				if err != nil {
+					return nil, err
+				}
+				for _, name := range names {
+					result = append(result, &Variable{name: name.Value.(string), Type: t})
+				}
+				names = nil
 			}
 
-			vars, err := p.typesToVars(types, t)
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, vars...)
-			types = nil
-
-			switch tok := p.peek(); tok.Type {
-			case TOKEN_RPARENTH:
-				return DeclChain{&VarDecl{Vars: result}}, nil
+			switch p.peek().Type {
+			case TOKEN_RPARENTH, TOKEN_COLON, TOKEN_INDENT:
+				break loop
 			case TOKEN_COMMA:
 				p.nextToken()
-				continue loop
 			default:
-				return nil, fmt.Errorf("Unexpected token after parameter type: %s", tok.Type)
+				return nil, fmt.Errorf("Unexpected token: %s", p.peek().Type)
 			}
 		}
 	}
+
+	return []*VarDecl{&VarDecl{Vars: result}}, nil
 }
 
 func typesFromVars(vd DeclChain) []Type {
