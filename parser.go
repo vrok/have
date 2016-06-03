@@ -16,7 +16,8 @@ type Parser struct {
 
 	// TODO: Remove after implementing unboundVars
 	ignoreUnknowns bool
-	unboundTypes   *unboundTypes
+	unboundTypes   map[string]*CustomType
+	unboundIdents  map[string]*Ident
 
 	dontLookup bool
 
@@ -46,6 +47,8 @@ func (p *Parser) peek() *Token {
 func NewParser(lex *Lexer) *Parser {
 	parser := NewParserWithoutBuiltins(lex)
 	parser.loadBuiltinFuncs()
+	// Push a scope so that builtins are stored in a separate scope.
+	parser.identStack.pushScope()
 	return parser
 }
 
@@ -53,7 +56,8 @@ func NewParserWithoutBuiltins(lex *Lexer) *Parser {
 	return &Parser{lex: lex,
 		identStack:       &IdentStack{map[string]Object{}},
 		branchTreesStack: []*BranchStmtsTree{NewBranchStmtsTree()},
-		unboundTypes:     newUnboundTypes()}
+		unboundTypes:     make(map[string]*CustomType),
+		unboundIdents:    make(map[string]*Ident)}
 }
 
 // Put back a token.
@@ -1094,7 +1098,7 @@ func (p *Parser) typeFromWord(name string) Type {
 		switch {
 		case decl == nil:
 			r := &CustomType{Name: name}
-			p.unboundTypes.add(name, r)
+			p.unboundTypes[name] = r
 			return r
 		case decl.AliasedType == nil:
 			return &SimpleType{ID: simpleTypeStrToID[name]}
@@ -1250,7 +1254,7 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 
 		if !p.dontLookup {
 			if v := p.identStack.findObject(name); v == nil && !p.ignoreUnknowns {
-				return nil, fmt.Errorf("Unknown identifier: %s", name)
+				p.unboundIdents[name] = ident
 			} else {
 				ident.object = v
 			}
@@ -1308,7 +1312,7 @@ loop:
 				}
 				return &TypeAssertion{expr{token.Offset}, te == nil, left, te, nil}, nil
 			case TOKEN_WORD:
-				left = &DotSelector{expr{token.Offset}, left, &Ident{expr{t.Offset}, t.Value.(string), nil}}
+				left = &DotSelector{expr{token.Offset}, left, &Ident{expr{t.Offset}, t.Value.(string), nil, false}}
 			default:
 				return nil, fmt.Errorf("Unexpected token after `.`")
 			}
@@ -1354,7 +1358,8 @@ loop:
 					literal.typ = &CustomType{Name: t.name}
 				} else {
 					if t.object.ObjectType() != OBJECT_TYPE {
-						return nil, fmt.Errorf("Literal of non-typename expression `%s`", t.Type())
+						typ, _ := t.Type()
+						return nil, fmt.Errorf("Literal of non-typename expression `%s`", typ)
 					}
 					literal.typ = t.object.(*TypeDecl).Type()
 				}
@@ -1765,7 +1770,7 @@ func (p *Parser) parseBranchStmt() (*BranchStmt, error) {
 	if p.peek().Type == TOKEN_WORD {
 		word := p.nextToken()
 
-		id = &Ident{expr{word.Offset}, word.Value.(string), nil}
+		id = &Ident{expr{word.Offset}, word.Value.(string), nil, false}
 		// TODO: lookup ident (when label parsing is implemented)
 	}
 
@@ -2007,33 +2012,29 @@ func (p *Parser) parseStmt() (Stmt, error) {
 	}
 }
 
-type File struct {
-	Pkg        string
-	Statements []Stmt
-}
-
-func (p *Parser) ParseFile() (*File, error) {
+func (p *Parser) ParseFile(f *File) error {
 	if p.expect(TOKEN_PACKAGE) == nil {
-		return nil, fmt.Errorf("Expected keyword `package` at the beginning of a file")
+		return fmt.Errorf("Expected keyword `package` at the beginning of a file")
 	}
 
 	pkg := ""
 	if t := p.expect(TOKEN_WORD); t == nil {
-		return nil, fmt.Errorf("Expected package name after the `package` keyword")
+		return fmt.Errorf("Expected package name after the `package` keyword")
 	} else {
 		pkg = t.Value.(string)
 	}
 
 	stmts, err := p.Parse()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return &File{Pkg: pkg, Statements: stmts}, nil
+	f.pkg, f.statements = pkg, stmts
+	return nil
 }
 
-func (p *Parser) Parse() ([]Stmt, error) {
-	var result = []Stmt{}
+func (p *Parser) Parse() ([]*TopLevelStmt, error) {
+	var result = []*TopLevelStmt{}
 	for t := p.nextToken(); t.Type != TOKEN_EOF; t = p.nextToken() {
 		p.putBack(t)
 		stmt, err := p.parseStmt()
@@ -2044,7 +2045,14 @@ func (p *Parser) Parse() ([]Stmt, error) {
 			// EOF
 			break
 		}
-		result = append(result, stmt)
+		result = append(result, &TopLevelStmt{
+			Stmt:          stmt,
+			unboundTypes:  p.unboundTypes,
+			unboundIdents: p.unboundIdents,
+		})
+		// Reset unbound types/idents before next statement
+		p.unboundTypes = make(map[string]*CustomType)
+		p.unboundIdents = make(map[string]*Ident)
 	}
 	return result, nil
 }

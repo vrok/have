@@ -25,7 +25,7 @@ func testVarTypes(t *testing.T, cases []typeTestCase) {
 		var ok = false
 
 		for _, stmt := range result {
-			stmtWithTypes, ok = stmt.(ExprToProcess)
+			stmtWithTypes, ok = stmt.Stmt.(ExprToProcess)
 			if ok {
 				err = stmtWithTypes.NegotiateTypes()
 				if err != nil {
@@ -49,10 +49,11 @@ func testVarTypes(t *testing.T, cases []typeTestCase) {
 				firstInit = firstDecl.Inits[0]
 			}
 
-			if firstVar.Type.String() != c.typ || !IsAssignable(firstInit.(TypedExpr).Type(), firstVar.Type) {
+			fit, err := firstInit.(TypedExpr).Type()
+			if firstVar.Type.String() != c.typ || !IsAssignable(fit, firstVar.Type) || err != nil {
 				t.Fail()
 				fmt.Printf("FAIL: Case %d: Bad type: %s, %s, %s\n", i, c.typ, firstVar.Type.String(),
-					firstInit.(TypedExpr).Type().String())
+					fit.String())
 			}
 		}
 	}
@@ -1558,10 +1559,11 @@ func TestSimple(t *testing.T) {
 				firstInit = firstDecl.Inits[0]
 			}
 
-			if firstVar.Type.String() != c.typ || firstInit.(TypedExpr).Type().String() != c.typ {
+			fit, err := firstInit.(TypedExpr).Type()
+			if firstVar.Type.String() != c.typ || fit.String() != c.typ || err != nil {
 				t.Fail()
 				fmt.Printf("Case %d: Bad type: %s, %s, %s\n", i, c.typ, firstVar.Type.String(),
-					firstInit.(TypedExpr).Type().String())
+					fit.String())
 			}
 		}
 	}

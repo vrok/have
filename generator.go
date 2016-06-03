@@ -243,8 +243,13 @@ func (vd *VarDecl) Generate(current *CodeChunk) {
 	vd.eachPair(func(v *Variable, init Expr) {
 		names.AddChprintf("%s", v.name)
 
+		var it Type
+		if init != nil {
+			it, _ = init.(TypedExpr).Type()
+		}
+
 		if noMoreInits {
-		} else if init != nil && init.(TypedExpr).Type().Kind() == KIND_TUPLE {
+		} else if init != nil && it.Kind() == KIND_TUPLE {
 			// For tuples we can't do any type casting/conversion. It is a bit magical
 			// in Go, nothing can be in between.
 			inits.AddChprintf("%C", init)
@@ -521,9 +526,9 @@ func (fs *ForStmt) Generate(current *CodeChunk) {
 }
 
 func (f *File) Generate(current *CodeChunk) {
-	current.AddChprintf("package %s\n\n", f.Pkg)
-	for _, stmt := range f.Statements {
-		stmt.(Generable).Generate(current)
+	current.AddChprintf("package %s\n\n", f.pkg)
+	for _, stmt := range f.statements {
+		stmt.Stmt.(Generable).Generate(current)
 	}
 }
 

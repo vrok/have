@@ -50,19 +50,19 @@ func testPrimaryExpr(t *testing.T, code string, expected Expr) {
 }
 
 func TestPrimaryExpr(t *testing.T) {
-	testPrimaryExpr(t, "test", &Ident{expr{0}, "test", nil})
-	testPrimaryExpr(t, "test(arg)", &FuncCallExpr{expr: expr{4}, Left: &Ident{expr{0}, "test", nil}, Args: nil}) // TODO: fill args
+	testPrimaryExpr(t, "test", &Ident{expr{0}, "test", nil, false})
+	testPrimaryExpr(t, "test(arg)", &FuncCallExpr{expr: expr{4}, Left: &Ident{expr{0}, "test", nil, false}, Args: nil}) // TODO: fill args
 	testPrimaryExpr(t, "test.tere[123]",
 		&ArrayExpr{
 			expr: expr{9},
 			Left: &DotSelector{
 				expr:  expr{4},
-				Left:  &Ident{expr{0}, "test", nil},
-				Right: &Ident{expr{5}, "tere", nil}},
+				Left:  &Ident{expr{0}, "test", nil, false},
+				Right: &Ident{expr{5}, "tere", nil, false}},
 			Index: &BasicLit{expr{10}, nil, &Token{TOKEN_INT, 10, 123}}})
 	testPrimaryExpr(t, "dywan[1:5]", &ArrayExpr{
 		expr: expr{5},
-		Left: &Ident{expr{0}, "dywan", nil},
+		Left: &Ident{expr{0}, "dywan", nil, false},
 		Index: &SliceExpr{expr: expr{6},
 			From: &BasicLit{expr{6}, nil, &Token{TOKEN_INT, 6, 1}},
 			To:   &BasicLit{expr{8}, nil, &Token{TOKEN_INT, 8, 5}},
@@ -71,7 +71,7 @@ func TestPrimaryExpr(t *testing.T) {
 	testPrimaryExpr(t, "{1,2}", &CompoundLit{})
 	testPrimaryExpr(t, "{1:2}.bla", &DotSelector{expr: expr{5},
 		Left:  &CompoundLit{expr: expr{0}},
-		Right: &Ident{expr{6}, "bla", nil}})
+		Right: &Ident{expr{6}, "bla", nil, false}})
 	testPrimaryExpr(t, "map[int]int{1:2}", &CompoundLit{})
 	testPrimaryExpr(t, "[]int{1,2}", &CompoundLit{})
 	testPrimaryExpr(t, "dywan{1}", &CompoundLit{})
@@ -104,8 +104,8 @@ func testExpr(t *testing.T, code string, expected Expr) {
 func TestParseExpr(t *testing.T) {
 	testExpr(t, "test+pies", &BinaryOp{
 		expr:  expr{4},
-		Left:  &Ident{expr{0}, "test", nil},
-		Right: &Ident{expr{5}, "pies", nil},
+		Left:  &Ident{expr{0}, "test", nil, false},
+		Right: &Ident{expr{5}, "pies", nil, false},
 	})
 	testExpr(t, "1*2+3*4", &BinaryOp{
 		expr: expr{3},
@@ -186,9 +186,9 @@ func TestArgs(t *testing.T) {
 	testArgs(t, "", []Expr{})
 	testArgs(t, ")", []Expr{})
 	testArgs(t, "1,bla", []Expr{&BasicLit{expr{0}, nil, &Token{TOKEN_INT, 0, "1"}},
-		&Ident{expr{2}, "bla", nil}})
+		&Ident{expr{2}, "bla", nil, false}})
 	testArgs(t, "1,bla)", []Expr{&BasicLit{expr{0}, nil, &Token{TOKEN_INT, 0, "1"}},
-		&Ident{expr{2}, "bla", nil}})
+		&Ident{expr{2}, "bla", nil, false}})
 }
 
 func TestCodeBlock(t *testing.T) {
@@ -241,11 +241,11 @@ func TestForStmt(t *testing.T) {
 		parser := NewParser(NewLexer([]rune(c.code)))
 		result, err := parser.parseForStmt(nil)
 
-		passed := err == nil
+		passed := (err == nil && len(parser.unboundIdents) == 0)
 
 		if passed != c.shouldPass {
 			t.Fail()
-			fmt.Printf("Error parsing `for`, shouldPass=%v, %s %s\n", c.shouldPass, err, spew.Sdump(result))
+			fmt.Printf("Error parsing `for`, shouldPass=%v, %s %s\n", c.shouldPass, err, result)
 		}
 	}
 }
@@ -286,7 +286,7 @@ else
 		parser := NewParser(NewLexer([]rune(c.code)))
 		result, err := parser.parseIf()
 
-		passed := err == nil
+		passed := (err == nil && len(parser.unboundIdents) == 0)
 
 		// TODO: better assertions, more test cases.
 		// We'll need something more succint than comparing whole ASTs.
@@ -437,10 +437,7 @@ func TestParseCompoundLiterals(t *testing.T) {
 }
 
 func TestIdentSearch(t *testing.T) {
-	cases := []struct {
-		code  string
-		valid bool
-	}{
+	cases := []validityTestCase{
 		{`func abc(x int):
 		  var x = 1
 		`, true},
@@ -474,14 +471,16 @@ func TestIdentSearch(t *testing.T) {
 		parser := NewParser(NewLexer([]rune(c.code)))
 		result, err := parser.parseFunc()
 
+		passed := (err == nil && len(parser.unboundIdents) == 0)
+
 		// TODO: better assertions, more test cases.
 		// We'll need something more succint than comparing whole ASTs.
-		if c.valid && err != nil {
+		if c.valid && !passed {
 			t.Fail()
-			fmt.Printf("Error parsing %s %s\n", err, spew.Sdump(result))
-		} else if err == nil && !c.valid {
+			fmt.Printf("Error parsing a function %s %s\n", err, spew.Sdump(result))
+		} else if !c.valid && passed {
 			t.Fail()
-			fmt.Printf("Parsing should've failed %s %s\n", err, spew.Sdump(result))
+			fmt.Printf("Parsing a compound literal should've failed %s %s\n", err, spew.Sdump(result))
 		}
 	}
 }
@@ -491,19 +490,29 @@ type validityTestCase struct {
 	valid bool
 }
 
+func countUnbounds(l []*TopLevelStmt) (result int) {
+	for _, stmt := range l {
+		result += len(stmt.unboundIdents) + len(stmt.unboundTypes)
+	}
+	return result
+}
+
 func validityTest(t *testing.T, cases []validityTestCase) {
-	for _, c := range cases {
+	for i, c := range cases {
 		parser := NewParser(NewLexer([]rune(c.code)))
 		result, err := parser.Parse()
 
+		passed := (err == nil && countUnbounds(result) == 0)
+
 		// TODO: better assertions, more test cases.
 		// We'll need something more succint than comparing whole ASTs.
-		if c.valid && err != nil {
+		if c.valid && !passed {
 			t.Fail()
 			fmt.Printf("Error parsing a function %s %s\n", err, spew.Sdump(result))
-		} else if err == nil && !c.valid {
+		} else if !c.valid && passed {
 			t.Fail()
-			fmt.Printf("Parsing a compound literal should've failed %s %s\n", err, spew.Sdump(result))
+			fmt.Printf("Parsing case %d should've failed (err: %s)\n%s\n---\n%s\n",
+				i, err, c.code, spew.Sdump(result))
 		}
 	}
 }

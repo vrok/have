@@ -12,7 +12,7 @@ type TypedExpr interface {
 	//ExprToProcess
 	Expr
 
-	Type() Type
+	Type() (Type, error)
 	ApplyType(typ Type) error
 	GuessType() (ok bool, typ Type)
 }
@@ -204,7 +204,11 @@ func (is *IfaceStmt) NegotiateTypes() error {
 func NegotiateExprType(varType *Type, value TypedExpr) error {
 	*varType = nonilTyp(*varType)
 
-	typ := firstKnown(*varType, value.Type())
+	valueTyp, err := value.Type()
+	if err != nil {
+		return err
+	}
+	typ := firstKnown(*varType, valueTyp)
 	if typ == nil {
 		// Try guessing. Literals like "1", or "{1, 2}" can be used
 		// to initialize variables of many types (int/double/etc,
@@ -221,7 +225,11 @@ func NegotiateExprType(varType *Type, value TypedExpr) error {
 
 	*varType = typ
 
-	if !value.Type().Known() {
+	valueTyp, err = value.Type()
+	if err != nil {
+		return err
+	}
+	if !valueTyp.Known() {
 		// Don't always run ApplyType for interfaces - lhs and rhs expressions
 		// might have different types and that is on purpose.
 		if IsInterface(typ) {
@@ -240,12 +248,12 @@ func NegotiateExprType(varType *Type, value TypedExpr) error {
 		}
 		return value.ApplyType(typ)
 	} else {
-		if !IsAssignable(typ, value.Type()) {
-			return fmt.Errorf("Types %s and %s are not assignable", typ, value.Type())
+		if !IsAssignable(typ, valueTyp) {
+			return fmt.Errorf("Types %s and %s are not assignable", typ, valueTyp)
 		}
 		// Run value.ApplyType with value's own type - seems unnecessary,
 		// but ApplyType might do some extra checks as side effects.
-		return value.ApplyType(value.Type())
+		return value.ApplyType(valueTyp)
 	}
 }
 
@@ -334,7 +342,10 @@ func (ss *SwitchStmt) NegotiateTypes() error {
 					return err
 				}
 
-				valType = val.Expression.(TypedExpr).Type()
+				valType, err = val.Expression.(TypedExpr).Type()
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -369,9 +380,13 @@ func (ss *SwitchStmt) NegotiateTypes() error {
 						return fmt.Errorf("Error with switch clause: %s", i+1, err)
 					}
 
-					if !AreComparable(valType, val.(TypedExpr).Type()) {
+					expType, err := val.(TypedExpr).Type()
+					if err != nil {
+						return err
+					}
+					if !AreComparable(valType, expType) {
 						return fmt.Errorf("Error with switch clause, %s is not comparable to %s",
-							valType, val.(TypedExpr).Type())
+							valType, expType)
 					}
 				}
 			}
@@ -442,10 +457,14 @@ func NegotiateTupleUnpackAssign(onlyFuncCalls bool, lhsTypes []*Type, rhs TypedE
 
 	switch rhs.(type) {
 	case *FuncCallExpr:
-		if rhs.Type().Kind() != KIND_TUPLE {
+		rhsType, err := rhs.Type()
+		if err != nil {
+			return err
+		}
+		if rhsType.Kind() != KIND_TUPLE {
 			return fmt.Errorf("Too few values on the right side (function call returns only 1 result)")
 		}
-		tuple = rhs.Type().(*TupleType)
+		tuple = rhsType.(*TupleType)
 	default:
 		// In other cases (non-function-calls), tuples aren't returned explicitly - extra
 		// boolean is returned only if two variables are in the lhs expression.
@@ -454,7 +473,12 @@ func NegotiateTupleUnpackAssign(onlyFuncCalls bool, lhsTypes []*Type, rhs TypedE
 			return fmt.Errorf("Too few values")
 		}
 
-		var ok, leftTyp = true, rhs.Type()
+		leftTyp, err := rhs.Type()
+		if err != nil {
+			return err
+		}
+
+		var ok = true
 		if !leftTyp.Known() {
 			ok, leftTyp = rhs.GuessType()
 		}
@@ -499,7 +523,10 @@ func (as *AssignStmt) NegotiateTypes() error {
 
 			types := make([]*Type, len(as.Lhs))
 			for i, v := range as.Lhs {
-				typ := v.(TypedExpr).Type()
+				typ, err := v.(TypedExpr).Type()
+				if err != nil {
+					return err
+				}
 				types[i] = &typ
 			}
 
@@ -510,8 +537,11 @@ func (as *AssignStmt) NegotiateTypes() error {
 	}
 
 	for i := range as.Lhs {
-		leftType := as.Lhs[i].(TypedExpr).Type()
-		err := NegotiateExprType(&leftType, as.Rhs[i].(TypedExpr))
+		leftType, err := as.Lhs[i].(TypedExpr).Type()
+		if err != nil {
+			return err
+		}
+		err = NegotiateExprType(&leftType, as.Rhs[i].(TypedExpr))
 		if err != nil {
 			return err
 		}
@@ -519,6 +549,18 @@ func (as *AssignStmt) NegotiateTypes() error {
 		// TODO: check addressability, "_" for ==, and if type is numeric for +=, -=,...
 	}
 	return nil
+}
+
+type varInitPair struct {
+	v    *Variable
+	init Expr
+}
+
+func (p *varInitPair) NegotiateTypes() error {
+	if p.init == nil {
+		p.init = NewBlankExpr()
+	}
+	return NegotiateExprType(&p.v.Type, p.init.(TypedExpr))
 }
 
 func (vd *VarDecl) NegotiateTypes() error {
@@ -534,15 +576,59 @@ func (vd *VarDecl) NegotiateTypes() error {
 	}
 
 	var err error
+	var depErrs []*needsDepErr
 	vd.eachPair(func(v *Variable, init Expr) {
 		if err == nil {
-			if init == nil {
-				init = NewBlankExpr()
+			err = (&varInitPair{v: v, init: init}).NegotiateTypes()
+
+			if depErr, ok := err.(*needsDepErr); ok {
+				depErrs = append(depErrs, depErr)
+				err = nil
 			}
-			err = NegotiateExprType(&v.Type, init.(TypedExpr))
 		}
 	})
-	return err
+	if err != nil {
+		return err
+	}
+
+	if len(depErrs) > 0 {
+		merged := needsDepErr{
+			depName: depErrs[0].depName, // Use the first one for now
+		}
+
+		for _, nde := range depErrs {
+			merged.unchecked = append(merged.unchecked, nde.unchecked...)
+		}
+
+		return &merged
+	}
+
+	/*
+		var progress bool
+		for progress {
+			before := len(depErrs)
+			for i := len(depErrs) - 1; i >= 0; i-- {
+				depErr := depErrs[i]
+				err = NegotiateExprType(&(depErr.unchecked.v.Type), depErr.unchecked.init.(TypedExpr))
+
+				_, isDepErr := err.(*needsDepErr)
+
+				switch {
+				case err == nil:
+					// Fixed - VarDecl had an internal dependency.
+					depErrs = append(depErrs[:i], depErrs[i+1:]...)
+				case isDepErr:
+					// Still unresolved, but might be an external dependency.
+				default:
+					// Some other error, report it.
+					return err
+				}
+			}
+			after := len(depErrs)
+			progress = after < before
+		}
+	*/
+	return nil
 }
 
 func (es *ExprStmt) NegotiateTypes() error {
@@ -550,14 +636,17 @@ func (es *ExprStmt) NegotiateTypes() error {
 	return NegotiateExprType(&uk, es.Expression.(TypedExpr))
 }
 
-func (ex *BlankExpr) Type() Type                     { return &UnknownType{} }
+func (ex *BlankExpr) Type() (Type, error)            { return &UnknownType{}, nil }
 func (ex *BlankExpr) ApplyType(typ Type) error       { return nil }
 func (ex *BlankExpr) GuessType() (ok bool, typ Type) { return false, nil }
 
 // Implements convertability definition from Go spec
 // https://golang.org/ref/spec#Conversions
 func IsConvertable(what TypedExpr, to Type) bool {
-	wt := what.Type()
+	wt, err := what.Type()
+	if err != nil {
+		panic("BUG: Type() errors should be dealt with before IsConvertable")
+	}
 
 	if IsAssignable(to, wt) {
 		return true
@@ -608,31 +697,35 @@ func ExprToTypeName(e Expr) (t Type, ok bool) {
 	return nil, false
 }
 
-func (ex *FuncCallExpr) Type() Type {
+func (ex *FuncCallExpr) Type() (Type, error) {
 	if castType, cast := ExprToTypeName(ex.Left); cast {
 		if len(ex.Args) != 1 {
-			panic("todo - report error")
+			return nil, fmt.Errorf("Type casts take only 1 argument")
 		}
 		if IsConvertable(ex.Args[0].(TypedExpr), castType) {
-			return castType
+			return castType, nil
 		}
 	} else {
 		callee := ex.Left.(TypedExpr)
-		calleeType := UnderlyingType(callee.Type())
+		calleeType, err := callee.Type()
+		if err != nil {
+			return nil, err
+		}
+		calleeType = UnderlyingType(calleeType)
 		if calleeType.Kind() != KIND_FUNC {
-			return &UnknownType{}
+			return &UnknownType{}, nil
 		}
 		asFunc := calleeType.(*FuncType)
 		switch {
 		case len(asFunc.Results) == 0:
-			return &UnknownType{}
+			return &UnknownType{}, nil
 		case len(asFunc.Results) == 1:
-			return asFunc.Results[0]
+			return asFunc.Results[0], nil
 		default:
-			return &TupleType{Members: asFunc.Results}
+			return &TupleType{Members: asFunc.Results}, nil
 		}
 	}
-	return &UnknownType{}
+	return &UnknownType{}, nil
 }
 
 func (ex *FuncCallExpr) ApplyType(typ Type) error {
@@ -643,7 +736,8 @@ func (ex *FuncCallExpr) ApplyType(typ Type) error {
 		// Just try applying, ignore error - even if it fails if might still be convertible.
 		ex.Args[0].(TypedExpr).ApplyType(castType)
 		if !IsConvertable(ex.Args[0].(TypedExpr), castType) {
-			return fmt.Errorf("Impossible conversion from %s to %s", ex.Args[0].(TypedExpr).Type(), castType)
+			typ, _ := ex.Args[0].(TypedExpr).Type()
+			return fmt.Errorf("Impossible conversion from %s to %s", typ, castType)
 		}
 		if !IsAssignable(typ, castType) {
 			return fmt.Errorf("Cannot assign `%s` to `%s`", castType, typ)
@@ -651,7 +745,11 @@ func (ex *FuncCallExpr) ApplyType(typ Type) error {
 		return nil
 	} else {
 		callee := ex.Left.(TypedExpr)
-		calleeType := UnderlyingType(callee.Type())
+		calleeType, err := callee.Type()
+		if err != nil {
+			return err
+		}
+		calleeType = UnderlyingType(calleeType)
 		if calleeType.Kind() != KIND_FUNC {
 			return fmt.Errorf("Only functions can be called, not %s", calleeType)
 		}
@@ -704,8 +802,8 @@ func (ex *FuncCallExpr) GuessType() (ok bool, typ Type) {
 	}
 }
 
-func (ex *FuncDecl) Type() Type {
-	return ex.typ
+func (ex *FuncDecl) Type() (Type, error) {
+	return ex.typ, nil
 }
 func (ex *FuncDecl) ApplyType(typ Type) error {
 	if !IsAssignable(typ, ex.typ) {
@@ -727,7 +825,7 @@ func (cb *CodeBlock) CheckTypes() error {
 	return nil
 }
 
-func (ex *TypeExpr) Type() Type { return ex.typ }
+func (ex *TypeExpr) Type() (Type, error) { return ex.typ, nil }
 func (ex *TypeExpr) ApplyType(typ Type) error {
 	if ex.typ.String() != typ.String() {
 		return fmt.Errorf("Different types, %s and %s", ex.typ.String(), typ.String())
@@ -736,14 +834,14 @@ func (ex *TypeExpr) ApplyType(typ Type) error {
 }
 func (ex *TypeExpr) GuessType() (ok bool, typ Type) { return false, nil }
 
-func (ex *TypeAssertion) Type() Type {
+func (ex *TypeAssertion) Type() (Type, error) {
 	if ex.typ != nil {
-		return ex.typ
+		return ex.typ, nil
 	}
 	if ex.ForSwitch {
-		return &UnknownType{}
+		return &UnknownType{}, nil
 	}
-	return nonilTyp(ex.Right.typ)
+	return nonilTyp(ex.Right.typ), nil
 }
 func (ex *TypeAssertion) ApplyType(typ Type) error {
 	if ex.ForSwitch {
@@ -769,7 +867,12 @@ func (ex *TypeAssertion) ApplyType(typ Type) error {
 
 	te := ex.Left.(TypedExpr)
 
-	if !te.Type().Known() {
+	teType, err := te.Type()
+	if err != nil {
+		return err
+	}
+
+	if !teType.Known() {
 		err := te.ApplyType(ex.Right.typ)
 		if err != nil {
 			ok, guessedTyp := te.GuessType()
@@ -790,21 +893,29 @@ func (ex *TypeAssertion) GuessType() (ok bool, typ Type) { return false, nil }
 
 // Check if type assertion is sane.
 func CheckTypeAssert(src TypedExpr, target Type) error {
-	if !IsInterface(src.Type()) {
-		return fmt.Errorf("Invalid type assertion, non-interface `%s` used as a source", src.Type())
+	srcType, err := src.Type()
+	if err != nil {
+		return err
+	}
+
+	if !IsInterface(srcType) {
+		return fmt.Errorf("Invalid type assertion, non-interface `%s` used as a source", srcType)
 	}
 
 	if !IsInterface(target) {
-		if !Implements(src.Type(), target) {
+		if !Implements(srcType, target) {
 			return fmt.Errorf("Impossible type assertion: `%s` doesn't implement `%s`",
-				target, src.Type())
+				target, srcType)
 		}
 	}
 	return nil
 }
 
-func (ex *DotSelector) Type() Type {
-	leftType := ex.Left.(TypedExpr).Type()
+func (ex *DotSelector) Type() (Type, error) {
+	leftType, err := ex.Left.(TypedExpr).Type()
+	if err != nil {
+		return nil, err
+	}
 
 	if leftType.Kind() == KIND_POINTER {
 		asPtr := leftType.(*PointerType)
@@ -820,32 +931,38 @@ func (ex *DotSelector) Type() Type {
 		if !ok {
 			method, ok := asStruct.Methods[ex.Right.name]
 			if !ok {
-				// no such member
-				return &UnknownType{}
+				return nil, fmt.Errorf("No such member: %s", ex.Right.name)
 			}
 
-			member = method.Type()
+			member, err = method.Type()
+			if err != nil {
+				return nil, err
+			}
 		}
-		return member
+		return member, nil
 	case KIND_INTERFACE:
 		asIface := leftType.(*IfaceType)
 		method, ok := asIface.Methods[ex.Right.name]
 		if !ok {
-			// no such member
-			return &UnknownType{}
+			return nil, fmt.Errorf("No such member: %s", ex.Right.name)
 		}
 
 		return method.Type()
 	case KIND_UNKNOWN:
 		panic("todo")
 	default:
-		return &UnknownType{}
+		return &UnknownType{}, nil
 	}
 }
 
 func (ex *DotSelector) ApplyType(typ Type) error {
-	if ex.Type().String() != typ.String() {
-		return fmt.Errorf("Type %s has no member named %s", ex.Left.(TypedExpr).Type().String(), ex.Right.name)
+	exType, err := ex.Type()
+	if err != nil {
+		return err
+	}
+	if exType.String() != typ.String() {
+		t, _ := ex.Left.(TypedExpr).Type()
+		return fmt.Errorf("Type %s has no member named %s", t, ex.Right.name)
 	}
 	return nil
 }
@@ -880,37 +997,46 @@ func (ex *ArrayExpr) baseTypesOfContainer(containerType Type) (ok bool, key, val
 	}
 }
 
-func (ex *ArrayExpr) Type() Type {
+func (ex *ArrayExpr) Type() (Type, error) {
 	if ex.typ != nil {
 		// Some type was negotiated already.
-		return ex.typ
+		return ex.typ, nil
 	}
 
-	ok, _, valueType := ex.baseTypesOfContainer(ex.Left.(TypedExpr).Type())
+	leftType, err := ex.Left.(TypedExpr).Type()
+	if err != nil {
+		return nil, err
+	}
+	ok, _, valueType := ex.baseTypesOfContainer(leftType)
 	if !ok {
-		return &UnknownType{}
+		return &UnknownType{}, nil
 	}
 	if _, ok := ex.Index.(*SliceExpr); ok {
-		return &SliceType{Of: valueType}
+		return &SliceType{Of: valueType}, nil
 	}
 
-	return valueType
+	return valueType, nil
 }
 
 func (ex *ArrayExpr) applyTypeSliceExpr(typ Type) error {
 	sliceExpr := ex.Index.(*SliceExpr)
 
-	ok, keyType, valueType := ex.baseTypesOfContainer(ex.leftExprType())
+	leftType, err := ex.leftExprType()
+	if err != nil {
+		return err
+	}
+	ok, keyType, valueType := ex.baseTypesOfContainer(leftType)
 
 	if !ok {
 		return fmt.Errorf("Couldn't infer cotainer type")
 	}
 
 	if !IsTypeInt(keyType) {
-		return fmt.Errorf("Type %s doesn't support slice expressions", ex.leftExprType())
+		t, _ := ex.leftExprType()
+		return fmt.Errorf("Type %s doesn't support slice expressions", t)
 	}
 
-	err := firstErr(
+	err = firstErr(
 		sliceExpr.From.(TypedExpr).ApplyType(&SimpleType{SIMPLE_TYPE_INT}),
 		sliceExpr.To.(TypedExpr).ApplyType(&SimpleType{SIMPLE_TYPE_INT}),
 	)
@@ -931,20 +1057,26 @@ func (ex *ArrayExpr) applyTypeSliceExpr(typ Type) error {
 	return nil
 }
 
-func (ex *ArrayExpr) leftExprType() Type {
-	lt := ex.Left.(TypedExpr).Type()
+func (ex *ArrayExpr) leftExprType() (Type, error) {
+	lt, err := ex.Left.(TypedExpr).Type()
+	if err != nil {
+		return nil, err
+	}
 	if !lt.Known() {
 		var ok bool
 		ok, lt = ex.Left.(TypedExpr).GuessType()
 		if !ok {
-			return &UnknownType{}
+			return &UnknownType{}, nil
 		}
 	}
-	return lt
+	return lt, nil
 }
 
 func (ex *ArrayExpr) ApplyType(typ Type) error {
-	lt := ex.leftExprType()
+	lt, err := ex.leftExprType()
+	if err != nil {
+		return err
+	}
 
 	if !lt.Known() {
 		return fmt.Errorf("Coudln't infer container's type")
@@ -963,7 +1095,7 @@ func (ex *ArrayExpr) ApplyType(typ Type) error {
 		return ex.applyTypeSliceExpr(typ)
 	}
 
-	err := ex.Index.(TypedExpr).ApplyType(keyTyp)
+	err = ex.Index.(TypedExpr).ApplyType(keyTyp)
 	if err != nil {
 		return err
 	}
@@ -1010,7 +1142,7 @@ func (ex *ArrayExpr) GuessType() (ok bool, typ Type) {
 	return true, valueType
 }
 
-func (ex *CompoundLit) Type() Type { return nonilTyp(ex.typ) }
+func (ex *CompoundLit) Type() (Type, error) { return nonilTyp(ex.typ), nil }
 func (ex *CompoundLit) ApplyType(typ Type) error {
 	var apply = false
 
@@ -1074,6 +1206,7 @@ func (ex *CompoundLit) ApplyType(typ Type) error {
 				if !ok {
 					return fmt.Errorf("Expected a member name")
 				}
+				ident.memberName = true
 				name := ident.name
 				memb, ok := asStruct.Members[name]
 				if !ok {
@@ -1164,10 +1297,10 @@ func (ex *CompoundLit) GuessType() (ok bool, typ Type) {
 	return false, nil
 }
 
-func (ex *BinaryOp) Type() Type {
+func (ex *BinaryOp) Type() (Type, error) {
 	// for now, assume Left and Right have the same types
 	if ex.op.IsCompOp() {
-		return &SimpleType{SIMPLE_TYPE_BOOL}
+		return &SimpleType{SIMPLE_TYPE_BOOL}, nil
 	}
 	return ex.Left.(TypedExpr).Type()
 }
@@ -1225,7 +1358,10 @@ func (ex *BinaryOp) applyTypeForComparisonOp(typ Type) error {
 		return fmt.Errorf("Comparison operators return bools, not %s", typ)
 	}
 
-	t1 := leftExpr.Type()
+	t1, err := leftExpr.Type()
+	if err != nil {
+		return err
+	}
 	if !t1.Known() {
 		ok, t := leftExpr.GuessType()
 		if ok {
@@ -1233,15 +1369,16 @@ func (ex *BinaryOp) applyTypeForComparisonOp(typ Type) error {
 		}
 	}
 
-	t2 := rightExpr.Type()
+	t2, err := rightExpr.Type()
+	if err != nil {
+		return err
+	}
 	if !t2.Known() {
 		ok, t := rightExpr.GuessType()
 		if ok {
 			t2 = t
 		}
 	}
-
-	var err error
 
 	switch {
 	case t1.Known() && !t2.Known():
@@ -1319,30 +1456,34 @@ func (ex *BinaryOp) GuessType() (ok bool, typ Type) {
 	}
 }
 
-func (ex *UnaryOp) Type() Type {
+func (ex *UnaryOp) Type() (Type, error) {
 	if ex.typ != nil {
 		// Some type was negotiated already.
-		return ex.typ
+		return ex.typ, nil
 	}
 
-	switch right := ex.Right.(TypedExpr); ex.op.Type {
+	rightType, err := ex.Right.(TypedExpr).Type()
+	if err != nil {
+		return nil, err
+	}
+
+	switch ex.op.Type {
 	case TOKEN_PLUS, TOKEN_MINUS, TOKEN_SHR, TOKEN_SHL:
-		return right.Type()
+		return rightType, nil
 	case TOKEN_MUL:
-		subType := right.Type()
-		if subType.Kind() != KIND_POINTER {
+		if rightType.Kind() != KIND_POINTER {
 			// underlying type is not a pointer
-			return &UnknownType{}
+			return &UnknownType{}, nil
 		}
-		return subType.(*PointerType).To
+		return rightType.(*PointerType).To, nil
 	case TOKEN_AMP:
-		return &PointerType{To: right.Type()}
+		return &PointerType{To: rightType}, nil
 	case TOKEN_SEND:
-		rootTyp := RootType(right.Type())
+		rootTyp := RootType(rightType)
 		if rootTyp.Kind() != KIND_CHAN {
-			return &UnknownType{}
+			return &UnknownType{}, nil
 		}
-		return rootTyp.(*ChanType).Of
+		return rootTyp.(*ChanType).Of, nil
 	default:
 		panic("todo")
 	}
@@ -1366,12 +1507,16 @@ func (ex *UnaryOp) ApplyType(typ Type) error {
 		to := typ.(*PointerType).To
 		return right.ApplyType(to)
 	case TOKEN_SEND:
-		rootTyp := RootType(right.Type())
+		rightType, err := right.Type()
+		if err != nil {
+			return err
+		}
+		rootTyp := RootType(rightType)
 		if rootTyp.Kind() != KIND_CHAN {
-			return fmt.Errorf("Type %s is not a channel", right.Type())
+			return fmt.Errorf("Type %s is not a channel", rightType)
 		}
 		if rootTyp.(*ChanType).Dir == CHAN_DIR_SEND {
-			return fmt.Errorf("Type %s is a send-only channel", right.Type())
+			return fmt.Errorf("Type %s is a send-only channel", rightType)
 		}
 
 		if typ.Kind() == KIND_TUPLE {
@@ -1428,11 +1573,11 @@ func (ex *UnaryOp) GuessType() (ok bool, typ Type) {
 	//return ex.Right.(TypedExpr).GuessType()
 }
 
-func (ex *Ident) Type() Type {
+func (ex *Ident) Type() (Type, error) {
 	if ex.object != nil && ex.object.ObjectType() == OBJECT_VAR {
-		return ex.object.(*Variable).Type
+		return ex.object.(*Variable).Type, nil
 	}
-	return nil
+	return nil, fmt.Errorf("Unknown ident: %s", ex.name)
 }
 
 func (ex *Ident) ApplyType(typ Type) error {
@@ -1451,8 +1596,8 @@ func (ex *Ident) GuessType() (ok bool, typ Type) {
 	return false, nil
 }
 
-func (ex *NilExpr) Type() Type {
-	return nonilTyp(ex.typ)
+func (ex *NilExpr) Type() (Type, error) {
+	return nonilTyp(ex.typ), nil
 }
 
 func (ex *NilExpr) ApplyType(typ Type) error {
@@ -1468,8 +1613,8 @@ func (ex *NilExpr) GuessType() (ok bool, typ Type) {
 	return false, &UnknownType{}
 }
 
-func (ex *BasicLit) Type() Type {
-	return nonilTyp(ex.typ)
+func (ex *BasicLit) Type() (Type, error) {
+	return nonilTyp(ex.typ), nil
 }
 
 func (ex *BasicLit) ApplyType(typ Type) error {

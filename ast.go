@@ -25,10 +25,56 @@ type stmt struct {
 	label *Object
 }
 
+type declStmt interface {
+	Decls() []string
+}
+
 // Simple statements are those that can be used in the 3rd
 // clause of the `for` loop.
 type SimpleStmt interface {
 	Stmt
+}
+
+type TopLevelStmt struct {
+	Stmt
+
+	deps          []string
+	unboundTypes  map[string]*CustomType
+	unboundIdents map[string]*Ident
+}
+
+// List of top-level symbols used within this statement.
+func (s *TopLevelStmt) Deps() []string {
+	return s.deps
+}
+
+func (s *TopLevelStmt) loadDeps() {
+	uniqMap := make(map[string]bool)
+	for name := range s.unboundTypes {
+		uniqMap[name] = true
+	}
+	for name := range s.unboundIdents {
+		uniqMap[name] = true
+	}
+	s.deps = make([]string, 0, len(uniqMap))
+	for name := range uniqMap {
+		s.deps = append(s.deps, name)
+	}
+}
+
+// List of top-level symbols declared within this statement.
+func (s *TopLevelStmt) Decls() []string {
+	var result []string
+	switch stmt := s.Stmt.(type) {
+	case *VarStmt:
+		stmt.Vars.eachPair(func(v *Variable, init Expr) {
+			result = append(result, v.name)
+		})
+	case declStmt:
+		// TODO: Tests are leaking, add an interface to prevent this
+		result = stmt.Decls()
+	}
+	return result
 }
 
 type ObjectType int
@@ -842,6 +888,10 @@ type Ident struct {
 
 	name   string
 	object Object
+	// After type checking, some Ident instances turn out to be just
+	// member names used in a composite literal. They aren't matched
+	// with any object and it's not an error.
+	memberName bool
 	//token *Token
 }
 
@@ -851,7 +901,17 @@ type Node interface {
 }
 
 type Package struct {
-	name string
+	name    string
+	files   []*File
+	objects map[string]Object
+}
+
+func NewPackage(name string, files ...*File) *Package {
+	return &Package{
+		name:    name,
+		files:   files,
+		objects: make(map[string]Object),
+	}
 }
 
 func (p *Package) Get(name string) Object {
@@ -860,6 +920,165 @@ func (p *Package) Get(name string) Object {
 
 func (o *Package) Name() string           { return o.name }
 func (o *Package) ObjectType() ObjectType { return OBJECT_PACKAGE }
+
+func topoSort(stmts []*TopLevelStmt) ([]*TopLevelStmt, error) {
+	// First, build a revered graph of statement dependencies.
+	type node struct {
+		deps, decls map[string]bool
+		stmt        *TopLevelStmt
+		// There can be more than one path connectings nodes, so this
+		// flag saves us time.
+		processed bool
+	}
+
+	graph := make(map[string][]*node, len(stmts))
+	q := []*node{}
+	remains := make(map[*node]bool)
+
+	for _, stmt := range stmts {
+		deps, decls := stmt.Deps(), stmt.Decls()
+
+		entry := node{
+			deps:  make(map[string]bool, len(deps)),
+			decls: make(map[string]bool, len(decls)),
+			stmt:  stmt,
+		}
+
+		remains[&entry] = true
+
+		for _, dep := range deps {
+			entry.deps[dep] = true
+			graph[dep] = append(graph[dep], &entry)
+		}
+
+		if len(deps) == 0 {
+			q = append(q, &entry)
+		}
+
+		for _, decl := range decls {
+			entry.decls[decl] = true
+		}
+	}
+
+	result := make([]*TopLevelStmt, 0, len(stmts))
+
+	for len(q) > 0 {
+		entry := q[0]
+		q = q[1:]
+
+		if entry.processed {
+			continue
+		}
+		entry.processed = true
+		delete(remains, entry)
+
+		result = append(result, entry.stmt)
+
+		for decl := range entry.decls {
+			dependents, ok := graph[decl]
+			if !ok {
+				continue
+			}
+
+			for _, dependent := range dependents {
+				delete(dependent.deps, decl)
+
+				if len(dependent.deps) == 0 {
+					q = append(q, dependent)
+				}
+			}
+		}
+	}
+
+	if len(remains) > 0 {
+		// TODO: Print the actual loop
+		return nil, fmt.Errorf("There's a depenency loop between nodes")
+	}
+
+	return result, nil
+}
+
+func (o *Package) ParseAndCheck() []error {
+	var errors []error
+	for _, f := range o.files {
+		errors = append(errors, f.Parse()...)
+	}
+	if len(errors) > 0 {
+		return errors
+	}
+
+	for _, f := range o.files {
+		for name, obj := range f.objects {
+			if _, ok := o.objects[name]; ok {
+				errors = append(errors, fmt.Errorf("Redeclared %s in the same package", name))
+				continue
+			}
+			o.objects[name] = obj
+		}
+	}
+
+	for _, f := range o.files {
+		for _, stmt := range f.statements {
+			stmt.loadDeps()
+			types, idents := stmt.unboundTypes, stmt.unboundIdents
+			for name, t := range types {
+				decl := o.GetType(t.Name)
+				if decl == nil {
+					errors = append(errors, fmt.Errorf("Unknown type %s", t.Name))
+					continue
+				}
+
+				t.Decl = decl
+				delete(types, name)
+			}
+
+			for name, id := range idents {
+				// Even when an object is not found, we don't report an error yet.
+				// Running type checker can change the situation - some idents can have
+				// `memberName` set to true.
+				id.object = o.GetObject(id.name)
+				if id.object != nil {
+					delete(idents, name)
+				}
+			}
+		}
+	}
+
+	allStmts := []*TopLevelStmt{}
+	for _, f := range o.files {
+		allStmts = append(allStmts, f.statements...)
+	}
+
+	sorted, err := topoSort(allStmts)
+	if err != nil {
+		return []error{err}
+	}
+
+	for _, f := range sorted {
+		typedStmt := f.Stmt.(ExprToProcess)
+		if err := typedStmt.NegotiateTypes(); err != nil {
+			return []error{err}
+		}
+	}
+
+	if len(errors) > 0 {
+		return errors
+	}
+
+	return errors
+}
+
+func (o *Package) GetObject(name string) Object {
+	return o.objects[name]
+}
+
+func (o *Package) GetType(name string) *TypeDecl {
+	obj, ok := o.objects[name]
+	if !ok || obj.ObjectType() != OBJECT_TYPE {
+		return nil
+	}
+	return obj.(*TypeDecl)
+}
 
 func init() {
 	initSimpleTypeIDs()

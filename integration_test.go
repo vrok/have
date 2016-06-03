@@ -9,23 +9,14 @@ import (
 )
 
 func transpile(code string, outputFile string) error {
-	parser := NewParser(NewLexer([]rune(code)))
-	result, err := parser.ParseFile()
-	if err != nil {
-		return err
+	f := NewFile("file.hav", code, nil)
+	errs := f.ParseAndCheck()
+	if len(errs) > 0 {
+		return errs[0]
 	}
 
-	for _, stmt := range result.Statements {
-		typedStmt := stmt.(ExprToProcess)
-		if err := typedStmt.NegotiateTypes(); err != nil {
-			return err
-		}
-	}
-
-	cc := &CodeChunk{}
-	result.Generate(cc)
-
-	return ioutil.WriteFile(outputFile, []byte(cc.ReadAll()), 0644)
+	output := f.GenerateCode()
+	return ioutil.WriteFile(outputFile, []byte(output), 0644)
 }
 
 func TestGenerate(t *testing.T) {

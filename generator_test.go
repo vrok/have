@@ -18,7 +18,7 @@ func inMemTranspile(code string) (string, error) {
 	}
 
 	for _, stmt := range result {
-		typedStmt := stmt.(ExprToProcess)
+		typedStmt := stmt.Stmt.(ExprToProcess)
 		if err := typedStmt.NegotiateTypes(); err != nil {
 			return "", err
 		}
@@ -27,7 +27,7 @@ func inMemTranspile(code string) (string, error) {
 	cc := &CodeChunk{}
 
 	for _, stmt := range result {
-		stmt.(Generable).Generate(cc)
+		stmt.Stmt.(Generable).Generate(cc)
 	}
 
 	return cc.ReadAll(), nil
