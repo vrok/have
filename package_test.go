@@ -4,60 +4,103 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
+func testPkg(t *testing.T, files []struct {
+	name, file, gocode string
+}) {
+	var list []*File
+	for _, input := range files {
+		f := NewFile(input.name, input.file, nil)
+		list = append(list, f)
+	}
+
+	pkg := NewPackage("main", list...)
+
+	errs := pkg.ParseAndCheck()
+
+	if len(errs) > 0 {
+		t.Fail()
+		fmt.Printf("Errors: %#v\n", errs)
+	}
+
+	for i, f := range files {
+		output := list[i].GenerateCode()
+		if strings.TrimSpace(output) != strings.TrimSpace(f.gocode) {
+			t.Fail()
+			fmt.Printf("Wrong output, wanted:\n%s\nGot:\n%s\n", f.gocode, output)
+		}
+	}
+}
+
 func TestCompilePackageSimple(t *testing.T) {
-	f1 := NewFile(
-		"hello.hav",
-		`package main
+	files := []struct {
+		name, file, gocode string
+	}{
+		{
+			"hello.hav",
+			`package main
 func main():
 	pass`,
-		nil,
-	)
+			`package main
 
-	pkg := NewPackage("main", f1)
-
-	fmt.Printf("ZZZ errs %#v\n---\n%s\n---\n", pkg.ParseAndCheck(), f1.GenerateCode())
+func main() {
+	// pass
+}`,
+		},
+	}
+	testPkg(t, files)
 }
 
 func TestCompilePackageUnorderedBinding(t *testing.T) {
-	f1 := NewFile(
-		"hello.hav",
-		`package main
+	files := []struct {
+		name, file, gocode string
+	}{
+		{
+			"hello.hav",
+			`package main
 func main():
 	var x = y
 var y = 10`,
-		nil,
-	)
+			`
+package main
 
-	pkg := NewPackage("main", f1)
-
-	fmt.Printf("ZZZ errs %s\n---\n%s\n---\n", spew.Sdump(pkg.ParseAndCheck()), f1.GenerateCode())
+func main() {
+	var x = (int)(y)
+}
+var y = (int)(10)
+`,
+		},
+	}
+	testPkg(t, files)
 }
 
 func TestCompilePackageDependentFiles(t *testing.T) {
-	f1 := NewFile(
-		"hello.hav",
-		`package main
+	files := []struct {
+		name, file, gocode string
+	}{
+		{
+			"hello.hav",
+			`package main
 func main():
 	var x = y`,
-		nil,
-	)
+			`
+package main
 
-	f2 := NewFile(
-		"world.hav",
-		`package main
+func main() {
+	var x = (int)(y)
+}`},
+		{"world.hav",
+			`package main
 var y = 10`,
-		nil,
-	)
+			`
+package main
 
-	pkg := NewPackage("main", f1, f2)
-
-	fmt.Printf("ZZZ errs %s\n---\n%s\n---\n%s\n---\n",
-		spew.Sdump(pkg.ParseAndCheck()), f1.GenerateCode(), f2.GenerateCode())
+var y = (int)(10)`},
+	}
+	testPkg(t, files)
 }
 
 type testStmt struct {
