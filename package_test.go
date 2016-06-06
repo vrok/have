@@ -61,6 +61,32 @@ func main() {
 	testPkg(t, false, files)
 }
 
+func TestCompilePackage_MemberName(t *testing.T) {
+	files := []struct {
+		name, file, gocode string
+	}{
+		{
+			"hello.hav",
+			`package main
+func main():
+	struct A:
+		foo int
+	var x = A{foo: 7} # We're not sure if 'foo' is an ident until typechecker`,
+			`package main
+
+func main() {
+	type A struct {
+		foo int
+	}
+
+	var x = (A)(A{
+		foo: 7,
+	})
+}`,
+		},
+	}
+	testPkg(t, false, files)
+}
 func TestCompilePackage_UnmatchedMemberName(t *testing.T) {
 	files := []struct {
 		name, file, gocode string
@@ -71,13 +97,23 @@ func TestCompilePackage_UnmatchedMemberName(t *testing.T) {
 func main():
 	struct A:
 		foo int
-	var y = bla
-	var x = A{foo: 7}`,
-			`package main
+	var x = A{foob: 7} # Error, A doesn't have a member named 'foob'`,
+			"",
+		},
+	}
+	testPkg(t, true, files)
+}
 
-func main() {
-	// pass
-}`,
+func TestCompilePackage_UnmatchedIdent(t *testing.T) {
+	files := []struct {
+		name, file, gocode string
+	}{
+		{
+			"hello.hav",
+			`package main
+func main():
+	var y = bla`,
+			``,
 		},
 	}
 	testPkg(t, true, files)
