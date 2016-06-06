@@ -16,8 +16,9 @@ type Parser struct {
 
 	// TODO: Remove after implementing unboundVars
 	ignoreUnknowns bool
-	unboundTypes   map[string]*CustomType
-	unboundIdents  map[string]*Ident
+	unboundTypes   map[string][]*CustomType
+	unboundIdents  map[string][]*Ident
+	topLevelDecls  map[string]Object
 
 	dontLookup bool
 
@@ -56,8 +57,9 @@ func NewParserWithoutBuiltins(lex *Lexer) *Parser {
 	return &Parser{lex: lex,
 		identStack:       &IdentStack{map[string]Object{}},
 		branchTreesStack: []*BranchStmtsTree{NewBranchStmtsTree()},
-		unboundTypes:     make(map[string]*CustomType),
-		unboundIdents:    make(map[string]*Ident)}
+		unboundTypes:     make(map[string][]*CustomType),
+		unboundIdents:    make(map[string][]*Ident),
+		topLevelDecls:    make(map[string]Object)}
 }
 
 // Put back a token.
@@ -894,7 +896,7 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 				} else if kind == COMPOUND_UNKNOWN {
 					kind = COMPOUND_LISTLIKE
 				}
-				return &CompoundLit{expr{startTok.Offset}, &UnknownType{}, kind, elems, startTok.Offset}, nil
+				return &CompoundLit{expr{startTok.Offset}, nil, &UnknownType{}, kind, elems, startTok.Offset}, nil
 			default:
 				return nil, fmt.Errorf("Unexpected token in a compound literal")
 			}
@@ -902,7 +904,7 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 			switch t := p.nextToken(); t.Type {
 			case TOKEN_COMMA:
 			case TOKEN_RBRACE:
-				return &CompoundLit{expr{startTok.Offset}, &UnknownType{}, kind, elems, startTok.Offset}, nil
+				return &CompoundLit{expr{startTok.Offset}, nil, &UnknownType{}, kind, elems, startTok.Offset}, nil
 			default:
 				return nil, fmt.Errorf("Unexpected token in a compound literal")
 			}
@@ -1098,7 +1100,7 @@ func (p *Parser) typeFromWord(name string) Type {
 		switch {
 		case decl == nil:
 			r := &CustomType{Name: name}
-			p.unboundTypes[name] = r
+			p.unboundTypes[name] = append(p.unboundTypes[name], r)
 			return r
 		case decl.AliasedType == nil:
 			return &SimpleType{ID: simpleTypeStrToID[name]}
@@ -1254,7 +1256,7 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 
 		if !p.dontLookup {
 			if v := p.identStack.findObject(name); v == nil && !p.ignoreUnknowns {
-				p.unboundIdents[name] = ident
+				p.unboundIdents[name] = append(p.unboundIdents[name], ident)
 			} else {
 				ident.object = v
 			}
@@ -1351,24 +1353,29 @@ loop:
 			if err != nil {
 				return nil, err
 			}
+			literal.Left = left
 
-			switch t := left.(type) {
-			case *Ident:
-				if p.dontLookup {
-					literal.typ = &CustomType{Name: t.name}
-				} else {
-					if t.object.ObjectType() != OBJECT_TYPE {
-						typ, _ := t.Type()
-						return nil, fmt.Errorf("Literal of non-typename expression `%s`", typ)
+			/*
+				switch t := left.(type) {
+				case *Ident:
+					if p.dontLookup {
+						literal.typ = &CustomType{Name: t.name}
+					} else {
+						if t.object == nil {
+							return nil, fmt.Errorf("Unknown ident: %s", t.name)
+						}
+						if t.object.ObjectType() != OBJECT_TYPE {
+							typ, _ := t.Type()
+							return nil, fmt.Errorf("Literal of non-typename expression `%s`", typ)
+						}
+						literal.typ = t.object.(*TypeDecl).Type()
 					}
-					literal.typ = t.object.(*TypeDecl).Type()
-				}
-			case *TypeExpr:
-				literal.typ = t.typ
-			// TODO: DotSelector for types from other packages
-			default:
-				return nil, fmt.Errorf("Compound literal preceded with something that can't be a type: %T", t)
-			}
+				case *TypeExpr:
+					literal.typ = t.typ
+				// TODO: DotSelector for types from other packages
+				default:
+					return nil, fmt.Errorf("Compound literal preceded with something that can't be a type: %T", t)
+				}*/
 			literal.updatePosWithType(left)
 			left = literal
 		case TOKEN_INDENT:
@@ -2033,6 +2040,60 @@ func (p *Parser) ParseFile(f *File) error {
 	return nil
 }
 
+func (p *Parser) reapNewDecls() error {
+	objs := (*p.identStack)[1]
+
+	for name, obj := range objs {
+		if _, ok := p.topLevelDecls[name]; ok {
+			return fmt.Errorf("Redeclared `%s`", name)
+		}
+		p.topLevelDecls[name] = obj
+	}
+	p.identStack.eraseAllExceptBuiltins()
+	p.identStack.pushScope()
+	return nil
+}
+
+// Match top-level idents within one file. Useful in tests.
+func (p *Parser) matchTopDecls(stmts []*TopLevelStmt) {
+	for _, stmt := range stmts {
+		types, idents := stmt.unboundTypes, stmt.unboundIdents
+		for name, ts := range types {
+			decl := p.topLevelDecls[name]
+			if decl == nil || decl.ObjectType() != OBJECT_TYPE {
+				continue
+			}
+
+			for _, t := range ts {
+				t.Decl = decl.(*TypeDecl)
+			}
+		}
+
+		for name, ids := range idents {
+			for _, id := range ids {
+				id.object = p.topLevelDecls[name]
+			}
+		}
+	}
+}
+
+func (p *Parser) parseUnindentedBlock() ([]Stmt, error) {
+	var result = []Stmt{}
+	for t := p.nextToken(); t.Type != TOKEN_EOF; t = p.nextToken() {
+		p.putBack(t)
+		stmt, err := p.parseStmt()
+		if err != nil {
+			return nil, err
+		}
+		if stmt == nil {
+			// EOF
+			break
+		}
+		result = append(result, stmt)
+	}
+	return result, nil
+}
+
 func (p *Parser) Parse() ([]*TopLevelStmt, error) {
 	var result = []*TopLevelStmt{}
 	for t := p.nextToken(); t.Type != TOKEN_EOF; t = p.nextToken() {
@@ -2050,9 +2111,10 @@ func (p *Parser) Parse() ([]*TopLevelStmt, error) {
 			unboundTypes:  p.unboundTypes,
 			unboundIdents: p.unboundIdents,
 		})
+		p.reapNewDecls()
 		// Reset unbound types/idents before next statement
-		p.unboundTypes = make(map[string]*CustomType)
-		p.unboundIdents = make(map[string]*Ident)
+		p.unboundTypes = make(map[string][]*CustomType)
+		p.unboundIdents = make(map[string][]*Ident)
 	}
 	return result, nil
 }

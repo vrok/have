@@ -576,32 +576,33 @@ func (vd *VarDecl) NegotiateTypes() error {
 	}
 
 	var err error
-	var depErrs []*needsDepErr
+	//var depErrs []*needsDepErr
 	vd.eachPair(func(v *Variable, init Expr) {
 		if err == nil {
-			err = (&varInitPair{v: v, init: init}).NegotiateTypes()
-
-			if depErr, ok := err.(*needsDepErr); ok {
-				depErrs = append(depErrs, depErr)
-				err = nil
+			if init == nil {
+				init = NewBlankExpr()
 			}
+			err = NegotiateExprType(&v.Type, init.(TypedExpr))
 		}
 	})
-	if err != nil {
-		return err
-	}
+	return err
 
-	if len(depErrs) > 0 {
-		merged := needsDepErr{
-			depName: depErrs[0].depName, // Use the first one for now
+	/*
+		if err != nil {
+			return err
 		}
 
-		for _, nde := range depErrs {
-			merged.unchecked = append(merged.unchecked, nde.unchecked...)
-		}
+		if len(depErrs) > 0 {
+			merged := needsDepErr{
+				depName: depErrs[0].depName, // Use the first one for now
+			}
 
-		return &merged
-	}
+			for _, nde := range depErrs {
+				merged.unchecked = append(merged.unchecked, nde.unchecked...)
+			}
+
+			return &merged
+		}*/
 
 	/*
 		var progress bool
@@ -1142,7 +1143,24 @@ func (ex *ArrayExpr) GuessType() (ok bool, typ Type) {
 	return true, valueType
 }
 
-func (ex *CompoundLit) Type() (Type, error) { return nonilTyp(ex.typ), nil }
+func (ex *CompoundLit) Type() (Type, error) {
+	if ex.typ != nil && ex.typ.Known() {
+		return ex.typ, nil
+	}
+
+	if ex.Left == nil {
+		return &UnknownType{}, nil
+	}
+
+	typ, isTyp := ExprToTypeName(ex.Left)
+	if !isTyp {
+		return nil, fmt.Errorf("Non-type on the left of complex literal")
+	}
+
+	ex.typ = typ
+	return typ, nil
+}
+
 func (ex *CompoundLit) ApplyType(typ Type) error {
 	var apply = false
 
@@ -1581,6 +1599,10 @@ func (ex *Ident) Type() (Type, error) {
 }
 
 func (ex *Ident) ApplyType(typ Type) error {
+	if ex.object == nil {
+		return fmt.Errorf("Unknown ident: %s", ex.name)
+	}
+
 	if ex.object.ObjectType() != OBJECT_VAR {
 		return fmt.Errorf("Identifier %s is not a variable", ex.name)
 	}

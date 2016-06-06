@@ -6,9 +6,11 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
-func testPkg(t *testing.T, files []struct {
+func testPkg(t *testing.T, shouldFail bool, files []struct {
 	name, file, gocode string
 }) {
 	var list []*File
@@ -22,8 +24,13 @@ func testPkg(t *testing.T, files []struct {
 	errs := pkg.ParseAndCheck()
 
 	if len(errs) > 0 {
-		t.Fail()
-		fmt.Printf("Errors: %#v\n", errs)
+		if shouldFail {
+			return
+		} else {
+			t.Fail()
+			fmt.Printf("Errors: %s\n", spew.Sdump(errs))
+			return
+		}
 	}
 
 	for i, f := range files {
@@ -51,7 +58,49 @@ func main() {
 }`,
 		},
 	}
-	testPkg(t, files)
+	testPkg(t, false, files)
+}
+
+func TestCompilePackage_UnmatchedMemberName(t *testing.T) {
+	files := []struct {
+		name, file, gocode string
+	}{
+		{
+			"hello.hav",
+			`package main
+func main():
+	struct A:
+		foo int
+	var y = bla
+	var x = A{foo: 7}`,
+			`package main
+
+func main() {
+	// pass
+}`,
+		},
+	}
+	testPkg(t, true, files)
+}
+
+func TestCompilePackage_Loop(t *testing.T) {
+	files := []struct {
+		name, file, gocode string
+	}{
+		{
+			"hello.hav",
+			`package main
+var a = b
+var b = a
+`,
+			`package main
+
+func main() {
+	// pass
+}`,
+		},
+	}
+	testPkg(t, true, files)
 }
 
 func TestCompilePackageUnorderedBinding(t *testing.T) {
@@ -74,7 +123,7 @@ var y = (int)(10)
 `,
 		},
 	}
-	testPkg(t, files)
+	testPkg(t, false, files)
 }
 
 func TestCompilePackageDependentFiles(t *testing.T) {
@@ -100,7 +149,7 @@ package main
 
 var y = (int)(10)`},
 	}
-	testPkg(t, files)
+	testPkg(t, false, files)
 }
 
 type testStmt struct {
@@ -242,7 +291,7 @@ func TestStmtsSort(t *testing.T) {
 			stmt := testStmt{name: node.name}
 			stmt.decls = node.decls
 
-			tls := &TopLevelStmt{Stmt: stmt, unboundIdents: map[string]*Ident{}}
+			tls := &TopLevelStmt{Stmt: stmt, unboundIdents: map[string][]*Ident{}}
 			for _, dep := range node.deps {
 				tls.unboundIdents[dep] = nil
 			}

@@ -23,6 +23,10 @@ func compareExpr(a, b Expr) (equal bool, msg string) {
 	for i := 0; i < l; i++ {
 		field := valA.Field(i)
 		if field.Type().Implements(typeOfExpr) {
+			if field.Interface() == nil &&
+				valB.Field(i).Interface() == nil {
+				continue
+			}
 			eq, msg := compareExpr(
 				field.Interface().(Expr),
 				valB.Field(i).Interface().(Expr))
@@ -72,22 +76,22 @@ func TestPrimaryExpr(t *testing.T) {
 	testPrimaryExpr(t, "{1:2}.bla", &DotSelector{expr: expr{5},
 		Left:  &CompoundLit{expr: expr{0}},
 		Right: &Ident{expr{6}, "bla", nil, false}})
-	testPrimaryExpr(t, "map[int]int{1:2}", &CompoundLit{})
-	testPrimaryExpr(t, "[]int{1,2}", &CompoundLit{})
-	testPrimaryExpr(t, "dywan{1}", &CompoundLit{})
+	testPrimaryExpr(t, "map[int]int{1:2}", &CompoundLit{Left: &TypeExpr{}})
+	testPrimaryExpr(t, "[]int{1,2}", &CompoundLit{Left: &TypeExpr{}})
+	testPrimaryExpr(t, "dywan{1}", &CompoundLit{Left: &TypeExpr{}})
 	//testPrimaryExpr(t, "dy.wan{1}", &CompoundLit{})
 	testPrimaryExpr(t, `struct:
     x int
-	{x: 1}`, &CompoundLit{})
+	{x: 1}`, &CompoundLit{Left: &TypeExpr{}})
 	testPrimaryExpr(t, `struct:
     x int
-  {x: 1}`, &CompoundLit{})
+  {x: 1}`, &CompoundLit{Left: &TypeExpr{}})
 	testPrimaryExpr(t, `struct:
     x int
-	  {x: 1}`, &CompoundLit{})
+	  {x: 1}`, &CompoundLit{Left: &TypeExpr{}})
 	testPrimaryExpr(t, `struct:
 	x int
-{x: 1}`, &CompoundLit{})
+{x: 1}`, &CompoundLit{Left: &TypeExpr{}})
 }
 
 func testExpr(t *testing.T, code string, expected Expr) {
@@ -490,29 +494,26 @@ type validityTestCase struct {
 	valid bool
 }
 
-func countUnbounds(l []*TopLevelStmt) (result int) {
-	for _, stmt := range l {
-		result += len(stmt.unboundIdents) + len(stmt.unboundTypes)
-	}
-	return result
-}
-
 func validityTest(t *testing.T, cases []validityTestCase) {
 	for i, c := range cases {
-		parser := NewParser(NewLexer([]rune(c.code)))
-		result, err := parser.Parse()
+		if *justCase >= 0 && i != *justCase {
+			continue
+		}
+		parser := NewParser(NewLexer([]rune("\n" + c.code)))
 
-		passed := (err == nil && countUnbounds(result) == 0)
+		block, err := parser.parseUnindentedBlock()
+
+		passed := (err == nil && (len(parser.unboundIdents)+len(parser.unboundTypes) == 0))
 
 		// TODO: better assertions, more test cases.
 		// We'll need something more succint than comparing whole ASTs.
 		if c.valid && !passed {
 			t.Fail()
-			fmt.Printf("Error parsing a function %s %s\n", err, spew.Sdump(result))
+			fmt.Printf("Error parsing %s %s\n", err, spew.Sdump(block))
 		} else if !c.valid && passed {
 			t.Fail()
 			fmt.Printf("Parsing case %d should've failed (err: %s)\n%s\n---\n%s\n",
-				i, err, c.code, spew.Sdump(result))
+				i, err, c.code, spew.Sdump(block))
 		}
 	}
 }

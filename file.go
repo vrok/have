@@ -1,9 +1,6 @@
 package have
 
-import (
-	"fmt"
-	"go/token"
-)
+import "go/token"
 
 type File struct {
 	name, code, pkg string
@@ -27,12 +24,7 @@ func (f *File) Parse() []error {
 	if err != nil {
 		return []error{err}
 	}
-	if len(*(f.parser.identStack)) != 2 {
-		// There should be 2 scopes - one for the builtins, one for the top-level package
-		// declarations.
-		return []error{fmt.Errorf("Internal compiler error: wrong number of scopes")}
-	}
-	f.objects = (*f.parser.identStack)[1]
+	f.objects = f.parser.topLevelDecls
 	return nil
 }
 

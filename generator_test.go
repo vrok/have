@@ -17,6 +17,8 @@ func inMemTranspile(code string) (string, error) {
 		return "", err
 	}
 
+	parser.matchTopDecls(result)
+
 	for _, stmt := range result {
 		typedStmt := stmt.Stmt.(ExprToProcess)
 		if err := typedStmt.NegotiateTypes(); err != nil {
@@ -35,6 +37,9 @@ func inMemTranspile(code string) (string, error) {
 
 func testCases(t *testing.T, cases []generatorTestCase) {
 	for i, c := range cases {
+		if *justCase >= 0 && i != *justCase {
+			continue
+		}
 		result, err := inMemTranspile(c.source)
 		if err != nil {
 			t.Fail()

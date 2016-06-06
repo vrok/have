@@ -39,8 +39,8 @@ type TopLevelStmt struct {
 	Stmt
 
 	deps          []string
-	unboundTypes  map[string]*CustomType
-	unboundIdents map[string]*Ident
+	unboundTypes  map[string][]*CustomType
+	unboundIdents map[string][]*Ident
 }
 
 // List of top-level symbols used within this statement.
@@ -776,6 +776,7 @@ const (
 // implements Expr
 type CompoundLit struct {
 	expr
+	Left       Expr
 	typ        Type
 	kind       CompoundLitKind
 	elems      []Expr
@@ -992,7 +993,37 @@ func topoSort(stmts []*TopLevelStmt) ([]*TopLevelStmt, error) {
 
 	if len(remains) > 0 {
 		// TODO: Print the actual loop
-		return nil, fmt.Errorf("There's a depenency loop between nodes")
+		allDecls := map[string]bool{}
+		for _, stmt := range stmts {
+			decls := stmt.Decls()
+			for _, decl := range decls {
+				allDecls[decl] = true
+			}
+		}
+
+		looped := []string{}
+		missing := false
+	all:
+		for remain := range remains {
+			for dep := range remain.deps {
+				if _, ok := allDecls[dep]; ok {
+					looped = append(looped, dep)
+				} else {
+					missing = true
+					break all
+				}
+			}
+		}
+
+		if !missing {
+			return nil, fmt.Errorf("There's a dependency loop between nodes: %#v", looped)
+		} else {
+			// When len(looped) == 0 we only have a unknown identifier error, but it will be reported
+			// during type checking (it's easier to produce meaningful messages there).
+			for remain := range remains {
+				result = append(result, remain.stmt)
+			}
+		}
 	}
 
 	return result, nil
@@ -1021,23 +1052,28 @@ func (o *Package) ParseAndCheck() []error {
 		for _, stmt := range f.statements {
 			stmt.loadDeps()
 			types, idents := stmt.unboundTypes, stmt.unboundIdents
-			for name, t := range types {
-				decl := o.GetType(t.Name)
+			for name, ts := range types {
+				decl := o.GetType(name)
 				if decl == nil {
-					errors = append(errors, fmt.Errorf("Unknown type %s", t.Name))
+					errors = append(errors, fmt.Errorf("Unknown type %s", name))
 					continue
 				}
 
-				t.Decl = decl
+				for _, t := range ts {
+					t.Decl = decl
+				}
 				delete(types, name)
 			}
 
-			for name, id := range idents {
+			for name, ids := range idents {
 				// Even when an object is not found, we don't report an error yet.
 				// Running type checker can change the situation - some idents can have
 				// `memberName` set to true.
-				id.object = o.GetObject(id.name)
-				if id.object != nil {
+				object := o.GetObject(name)
+				for _, id := range ids {
+					id.object = object
+				}
+				if object != nil {
 					delete(idents, name)
 				}
 			}

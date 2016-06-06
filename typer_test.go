@@ -14,12 +14,17 @@ type typeTestCase struct {
 
 func testVarTypes(t *testing.T, cases []typeTestCase) {
 	for i, c := range cases {
+		if *justCase >= 0 && i != *justCase {
+			continue
+		}
 		parser := NewParser(NewLexer([]rune(strings.TrimSpace(c.code))))
 		result, err := parser.Parse()
 		if err != nil {
 			t.Fail()
 			fmt.Printf("FAIL: Failed parsing: %s\n", err)
 		}
+
+		parser.matchTopDecls(result)
 
 		var stmtWithTypes ExprToProcess = nil
 		var ok = false
@@ -1352,7 +1357,7 @@ var y = x[1:5]`,
 	})
 }
 
-func TestSimple(t *testing.T) {
+func TestTypesSimple(t *testing.T) {
 	var cases = []struct {
 		code       string
 		shouldPass bool
@@ -1536,6 +1541,9 @@ func TestSimple(t *testing.T) {
 	}
 
 	for i, c := range cases {
+		if *justCase >= 0 && i != *justCase {
+			continue
+		}
 		parser := NewParser(NewLexer([]rune(c.code)))
 		result, err := parser.parseVarStmt(true)
 		if err != nil {
@@ -1564,6 +1572,7 @@ func TestSimple(t *testing.T) {
 				t.Fail()
 				fmt.Printf("Case %d: Bad type: %s, %s, %s\n", i, c.typ, firstVar.Type.String(),
 					fit.String())
+				fmt.Printf("Code:\n%s\n", c.code)
 			}
 		}
 	}
