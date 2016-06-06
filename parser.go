@@ -1354,28 +1354,6 @@ loop:
 				return nil, err
 			}
 			literal.Left = left
-
-			/*
-				switch t := left.(type) {
-				case *Ident:
-					if p.dontLookup {
-						literal.typ = &CustomType{Name: t.name}
-					} else {
-						if t.object == nil {
-							return nil, fmt.Errorf("Unknown ident: %s", t.name)
-						}
-						if t.object.ObjectType() != OBJECT_TYPE {
-							typ, _ := t.Type()
-							return nil, fmt.Errorf("Literal of non-typename expression `%s`", typ)
-						}
-						literal.typ = t.object.(*TypeDecl).Type()
-					}
-				case *TypeExpr:
-					literal.typ = t.typ
-				// TODO: DotSelector for types from other packages
-				default:
-					return nil, fmt.Errorf("Compound literal preceded with something that can't be a type: %T", t)
-				}*/
 			literal.updatePosWithType(left)
 			left = literal
 		case TOKEN_INDENT:
