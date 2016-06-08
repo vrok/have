@@ -111,6 +111,15 @@ type LabelStmt struct {
 func (l *LabelStmt) Name() string           { return l.name }
 func (l *LabelStmt) ObjectType() ObjectType { return OBJECT_LABEL }
 
+type ImportStmt struct {
+	stmt
+	name, path string
+	pkg        *Package
+}
+
+func (i *ImportStmt) Name() string           { return i.name }
+func (i *ImportStmt) ObjectType() ObjectType { return OBJECT_PACKAGE }
+
 // Implements Object and Stmt
 type TypeDecl struct {
 	stmt
@@ -919,8 +928,10 @@ func (p *Package) Get(name string) Object {
 	panic("todo")
 }
 
+/*
 func (o *Package) Name() string           { return o.name }
 func (o *Package) ObjectType() ObjectType { return OBJECT_PACKAGE }
+*/
 
 func topoSort(stmts []*TopLevelStmt) ([]*TopLevelStmt, error) {
 	// First, build a revered graph of statement dependencies.

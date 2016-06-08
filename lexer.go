@@ -92,6 +92,8 @@ const (
 	TOKEN_STRUCT                 // the "struct" keyword
 	TOKEN_MAP                    // the "map" keyword
 	TOKEN_FUNC                   // the "func" keyword
+	TOKEN_IMPORT                 // the "import" keyword
+	TOKEN_AS                     // the "as" keyword
 	TOKEN_TYPE                   // the "type" keyword
 	TOKEN_IN                     // the "in" keyword
 	TOKEN_PASS                   // the "pass" keyword
@@ -363,6 +365,10 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.retNewToken(TOKEN_MAP, nil)
 		case "func":
 			return l.retNewToken(TOKEN_FUNC, nil)
+		case "import":
+			return l.retNewToken(TOKEN_IMPORT, nil)
+		case "as":
+			return l.retNewToken(TOKEN_AS, nil)
 		case "type":
 			return l.retNewToken(TOKEN_TYPE, nil)
 		case "break":

@@ -20,6 +20,8 @@ type Parser struct {
 	unboundIdents  map[string][]*Ident
 	topLevelDecls  map[string]Object
 
+	imports map[string]*ImportStmt
+
 	dontLookup bool
 
 	prevLbl *LabelStmt // Just declared labal is stored here temporarily
@@ -59,7 +61,8 @@ func NewParserWithoutBuiltins(lex *Lexer) *Parser {
 		branchTreesStack: []*BranchStmtsTree{NewBranchStmtsTree()},
 		unboundTypes:     make(map[string][]*CustomType),
 		unboundIdents:    make(map[string][]*Ident),
-		topLevelDecls:    make(map[string]Object)}
+		topLevelDecls:    make(map[string]Object),
+		imports:          make(map[string]*ImportStmt)}
 }
 
 // Put back a token.
@@ -1256,7 +1259,11 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 
 		if !p.dontLookup {
 			if v := p.identStack.findObject(name); v == nil && !p.ignoreUnknowns {
-				p.unboundIdents[name] = append(p.unboundIdents[name], ident)
+				if pkg := p.imports[name]; pkg == nil {
+					p.unboundIdents[name] = append(p.unboundIdents[name], ident)
+				} else {
+					ident.object = pkg
+				}
 			} else {
 				ident.object = v
 			}
@@ -1944,6 +1951,44 @@ func (p *Parser) parseIfaceStmt() (*IfaceStmt, error) {
 	return &IfaceStmt{stmt{expr: expr{firstTok.Offset}}, ifaceDecl}, nil
 }
 
+func (p *Parser) parseImportStmt() (*ImportStmt, error) {
+	t := p.expect(TOKEN_IMPORT)
+	if t == nil {
+		return nil, fmt.Errorf("Expected `import`")
+	}
+
+	t = p.expect(TOKEN_STR)
+	if t == nil {
+		return nil, fmt.Errorf("Expected package path")
+	}
+
+	path := t.Value.(string)
+	s := strings.Split(path, "/")
+	name := s[len(s)-1]
+
+	if p.peek().Type == TOKEN_AS {
+		p.nextToken()
+		word := p.expect(TOKEN_WORD)
+		if word == nil {
+			return nil, fmt.Errorf("Expected imported package name")
+		}
+		name = word.Value.(string)
+	}
+
+	result := &ImportStmt{
+		name: name,
+		path: path,
+	}
+
+	if _, ok := p.imports[name]; ok {
+		return nil, fmt.Errorf("Package named `%s` imported more than once", name)
+	}
+
+	p.imports[name] = result
+
+	return result, nil
+}
+
 func (p *Parser) parseStmt() (Stmt, error) {
 	lbl := p.prevLbl
 	p.prevLbl = nil
@@ -1988,6 +2033,9 @@ func (p *Parser) parseStmt() (Stmt, error) {
 		case TOKEN_INTERFACE:
 			p.putBack(token)
 			return p.parseIfaceStmt()
+		case TOKEN_IMPORT:
+			p.putBack(token)
+			return p.parseImportStmt()
 		default:
 			p.putBack(token)
 			stmt, err := p.parseSimpleStmt(true)
