@@ -369,6 +369,146 @@ func TestStmtsSort(t *testing.T) {
 	}
 }
 
+// Implements PkgLocator
+type fakeLocator struct {
+	files map[string][]*File
+}
+
+type fakeLocatorFile struct {
+	pkg, name, code string
+}
+
+func newFakeLocator(files ...fakeLocatorFile) *fakeLocator {
+	result := fakeLocator{make(map[string][]*File, len(files))}
+	for _, file := range files {
+		f := NewFile(file.name, file.code, nil)
+		result.files[file.pkg] = append(result.files[file.pkg], f)
+	}
+	return &result
+}
+
+func (l *fakeLocator) Locate(pkgPath string) ([]*File, error) {
+	files, ok := l.files[pkgPath]
+	if !ok {
+		return nil, fmt.Errorf("Package %s can't be found", pkgPath)
+	}
+	return files, nil
+}
+
+func testPkgImport(t *testing.T, files []fakeLocatorFile, outputRef map[string]string, shouldFail bool) {
+	locator := newFakeLocator(files...)
+	manager := NewPkgManager(locator)
+
+	pkg, errs := manager.Load("a")
+
+	if shouldFail {
+		if len(errs) == 0 {
+			t.Fail()
+			fmt.Println("Error: Should've failed but didn't")
+		}
+		return
+	} else {
+		if len(errs) > 0 {
+			t.Fail()
+			fmt.Printf("Error: %s\n", spew.Sdump(errs))
+			return
+		}
+	}
+
+	for i, f := range pkg.files {
+		output := f.GenerateCode()
+		if strings.TrimSpace(output) != strings.TrimSpace(outputRef[f.name]) {
+			t.Fail()
+			fmt.Printf("ERROR, different output code for case #%d\n", i)
+			fmt.Printf("-- Source:\n%s\n-- Wanted:\n%s\n-- Got:\n%s\n", f.code, outputRef[f.name], output)
+		}
+	}
+}
+
+func TestPkgImport(t *testing.T) {
+	files := []fakeLocatorFile{
+		{"a", "a.hav", `package a
+import "b"
+var aaa = 123 + b.bbb`},
+		{"b", "b.hav", `package b
+var bbb float32 = 321`},
+	}
+
+	outputCode := map[string]string{
+		"a.hav": `package a
+
+import b "b"
+var aaa = (float32)((123 + b.bbb))`,
+	}
+
+	testPkgImport(t, files, outputCode, false)
+}
+
+func TestPkgImport3_Line(t *testing.T) {
+	files := []fakeLocatorFile{
+		{"a", "a.hav", `package a
+import "b"
+var aaa = 123 + b.bbb`},
+		{"b", "b.hav", `package b
+import "c"
+var bbb = 321 + c.ccc`},
+		{"c", "c.hav", `package c
+var ccc float32 = 456`},
+	}
+
+	outputCode := map[string]string{
+		"a.hav": `package a
+
+import b "b"
+var aaa = (float32)((123 + b.bbb))`,
+	}
+
+	testPkgImport(t, files, outputCode, false)
+}
+
+func TestPkgImport3_OpenJaw(t *testing.T) {
+	files := []fakeLocatorFile{
+		{"a", "a.hav", `package a
+import "b"
+import "c"
+var aaa = b.bbb + c.ccc`},
+		{"b", "b.hav", `package b
+var bbb float32 = 123`},
+		{"c", "c.hav", `package c
+var ccc float32 = 456`},
+	}
+
+	outputCode := map[string]string{
+		"a.hav": `package a
+
+import b "b"
+import c "c"
+var aaa = (float32)((b.bbb + c.ccc))`,
+	}
+
+	testPkgImport(t, files, outputCode, false)
+}
+
+func TestPkgImport_Cycle(t *testing.T) {
+	files := []fakeLocatorFile{
+		{"a", "a.hav", `package a
+import "b"
+var aaa = 123 + b.bbb`},
+		{"b", "b.hav", `package b
+import "a"
+var bbb float32 = 321`},
+	}
+
+	outputCode := map[string]string{
+		"a.hav": `package a
+
+import b "b"
+var aaa = (float32)((123 + b.bbb))`,
+	}
+
+	testPkgImport(t, files, outputCode, true)
+}
+
 var justCase = flag.Int("case", -1, "Run only selected test case")
 
 func TestMain(m *testing.M) {

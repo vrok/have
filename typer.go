@@ -137,6 +137,8 @@ func (vs *VarStmt) NegotiateTypes() error {
 	return nil
 }
 
+func (td *ImportStmt) NegotiateTypes() error { return nil }
+
 func (td *TypeDecl) NegotiateTypes() error { return nil }
 
 func (bs *BranchStmt) NegotiateTypes() error { return nil }
@@ -912,7 +914,22 @@ func CheckTypeAssert(src TypedExpr, target Type) error {
 	return nil
 }
 
+func (ex *DotSelector) typeFromPkg() (Type, error) {
+	importStmt := ex.Left.(*Ident).object.(*ImportStmt)
+
+	member, ok := importStmt.pkg.objects[ex.Right.name]
+	if !ok {
+		return nil, fmt.Errorf("Package %s doesn't have member %s", importStmt.name, ex.Right.name)
+	}
+	return typeOfObject(member, importStmt.name)
+}
+
 func (ex *DotSelector) Type() (Type, error) {
+	ident, isIdent := ex.Left.(*Ident)
+	if isIdent && ident.object.ObjectType() == OBJECT_PACKAGE {
+		return ex.typeFromPkg()
+	}
+
 	leftType, err := ex.Left.(TypedExpr).Type()
 	if err != nil {
 		return nil, err
@@ -952,11 +969,29 @@ func (ex *DotSelector) Type() (Type, error) {
 	case KIND_UNKNOWN:
 		panic("todo")
 	default:
+		if leftType.Known() {
+			return nil, fmt.Errorf("Dot selector used for type %s", leftType)
+		}
 		return &UnknownType{}, nil
 	}
 }
 
+func (ex *DotSelector) applyTypeForPkgMemb(typ Type) error {
+	importStmt := ex.Left.(*Ident).object.(*ImportStmt)
+
+	member, ok := importStmt.pkg.objects[ex.Right.name]
+	if !ok {
+		return fmt.Errorf("Package %s doesn't have member %s", importStmt.name, ex.Right.name)
+	}
+	return applyTypeToObject(member, importStmt.name, typ)
+}
+
 func (ex *DotSelector) ApplyType(typ Type) error {
+	ident, isIdent := ex.Left.(*Ident)
+	if isIdent && ident.object.ObjectType() == OBJECT_PACKAGE {
+		return ex.applyTypeForPkgMemb(typ)
+	}
+
 	exType, err := ex.Type()
 	if err != nil {
 		return err
@@ -1316,11 +1351,18 @@ func (ex *CompoundLit) GuessType() (ok bool, typ Type) {
 }
 
 func (ex *BinaryOp) Type() (Type, error) {
-	// for now, assume Left and Right have the same types
 	if ex.op.IsCompOp() {
 		return &SimpleType{SIMPLE_TYPE_BOOL}, nil
 	}
-	return ex.Left.(TypedExpr).Type()
+
+	leftTyp, err := ex.Left.(TypedExpr).Type()
+	if err != nil {
+		return leftTyp, err
+	}
+	if leftTyp.Known() {
+		return leftTyp, nil
+	}
+	return ex.Right.(TypedExpr).Type()
 }
 
 // Implements the definition of comparable operands from the Go spec.
@@ -1452,26 +1494,24 @@ func (ex *BinaryOp) GuessType() (ok bool, typ Type) {
 	leftOk, leftType := ex.Left.(TypedExpr).GuessType()
 	rightOk, rightType := ex.Right.(TypedExpr).GuessType()
 
-	switch {
-	case leftOk && rightOk && leftType.String() == rightType.String():
+	if leftOk && rightOk && leftType.String() == rightType.String() {
 		// The clearest situation - both expressions were able to guess their types
 		// and they are the same.
 		return true, leftType
-	case leftOk:
+	}
+	if leftOk {
 		err := ex.Right.(TypedExpr).ApplyType(leftType)
 		if err == nil {
 			return true, leftType
 		}
-		fallthrough
-	case rightOk:
+	}
+	if rightOk {
 		err := ex.Left.(TypedExpr).ApplyType(rightType)
 		if err == nil {
 			return true, rightType
 		}
-		fallthrough
-	default:
-		return false, nil
 	}
+	return false, nil
 }
 
 func (ex *UnaryOp) Type() (Type, error) {
@@ -1591,27 +1631,36 @@ func (ex *UnaryOp) GuessType() (ok bool, typ Type) {
 	//return ex.Right.(TypedExpr).GuessType()
 }
 
-func (ex *Ident) Type() (Type, error) {
-	if ex.object != nil && ex.object.ObjectType() == OBJECT_VAR {
-		return ex.object.(*Variable).Type, nil
+// Helper function for expressions with common Type() implementations.
+func typeOfObject(obj Object, name string) (Type, error) {
+	if obj != nil && obj.ObjectType() == OBJECT_VAR {
+		return obj.(*Variable).Type, nil
 	}
-	return nil, fmt.Errorf("Unknown ident: %s", ex.name)
+	return nil, fmt.Errorf("Unknown identifier: %s", name)
 }
 
-func (ex *Ident) ApplyType(typ Type) error {
-	if ex.object == nil {
-		return fmt.Errorf("Unknown ident: %s", ex.name)
+func applyTypeToObject(obj Object, name string, typ Type) error {
+	if obj == nil {
+		return fmt.Errorf("Unknown identifier: %s", name)
 	}
 
-	if ex.object.ObjectType() != OBJECT_VAR {
-		return fmt.Errorf("Identifier %s is not a variable", ex.name)
+	if obj.ObjectType() != OBJECT_VAR {
+		return fmt.Errorf("Identifier %s is not a variable", name)
 	}
 
 	//if ex.object.(*VarDecl).Type.String() != typ.String() {
-	if !IsAssignable(typ, ex.object.(*Variable).Type) {
-		return fmt.Errorf("Identifier %s is of type %s, can't assign type %s to it", ex.name, ex.object.(*Variable).Type, typ)
+	if !IsAssignable(typ, obj.(*Variable).Type) {
+		return fmt.Errorf("Identifier %s is of type %s, can't assign type %s to it", name, obj.(*Variable).Type, typ)
 	}
 	return nil
+}
+
+func (ex *Ident) Type() (Type, error) {
+	return typeOfObject(ex.object, ex.name)
+}
+
+func (ex *Ident) ApplyType(typ Type) error {
+	return applyTypeToObject(ex.object, ex.name, typ)
 }
 
 func (ex *Ident) GuessType() (ok bool, typ Type) {
@@ -1672,7 +1721,6 @@ func (ex *BasicLit) GuessType() (ok bool, typ Type) {
 	case TOKEN_STR:
 		return true, &SimpleType{ID: SIMPLE_TYPE_STRING}
 	case TOKEN_INT:
-		// TODO: handle anything else than just integers
 		return true, &SimpleType{ID: SIMPLE_TYPE_INT}
 	case TOKEN_FLOAT:
 		return true, &SimpleType{ID: SIMPLE_TYPE_FLOAT64}

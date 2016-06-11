@@ -157,6 +157,10 @@ type EmptyGenerable struct{}
 func (eg EmptyGenerable) Generate(current *CodeChunk)                       {}
 func (vs EmptyGenerable) InlineGenerate(current *CodeChunk, noParenth bool) {}
 
+func (i *ImportStmt) Generate(current *CodeChunk) {
+	current.AddChprintf("import %s \"%s\"\n", i.name, i.path)
+}
+
 func (id *Ident) Generate(current *CodeChunk) {
 	current.AddString(id.name)
 }

@@ -2,6 +2,10 @@ package have
 
 import "go/token"
 
+type PkgLocator interface {
+	Locate(pkgPath string) ([]*File, error)
+}
+
 type File struct {
 	name, code, pkg string
 

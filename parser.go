@@ -1963,6 +1963,7 @@ func (p *Parser) parseImportStmt() (*ImportStmt, error) {
 	}
 
 	path := t.Value.(string)
+	path = path[1 : len(path)-1]
 	s := strings.Split(path, "/")
 	name := s[len(s)-1]
 
