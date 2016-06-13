@@ -258,6 +258,36 @@ func (p *Parser) forceIndentEnd() {
 	p.indentStack = p.indentStack[:len(p.indentStack)-1]
 }
 
+// Return types of at most N next tokens. Can be fewer when there aren't enough tokens
+// left.
+func (p *Parser) peekN(n int) []TokenType {
+	var result []TokenType
+	var tokens []*Token
+
+	for i := 0; i < n; i++ {
+		t := p.nextToken()
+		tokens = append(tokens, t)
+		result = append(result, t.Type)
+		if t.Type == TOKEN_EOF {
+			break
+		}
+	}
+	p.putBackStack(tokens)
+	return result
+}
+
+func tokenTypesEq(a, b []TokenType) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 // Parse an indented block of code.
 func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
 	indent, err := p.expectNewIndent()
@@ -1184,7 +1214,26 @@ func (p *Parser) parseType() (Type, error) {
 		}
 	case TOKEN_WORD:
 		name := token.Value.(string)
-		return p.typeFromWord(name), nil
+		if p.peek().Type == TOKEN_DOT {
+			p.nextToken()
+			membNameTok := p.nextToken()
+			if membNameTok.Type != TOKEN_WORD {
+				return nil, fmt.Errorf("Package member name expected after `.`")
+			}
+			membName := membNameTok.Value.(string)
+
+			pkg, ok := p.imports[name]
+			if !ok {
+				return nil, fmt.Errorf("Package `%s` not imported", name)
+			}
+
+			fullName := name + "." + membName
+			typ := &CustomType{Name: membName, Package: pkg}
+			p.unboundTypes[fullName] = append(p.unboundTypes[fullName], typ)
+			return typ, nil
+		} else {
+			return p.typeFromWord(name), nil
+		}
 	case TOKEN_STRUCT:
 		p.putBack(token)
 		return p.parseStruct(nil)
@@ -1532,8 +1581,8 @@ loop:
 	for {
 		switch state {
 		case undecided:
-			if p.peek().Type == TOKEN_WORD {
-				// We don't know yet if it's a paramether name or type name.
+			if p.peek().Type == TOKEN_WORD && !tokenTypesEq(p.peekN(3), []TokenType{TOKEN_WORD, TOKEN_DOT, TOKEN_WORD}) {
+				// We don't know yet if it's a parameter name or type name.
 				names = append(names, p.nextToken())
 			} else {
 				// This surely isn't a parameter name, but could be a type name.

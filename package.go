@@ -194,7 +194,18 @@ func (o *Package) ParseAndCheck() []error {
 			stmt.loadDeps()
 			types, idents := stmt.unboundTypes, stmt.unboundIdents
 			for name, ts := range types {
-				decl := o.GetType(name)
+				var pkg *Package
+				var baseName string
+
+				if strings.Contains(name, ".") {
+					pkg = ts[0].Package.pkg
+					baseName = name[strings.Index(name, ".")+1:]
+				} else {
+					pkg = o
+					baseName = name
+				}
+
+				decl := pkg.GetType(baseName)
 				if decl == nil {
 					errors = append(errors, fmt.Errorf("Unknown type %s", name))
 					continue
@@ -219,6 +230,10 @@ func (o *Package) ParseAndCheck() []error {
 				}
 			}
 		}
+	}
+
+	if len(errors) > 0 {
+		return errors
 	}
 
 	allStmts := []*TopLevelStmt{}

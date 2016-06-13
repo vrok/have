@@ -712,14 +712,22 @@ func (t *IfaceType) String() string {
 func (t *IfaceType) ZeroValue() string { return "nil" }
 
 type CustomType struct {
-	Name    string
-	Package string // "" means local
+	// Base name of the type. Doesn't include package name for external types.
+	Name string
+	// nil means local
+	Package *ImportStmt
 	Decl    *TypeDecl
 }
 
-func (t *CustomType) Known() bool    { return true }
-func (t *CustomType) String() string { return t.Name }
-func (t *CustomType) Kind() Kind     { return KIND_CUSTOM }
+func (t *CustomType) Known() bool { return true }
+func (t *CustomType) String() string {
+	if t.Package == nil {
+		return t.Name
+	} else {
+		return t.Package.name + "." + t.Name
+	}
+}
+func (t *CustomType) Kind() Kind { return KIND_CUSTOM }
 func (t *CustomType) RootType() Type {
 	current := t.Decl.AliasedType
 	for current.Kind() == KIND_CUSTOM {
