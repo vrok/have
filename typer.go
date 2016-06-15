@@ -127,6 +127,11 @@ func Implements(iface, value Type) bool {
 	return true
 }
 
+func IsPackage(e TypedExpr) bool {
+	ident, isIdent := e.(*Ident)
+	return isIdent && ident.object.ObjectType() == OBJECT_PACKAGE
+}
+
 func (vs *VarStmt) NegotiateTypes() error {
 	for _, v := range vs.Vars {
 		err := v.NegotiateTypes()
@@ -696,6 +701,14 @@ func ExprToTypeName(e Expr) (t Type, ok bool) {
 		if e.object.ObjectType() == OBJECT_TYPE {
 			return e.object.(*TypeDecl).Type(), true
 		}
+	case *DotSelector:
+		if IsPackage(e.Left.(TypedExpr)) {
+			importStmt := e.Left.(*Ident).object.(*ImportStmt)
+			decl := importStmt.pkg.GetType(e.Right.name)
+			if decl != nil {
+				return &CustomType{Decl: decl, Name: decl.name, Package: importStmt}, true
+			}
+		}
 	}
 	return nil, false
 }
@@ -917,16 +930,15 @@ func CheckTypeAssert(src TypedExpr, target Type) error {
 func (ex *DotSelector) typeFromPkg() (Type, error) {
 	importStmt := ex.Left.(*Ident).object.(*ImportStmt)
 
-	member, ok := importStmt.pkg.objects[ex.Right.name]
-	if !ok {
+	member := importStmt.pkg.GetObject(ex.Right.name)
+	if member == nil {
 		return nil, fmt.Errorf("Package %s doesn't have member %s", importStmt.name, ex.Right.name)
 	}
 	return typeOfObject(member, importStmt.name)
 }
 
 func (ex *DotSelector) Type() (Type, error) {
-	ident, isIdent := ex.Left.(*Ident)
-	if isIdent && ident.object.ObjectType() == OBJECT_PACKAGE {
+	if IsPackage(ex.Left.(TypedExpr)) {
 		return ex.typeFromPkg()
 	}
 
