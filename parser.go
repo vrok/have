@@ -685,7 +685,7 @@ loop:
 func (p *Parser) loadBuiltinFuncs() {
 	for _, code := range builtinFuncs {
 		parser := NewParserWithoutBuiltins(NewLexer([]rune(code)))
-		fun, err := parser.parseFunc()
+		fun, _, err := parser.parseFunc(false)
 		if err != nil {
 			panic(err)
 		}
@@ -695,7 +695,7 @@ func (p *Parser) loadBuiltinFuncs() {
 	}
 }
 
-func (p *Parser) parseFuncStmt() (*VarStmt, error) {
+func (p *Parser) parseFuncStmt() (Stmt, error) {
 	ident := p.expect(TOKEN_FUNC)
 	if ident == nil {
 		return nil, fmt.Errorf("Impossible happened")
@@ -707,12 +707,17 @@ func (p *Parser) parseFuncStmt() (*VarStmt, error) {
 
 	p.putBack(ident)
 
-	fun, err := p.parseFunc()
+	fun, obj, err := p.parseFunc(true)
 	if err != nil {
 		return nil, err
 	}
 
-	funcVar := &Variable{name: fun.name, Type: fun.typ}
+	if len(fun.GenericParams) > 0 {
+		// TODO: this is ugly
+		return obj.(*GenericFunc), nil
+	}
+
+	funcVar := obj.(*Variable)
 	decl := &VarDecl{Vars: []*Variable{funcVar}, Inits: []Expr{fun}}
 
 	// TODO: mark as final/not changeable
@@ -1011,7 +1016,7 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl) (*StructType, error) {
 			p.identStack.addObject(receiver)
 
 			p.putBack(token)
-			fun, err := p.parseFunc()
+			fun, _, err := p.parseFunc(false)
 			if err != nil {
 				return nil, err
 			}
@@ -1073,7 +1078,7 @@ func (p *Parser) parseInterface(named bool) (*IfaceType, error) {
 				ptrReceiver = true
 			}
 			p.putBack(token)
-			fun, err := p.parseFuncHeader()
+			fun, err := p.parseFuncHeader(false)
 			if err != nil {
 				return nil, err
 			}
@@ -1119,7 +1124,7 @@ func (p *Parser) parseChanType() (*ChanType, error) {
 }
 
 func (p *Parser) parseFuncType() (*FuncType, error) {
-	hdr, err := p.parseFuncHeader()
+	hdr, err := p.parseFuncHeader(false)
 	if err != nil {
 		return nil, err
 	}
@@ -1127,25 +1132,31 @@ func (p *Parser) parseFuncType() (*FuncType, error) {
 }
 
 func (p *Parser) typeFromWord(name string) Type {
-	var decl *TypeDecl = nil
 	if !p.dontLookup {
-		decl = p.identStack.findTypeDecl(name)
+		obj := p.identStack.findTypeDecl(name)
 		switch {
-		case decl == nil:
+		case obj == nil:
 			r := &CustomType{Name: name}
 			p.unboundTypes[name] = append(p.unboundTypes[name], r)
 			return r
-		case decl.AliasedType == nil:
-			return &SimpleType{ID: simpleTypeStrToID[name]}
+		case obj.ObjectType() == OBJECT_TYPE:
+			decl := obj.(*TypeDecl)
+			if decl.AliasedType == nil {
+				return &SimpleType{ID: simpleTypeStrToID[name]}
+			} else {
+				return &CustomType{Name: name, Decl: decl}
+			}
+		case obj.ObjectType() == OBJECT_GENERIC_TYPE:
+			return &GenericType{Name: obj.Name()}
 		default:
-			return &CustomType{Name: name, Decl: decl}
+			panic("niemożliwe")
 		}
 	} else {
 		// TODO: we don't want so much code which is mostly used just for tests
 		if _, ok := GetBuiltinType(name); ok {
 			return &SimpleType{ID: simpleTypeStrToID[name]}
 		}
-		return &CustomType{Name: name, Decl: decl}
+		return &CustomType{Name: name, Decl: nil}
 	}
 }
 
@@ -1270,7 +1281,7 @@ func (p *Parser) parseTypeExpr() (*TypeExpr, error) {
 // Returns either TypeExpr with function type or FuncDecl.
 func (p *Parser) parseFuncTypeOrLit() (Expr, error) {
 	loc := p.peek().Offset
-	fd, err := p.parseFuncHeader()
+	fd, err := p.parseFuncHeader(false)
 	if err != nil {
 		return nil, err
 	}
@@ -1662,7 +1673,7 @@ func typesFromVars(vd DeclChain) []Type {
 // Parses function header (declaration without the body).
 // Returns a partially complete FuncDecl, that can be later filled with
 // function's body, etc.
-func (p *Parser) parseFuncHeader() (*FuncDecl, error) {
+func (p *Parser) parseFuncHeader(genericPossible bool) (*FuncDecl, error) {
 	startTok := p.expect(TOKEN_FUNC)
 	if startTok == nil {
 		return nil, fmt.Errorf("Function declaration needs to start with 'func' keyword")
@@ -1673,10 +1684,45 @@ func (p *Parser) parseFuncHeader() (*FuncDecl, error) {
 	}
 
 	funcName := ""
+	genericTypes := []string{}
+
 	t := p.nextToken()
 	switch t.Type {
 	case TOKEN_WORD:
 		funcName = t.Value.(string)
+
+		if p.peek().Type == TOKEN_LBRACKET {
+			if !genericPossible {
+				return nil, fmt.Errorf("Unexpected generic function")
+			}
+
+			p.nextToken()
+
+		loop:
+			for {
+				typeName := p.expect(TOKEN_WORD)
+				if typeName == nil {
+					return nil, fmt.Errorf("Expected generic type name")
+				}
+
+				name := typeName.Value.(string)
+
+				genericTypes = append(genericTypes, name)
+
+				p.identStack.addObject(&GenericTypeDecl{
+					stmt: stmt{expr: expr{typeName.Offset}},
+					name: name},
+				)
+
+				switch t := p.nextToken(); t.Type {
+				case TOKEN_COMMA:
+				case TOKEN_RBRACKET:
+					break loop
+				default:
+					return nil, fmt.Errorf("Unexpected token %s", t)
+				}
+			}
+		}
 	case TOKEN_LPARENTH:
 		// anonymous function
 		p.putBack(t)
@@ -1730,16 +1776,32 @@ func (p *Parser) parseFuncHeader() (*FuncDecl, error) {
 			Args:    typesFromVars(args),
 			Results: typesFromVars(results),
 		},
+		GenericParams: genericTypes,
 	}, nil
 }
 
-func (p *Parser) parseFunc() (*FuncDecl, error) {
-	fd, err := p.parseFuncHeader()
+func (p *Parser) parseFunc(genericPossible bool) (*FuncDecl, Object, error) {
+	fd, err := p.parseFuncHeader(genericPossible)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return p.parseFuncBody(fd)
+	var obj Object
+
+	if len(fd.GenericParams) > 0 {
+		obj = &GenericFunc{stmt: stmt{expr: fd.expr},
+			Params: fd.GenericParams, Func: fd}
+	} else {
+		obj = &Variable{name: fd.name, Type: fd.typ}
+	}
+
+	if fd.Receiver == nil {
+		// Add it to scope so that recursive calls can work.
+		p.identStack.addObject(obj)
+	}
+
+	fd, err = p.parseFuncBody(fd)
+	return fd, obj, err
 }
 
 // Parse function body assuming that its header has been already parsed.

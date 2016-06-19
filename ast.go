@@ -84,6 +84,8 @@ const (
 	OBJECT_TYPE
 	OBJECT_PACKAGE
 	OBJECT_LABEL
+	OBJECT_GENERIC
+	OBJECT_GENERIC_TYPE
 )
 
 // This serves a similar purpose to Go's types.Object
@@ -138,6 +140,17 @@ func (o *TypeDecl) Type() Type {
 	}
 	return &CustomType{Name: o.name, Decl: o}
 }
+
+// Represents an argument to a generic statment (in early stages of compilation they
+// can't be treated as type declarations - they are just placeholders for future types).
+// Implements Object and Stmt
+type GenericTypeDecl struct {
+	stmt
+	name string
+}
+
+func (g *GenericTypeDecl) Name() string           { return g.name }
+func (g *GenericTypeDecl) ObjectType() ObjectType { return OBJECT_GENERIC_TYPE }
 
 var builtinTypeNames []string = []string{"bool", "byte", "complex128", "complex64", "error", "float32",
 	"float64", "int", "int16", "int32", "int64", "int8", "rune",
@@ -336,6 +349,39 @@ type ReturnStmt struct {
 	Func   *FuncDecl
 	Values []Expr
 }
+
+type Generic interface {
+	Name() string
+	Generate(params ...Type) (Object, []error)
+}
+
+// Implements Stmt, Object
+type GenericFunc struct {
+	stmt
+	Params []string
+	Func   *FuncDecl
+}
+
+func (gf *GenericFunc) Name() string           { return gf.Func.name }
+func (gf *GenericFunc) ObjectType() ObjectType { return OBJECT_GENERIC }
+
+type GenericStruct struct {
+}
+
+func (gf *GenericFunc) ImplicitGenerate(resultType Type, paramTypes ...Type) (*FuncDecl, []error) {
+	panic("TODO")
+}
+
+// Implements Type
+type GenericType struct {
+	Name     string
+	Concrete Type
+}
+
+func (t *GenericType) Known() bool       { return t.Concrete.Known() }
+func (t *GenericType) String() string    { return t.Concrete.String() }
+func (t *GenericType) Kind() Kind        { return t.Concrete.Kind() }
+func (t *GenericType) ZeroValue() string { return t.Concrete.ZeroValue() }
 
 type Kind int
 
@@ -898,6 +944,8 @@ type FuncDecl struct {
 	// It is redundant for structs, but is useful for interfaces
 	// (where Receiver is nil).
 	PtrReceiver bool
+	// Names of generic type paramaters. Nil for standard functions.
+	GenericParams []string
 }
 
 // implements PrimaryExpr

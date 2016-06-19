@@ -473,7 +473,7 @@ func TestIdentSearch(t *testing.T) {
 	}
 	for _, c := range cases {
 		parser := NewParser(NewLexer([]rune(c.code)))
-		result, err := parser.parseFunc()
+		result, _, err := parser.parseFunc(false)
 
 		passed := (err == nil && len(parser.unboundIdents) == 0)
 
@@ -558,7 +558,7 @@ func TestFuncDecl(t *testing.T) {
 	}
 	for _, c := range cases {
 		parser := NewParser(NewLexer([]rune(c.code)))
-		result, err := parser.parseFunc()
+		result, _, err := parser.parseFunc(false)
 
 		// TODO: better assertions, more test cases.
 		// We'll need something more succint than comparing whole ASTs.
@@ -749,6 +749,25 @@ func x():
 	lol:
 	for x = 0; x < 10; x += 1:
 		break lol`, true},
+	}
+	validityTest(t, cases)
+}
+
+func TestParseGenericFunc(t *testing.T) {
+	cases := []validityTestCase{
+		{`func a[T]() int: # OK
+	return 1`, true},
+		{`func a[T, K]() int: # OK
+	return 1`, true},
+		{`func a[]() int: # Expected a generic type name
+	return 1`, false},
+		{`func a[T]() T: # OK
+	return 1`, true},
+		// TODO: the sample below causes a runtime panic instead of an error
+		{`func a[T]() K: # K is unknown
+	return 1`, false},
+		{`func a[T](x T) T: # some recursion
+	return a(x + 1)`, true},
 	}
 	validityTest(t, cases)
 }

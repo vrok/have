@@ -9,11 +9,21 @@ type ExprToProcess interface {
 }
 
 type TypedExpr interface {
-	//ExprToProcess
 	Expr
 
+	// Infers type of the expression based on facts that are certain - no guessing should
+	// happen at this point.
+	// Errors returned from Type() are reported as compilation errors.
+	// Type() MUSTN'T return GenericType in any case, but the underlying type instead.
 	Type() (Type, error)
+	// Called by the type checker when it wants this expression to be of a particular type.
+	// If all goes well, this should affect the result of further calls to Type().
+	// If applying the given type is impossible, appropriate error should be returned (it
+	// doesn't always mean the end of negotiation - further calls to Type/ApplyType/GuessType can
+	// be expected).
 	ApplyType(typ Type) error
+	// Tries to guess the most appropriate type for this expression.
+	// GuessType() MUSTN'T return GenericType in any case, but the underlying type instead.
 	GuessType() (ok bool, typ Type)
 }
 

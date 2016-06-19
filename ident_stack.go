@@ -40,14 +40,14 @@ func (is *IdentStack) findObject(name string) Object {
 	return nil
 }
 
-// Returns nil when not found
-func (is *IdentStack) findTypeDecl(name string) *TypeDecl {
+// Returns either a *TypeDecl or *GenericTypeDecl.(or nil when not found).
+func (is *IdentStack) findTypeDecl(name string) Object {
 	if decl, ok := GetBuiltinType(name); ok {
 		return decl
 	}
 	for i := len(*is) - 1; i >= 0; i-- {
-		if v, ok := (*is)[i][name]; ok && v.ObjectType() == OBJECT_TYPE {
-			return v.(*TypeDecl)
+		if v, ok := (*is)[i][name]; ok && (v.ObjectType() == OBJECT_TYPE || v.ObjectType() == OBJECT_GENERIC_TYPE) {
+			return v
 		}
 	}
 	return nil
