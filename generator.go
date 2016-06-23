@@ -371,7 +371,14 @@ func (as *AssignStmt) InlineGenerate(current *CodeChunk, noParenth bool) {
 }
 
 func (ae *ArrayExpr) Generate(current *CodeChunk) {
-	current.AddChprintf("%C[%C]", ae.Left, ae.Index)
+	current.AddChprintf("%C[", ae.Left)
+	for i, arg := range ae.Index {
+		current.AddChprintf("%iC", arg)
+		if i+1 < len(ae.Index) {
+			current.AddString(", ")
+		}
+	}
+	current.AddChprintf("]")
 }
 
 func (se *SliceExpr) Generate(current *CodeChunk) {

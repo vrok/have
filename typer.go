@@ -723,6 +723,25 @@ func ExprToTypeName(e Expr) (t Type, ok bool) {
 	return nil, false
 }
 
+// Just like ExprToTypeName, but for generics.
+func ExprToGeneric(e Expr) (t Generic, ok bool) {
+	switch e := e.(type) {
+	case *Ident:
+		if e.object.ObjectType() == OBJECT_GENERIC {
+			return e.object.(Generic), true
+		}
+	case *DotSelector:
+		if IsPackage(e.Left.(TypedExpr)) {
+			importStmt := e.Left.(*Ident).object.(*ImportStmt)
+			obj := importStmt.pkg.GetObject(e.Right.name)
+			if obj != nil && obj.ObjectType() == OBJECT_GENERIC {
+				return obj.(Generic), true
+			}
+		}
+	}
+	return nil, false
+}
+
 func (ex *FuncCallExpr) Type() (Type, error) {
 	if castType, cast := ExprToTypeName(ex.Left); cast {
 		if len(ex.Args) != 1 {
@@ -1061,6 +1080,34 @@ func (ex *ArrayExpr) Type() (Type, error) {
 		return ex.typ, nil
 	}
 
+	if generic, ok := ExprToGeneric(ex.Left); ok {
+		// This isn't a map/array lookup but a generic function.
+		var types []Type
+
+		for i, arg := range ex.Index {
+			typ, ok := ExprToTypeName(arg)
+			if !ok {
+				return nil, fmt.Errorf("Argument #%d to generic is not a type", i)
+			}
+			types = append(types, typ)
+		}
+		obj, errors := generic.Generate(types...)
+		if len(errors) > 0 {
+			// TODO: return all errors
+			return nil, errors[0]
+		}
+
+		if obj.ObjectType() != OBJECT_VAR {
+			return nil, fmt.Errorf("Result of a generic is not a value")
+		}
+
+		return obj.(*Variable).Type, nil
+	}
+
+	if len(ex.Index) != 1 {
+		return nil, fmt.Errorf("Index operator takes exactly 1 argument, not %d", len(ex.Index))
+	}
+
 	leftType, err := ex.Left.(TypedExpr).Type()
 	if err != nil {
 		return nil, err
@@ -1069,7 +1116,7 @@ func (ex *ArrayExpr) Type() (Type, error) {
 	if !ok {
 		return &UnknownType{}, nil
 	}
-	if _, ok := ex.Index.(*SliceExpr); ok {
+	if _, ok := ex.Index[0].(*SliceExpr); ok {
 		return &SliceType{Of: valueType}, nil
 	}
 
@@ -1077,7 +1124,11 @@ func (ex *ArrayExpr) Type() (Type, error) {
 }
 
 func (ex *ArrayExpr) applyTypeSliceExpr(typ Type) error {
-	sliceExpr := ex.Index.(*SliceExpr)
+	if len(ex.Index) != 1 {
+		return fmt.Errorf("Index operator takes exactly 1 argument, not %d", len(ex.Index))
+	}
+
+	sliceExpr := ex.Index[0].(*SliceExpr)
 
 	leftType, err := ex.leftExprType()
 	if err != nil {
@@ -1149,11 +1200,15 @@ func (ex *ArrayExpr) ApplyType(typ Type) error {
 		return fmt.Errorf("Coudln't infer container's type")
 	}
 
-	if _, ok := ex.Index.(*SliceExpr); ok {
+	if len(ex.Index) != 1 {
+		return fmt.Errorf("Index operator takes exactly 1 argument, not %d", len(ex.Index))
+	}
+
+	if _, ok := ex.Index[0].(*SliceExpr); ok {
 		return ex.applyTypeSliceExpr(typ)
 	}
 
-	err = ex.Index.(TypedExpr).ApplyType(keyTyp)
+	err = ex.Index[0].(TypedExpr).ApplyType(keyTyp)
 	if err != nil {
 		return err
 	}
@@ -1193,7 +1248,7 @@ func (ex *ArrayExpr) GuessType() (ok bool, typ Type) {
 		return false, valueType
 	}
 
-	if _, ok := ex.Index.(*SliceExpr); ok {
+	if _, ok := ex.Index[0].(*SliceExpr); ok {
 		return true, &SliceType{Of: valueType}
 	}
 

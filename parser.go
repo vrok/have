@@ -1395,21 +1395,38 @@ loop:
 			}
 			left = &FuncCallExpr{expr{token.Offset}, left, args}
 		case TOKEN_LBRACKET:
-			index, err := p.parseExpr()
+			var index []Expr
+			exp, err := p.parseExpr()
 			if err != nil {
 				return nil, err
 			}
-			if p.peek().Type == TOKEN_COLON {
+			switch p.peek().Type {
+			case TOKEN_COLON:
 				p.nextToken()
 
-				from := index
+				from := exp
 				to, err := p.parseExpr()
 				if err != nil {
 					return nil, err
 				}
 
-				index = &SliceExpr{expr: expr{index.Pos()}, From: from, To: to}
+				index = append(index, &SliceExpr{expr: expr{exp.Pos()}, From: from, To: to})
+			case TOKEN_COMMA:
+				index = append(index, exp)
+
+				for p.peek().Type == TOKEN_COMMA {
+					p.nextToken()
+					exp, err := p.parseExpr()
+					if err != nil {
+						return nil, err
+					}
+
+					index = append(index, exp)
+				}
+			default:
+				index = append(index, exp)
 			}
+
 			if p.expect(TOKEN_RBRACKET) == nil {
 				return nil, fmt.Errorf("Expected `]`")
 			}

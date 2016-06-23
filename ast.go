@@ -364,6 +364,9 @@ type GenericFunc struct {
 
 func (gf *GenericFunc) Name() string           { return gf.Func.name }
 func (gf *GenericFunc) ObjectType() ObjectType { return OBJECT_GENERIC }
+func (gf *GenericFunc) Generate(params ...Type) (Object, []error) {
+	panic("TODO")
+}
 
 type GenericStruct struct {
 }
@@ -885,7 +888,8 @@ type PrimaryExpr interface {
 type ArrayExpr struct {
 	expr
 
-	Left, Index Expr
+	Left  Expr
+	Index []Expr
 
 	// Type can be e.g. a tuple (X, bool) after type negotiation.
 	typ Type

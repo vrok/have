@@ -1357,6 +1357,18 @@ var y = x[1:5]`,
 	})
 }
 
+func TestTypesGenericFunc(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+func a[T]() int: # Something very simple for start
+	return 1
+var x = a[float32]()`,
+			true,
+			"int",
+		},
+	})
+}
+
 func TestTypesSimple(t *testing.T) {
 	var cases = []struct {
 		code       string
