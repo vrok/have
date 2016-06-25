@@ -20,12 +20,15 @@ type Parser struct {
 	unboundIdents  map[string][]*Ident
 	topLevelDecls  map[string]Object
 
-	imports map[string]*ImportStmt
+	imports       Imports
+	genericParams map[string]Type
 
 	dontLookup bool
 
 	prevLbl *LabelStmt // Just declared labal is stored here temporarily
 }
+
+type Imports map[string]*ImportStmt
 
 func (p *Parser) nextToken() *Token {
 	if len(p.tokensBuf) > 0 {
@@ -1131,7 +1134,20 @@ func (p *Parser) parseFuncType() (*FuncType, error) {
 	return hdr.typ, nil
 }
 
+// False when parsing in normal mode, true when parsing a generic
+// realisation/instantiation.
+func (p *Parser) parsingGenericRealisation() bool {
+	return p.genericParams != nil
+}
+
 func (p *Parser) typeFromWord(name string) Type {
+	if p.parsingGenericRealisation() {
+		// Substitute a generic param occurence with a concrete type.
+		if typ, ok := p.genericParams[name]; ok {
+			return typ
+		}
+	}
+
 	if !p.dontLookup {
 		obj := p.identStack.findTypeDecl(name)
 		switch {
@@ -1316,8 +1332,15 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 	case TOKEN_WORD:
 		name := token.Value.(string)
 		ident := &Ident{expr: expr{token.Offset}, name: name}
+		left = ident
 
-		if !p.dontLookup {
+		if p.parsingGenericRealisation() && p.genericParams[name] != nil {
+			typ, ok := p.genericParams[name]
+			if !ok {
+				panic("Internal error")
+			}
+			left = &TypeExpr{expr: expr{token.Offset}, typ: typ}
+		} else if !p.dontLookup {
 			if v := p.identStack.findObject(name); v == nil && !p.ignoreUnknowns {
 				if pkg := p.imports[name]; pkg == nil {
 					p.unboundIdents[name] = append(p.unboundIdents[name], ident)
@@ -1328,7 +1351,6 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 				ident.object = v
 			}
 		}
-		left = ident
 	case TOKEN_STR:
 		left = &BasicLit{expr{token.Offset}, nil, token}
 	case TOKEN_INT, TOKEN_FLOAT, TOKEN_IMAG, TOKEN_TRUE, TOKEN_FALSE, TOKEN_RUNE:
@@ -1724,12 +1746,17 @@ func (p *Parser) parseFuncHeader(genericPossible bool) (*FuncDecl, error) {
 
 				name := typeName.Value.(string)
 
-				genericTypes = append(genericTypes, name)
+				if !p.parsingGenericRealisation() {
+					// When parsing a generic realisation, ignore the params.
+					// We're just re-parsing the code, substituting generic params occurences
+					// with concrete types as we go.
+					genericTypes = append(genericTypes, name)
 
-				p.identStack.addObject(&GenericTypeDecl{
-					stmt: stmt{expr: expr{typeName.Offset}},
-					name: name},
-				)
+					p.identStack.addObject(&GenericTypeDecl{
+						stmt: stmt{expr: expr{typeName.Offset}},
+						name: name},
+					)
+				}
 
 				switch t := p.nextToken(); t.Type {
 				case TOKEN_COMMA:
@@ -1798,16 +1825,20 @@ func (p *Parser) parseFuncHeader(genericPossible bool) (*FuncDecl, error) {
 }
 
 func (p *Parser) parseFunc(genericPossible bool) (*FuncDecl, Object, error) {
+	start := p.peek()
+
 	fd, err := p.parseFuncHeader(genericPossible)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	var obj Object
+	var gf *GenericFunc
 
 	if len(fd.GenericParams) > 0 {
-		obj = &GenericFunc{stmt: stmt{expr: fd.expr},
-			Params: fd.GenericParams, Func: fd}
+		gf = &GenericFunc{stmt: stmt{expr: fd.expr},
+			params: fd.GenericParams, Func: fd, imports: p.imports}
+		obj = gf
 	} else {
 		obj = &Variable{name: fd.name, Type: fd.typ}
 	}
@@ -1818,6 +1849,13 @@ func (p *Parser) parseFunc(genericPossible bool) (*FuncDecl, Object, error) {
 	}
 
 	fd, err = p.parseFuncBody(fd)
+
+	if gf != nil {
+		end := p.peek()
+		code := p.lex.Slice(start, end)
+		gf.code = code
+	}
+
 	return fd, obj, err
 }
 

@@ -353,20 +353,39 @@ type ReturnStmt struct {
 type Generic interface {
 	Name() string
 	Generate(params ...Type) (Object, []error)
+	Code() []rune
+	Imports() Imports
+	Params() []string
 }
 
 // Implements Stmt, Object
 type GenericFunc struct {
 	stmt
-	Params []string
+	params []string
 	Func   *FuncDecl
+
+	// TODO: Use token.Pos
+	code    []rune
+	imports Imports
 }
 
 func (gf *GenericFunc) Name() string           { return gf.Func.name }
 func (gf *GenericFunc) ObjectType() ObjectType { return OBJECT_GENERIC }
 func (gf *GenericFunc) Generate(params ...Type) (Object, []error) {
-	panic("TODO")
+	r := &Realisation{
+		Generic: gf,
+		Params:  params,
+		// TODO: ...
+	}
+	errs := r.ParseAndCheck()
+	if len(errs) > 0 {
+		return nil, errs
+	}
+	return r.Object, nil
 }
+func (gf *GenericFunc) Code() []rune     { return gf.code }
+func (gf *GenericFunc) Imports() Imports { return gf.imports }
+func (gf *GenericFunc) Params() []string { return gf.params }
 
 type GenericStruct struct {
 }
@@ -400,6 +419,9 @@ const (
 	KIND_TUPLE
 	KIND_FUNC
 	KIND_CHAN
+	// Type checker code doesn't have to bother with KIND_GENERIC, all types of the generic kind
+	// are substituted with actual types before they end up in type checker.
+	KIND_GENERIC
 	KIND_UNKNOWN
 )
 

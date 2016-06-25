@@ -1366,6 +1366,13 @@ var x = a[float32]()`,
 			true,
 			"int",
 		},
+		{`
+func a[T]() T:
+	return 1
+var x = a[float32]()`,
+			true,
+			"float32",
+		},
 	})
 }
 

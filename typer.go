@@ -3,6 +3,9 @@ package have
 
 import "fmt"
 
+type TypeChecker struct {
+}
+
 type ExprToProcess interface {
 	Expr
 	NegotiateTypes() error
@@ -11,6 +14,8 @@ type ExprToProcess interface {
 type TypedExpr interface {
 	Expr
 
+	// Sets the type checker object. Called at the beginning.
+	SetChecker(*TypeChecker)
 	// Infers type of the expression based on facts that are certain - no guessing should
 	// happen at this point.
 	// Errors returned from Type() are reported as compilation errors.

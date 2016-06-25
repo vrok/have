@@ -134,3 +134,20 @@ func TestComments(t *testing.T) {
 		&Token{TOKEN_FOR, 8, nil},
 		&Token{TOKEN_EOF, 11, nil}})
 }
+
+func TestFragment(t *testing.T) {
+	l := NewLexer([]rune("1 2 3 4"))
+
+	l.Next()
+
+	m := l.NewMark()
+
+	l.Next()
+	l.Next()
+
+	l.EndMark(m)
+
+	if substr := string(m.TrimmedString()); substr != "2 3" {
+		t.Fatalf("Not equal: '%s'", substr)
+	}
+}

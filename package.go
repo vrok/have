@@ -6,10 +6,11 @@ import (
 )
 
 type Package struct {
-	path    string
-	files   []*File
-	objects map[string]Object
-	manager *PkgManager
+	path         string
+	files        []*File
+	realisations []*Realisation
+	objects      map[string]Object
+	manager      *PkgManager
 }
 
 func NewPackage(path string, files ...*File) *Package {
@@ -316,4 +317,56 @@ func (m *PkgManager) Load(path string) (*Package, []error) {
 	}
 	m.pkgs[path] = pkg
 	return pkg, nil
+}
+
+type Realisation struct {
+	FullName string
+	Params   []Type
+	Generic  Generic
+	Object   Object
+
+	parser *Parser
+}
+
+func (r *Realisation) ParseAndCheck() []error {
+	r.parser = NewParser(NewLexer(r.Generic.Code()))
+	// Parser sees the realisation as a separate file, so we need to plug in imports from
+	// the original file.
+	r.parser.imports = r.Generic.Imports()
+
+	// Fill parser.genericParams so that the parser can immediately substitute them with
+	// concrete types.
+	genericParams := make(map[string]Type, len(r.Generic.Params()))
+	for i := 0; i < len(r.Generic.Params()); i++ {
+		name, val := r.Generic.Params()[i], r.Params[i]
+		genericParams[name] = val
+	}
+	//r.ParseAndCheck()
+	r.parser.genericParams = genericParams
+
+	stmts, err := r.parser.Parse()
+	if err != nil {
+		return []error{err}
+	}
+	if len(stmts) != 1 {
+		panic(fmt.Sprintf("Internal error: parsing a generic realisation returned %d statements", len(stmts)))
+	}
+
+	stmt := stmts[0].Stmt
+
+	err = stmt.(ExprToProcess).NegotiateTypes()
+	if err != nil {
+		return []error{err}
+	}
+
+	var obj Object
+	switch s := stmt.(type) {
+	case *VarStmt:
+		// Generic func
+		obj = s.Vars[0].Vars[0]
+	case *TypeDecl:
+		panic("TODO - generic structs")
+	}
+	r.Object = obj
+	return nil
 }

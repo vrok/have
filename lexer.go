@@ -124,6 +124,8 @@ const (
 )
 
 type Lexer struct {
+	// All characters, immutable.
+	all []rune
 	// Characters not processed yet.
 	buf []rune
 	// Stack of opened indents.
@@ -138,15 +140,20 @@ type Lexer struct {
 }
 
 func NewLexer(buf []rune) *Lexer {
-	return &Lexer{buf: buf, indentsStack: []int{}}
+	return &Lexer{all: buf, buf: buf, indentsStack: []int{}}
+}
+
+func countWhiteChars(buf []rune) int {
+	i := 0
+	for i < len(buf) && (unicode.IsSpace(buf[i]) && buf[i] != '\n') {
+		i++
+	}
+	return i
 }
 
 // Advance lexer's buffer by skipping whitespace, except newlines.
 func (l *Lexer) skipWhiteChars() []rune {
-	i := 0
-	for i < len(l.buf) && (unicode.IsSpace(l.buf[i]) && l.buf[i] != '\n') {
-		i++
-	}
+	i := countWhiteChars(l.buf)
 	whitespace := l.buf[:i]
 	l.skipBy(i)
 	return whitespace
@@ -299,6 +306,11 @@ func (l *Lexer) fromGoToken(token gotoken.Token, lit string) (*Token, error) {
 		return l.retNewToken(TOKEN_RUNE, lit)
 	}
 	return nil, fmt.Errorf("Unexpected Go token: %s", token)
+}
+
+// Returns fragment of code [start, end)
+func (l *Lexer) Slice(start, end *Token) []rune {
+	return l.all[start.Offset:end.Offset]
 }
 
 func (l *Lexer) Next() (*Token, error) {
@@ -521,4 +533,25 @@ func (l *Lexer) Next() (*Token, error) {
 	}
 
 	return nil, fmt.Errorf("Don't know what to do, '%c'", ch)
+}
+
+// Can be used to mark a fragment of code in the file and then extract it.
+type fragment struct {
+	from, code []rune
+}
+
+// Never call without calling EndMark first.
+// The result is trimmed only on the left side.
+func (f *fragment) TrimmedString() []rune {
+	return f.code[countWhiteChars(f.code):]
+}
+
+func (l *Lexer) NewMark() *fragment {
+	return &fragment{
+		from: l.buf,
+	}
+}
+
+func (l *Lexer) EndMark(f *fragment) {
+	f.code = f.from[:len(f.from)-len(l.buf)]
 }
