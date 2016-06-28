@@ -9,7 +9,8 @@ import (
 )
 
 func transpile(code string, outputFile string) error {
-	f := NewFile("file.hav", code, nil)
+	ctx := NewTypesContext()
+	f := NewFile("file.hav", code, ctx, nil)
 	errs := f.ParseAndCheck()
 	if len(errs) > 0 {
 		return errs[0]

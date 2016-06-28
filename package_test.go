@@ -14,8 +14,9 @@ func testPkg(t *testing.T, shouldFail bool, files []struct {
 	name, file, gocode string
 }) {
 	var list []*File
+	ctx := NewTypesContext()
 	for _, input := range files {
-		f := NewFile(input.name, input.file, nil)
+		f := NewFile(input.name, input.file, ctx, nil)
 		list = append(list, f)
 	}
 
@@ -380,8 +381,9 @@ type fakeLocatorFile struct {
 
 func newFakeLocator(files ...fakeLocatorFile) *fakeLocator {
 	result := fakeLocator{make(map[string][]*File, len(files))}
+	ctx := NewTypesContext()
 	for _, file := range files {
-		f := NewFile(file.name, file.code, nil)
+		f := NewFile(file.name, file.code, ctx, nil)
 		result.files[file.pkg] = append(result.files[file.pkg], f)
 	}
 	return &result

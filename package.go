@@ -11,6 +11,7 @@ type Package struct {
 	realisations []*Realisation
 	objects      map[string]Object
 	manager      *PkgManager
+	tc           *TypesContext
 }
 
 func NewPackage(path string, files ...*File) *Package {
@@ -18,6 +19,7 @@ func NewPackage(path string, files ...*File) *Package {
 		path:    path,
 		files:   files,
 		objects: make(map[string]Object),
+		tc:      NewTypesContext(),
 	}
 }
 
@@ -249,7 +251,7 @@ func (o *Package) ParseAndCheck() []error {
 
 	for _, f := range sorted {
 		typedStmt := f.Stmt.(ExprToProcess)
-		if err := typedStmt.NegotiateTypes(); err != nil {
+		if err := typedStmt.NegotiateTypes(o.tc); err != nil {
 			return []error{err}
 		}
 	}
@@ -326,6 +328,7 @@ type Realisation struct {
 	Object   Object
 
 	parser *Parser
+	tc     *TypesContext
 }
 
 func (r *Realisation) ParseAndCheck() []error {
@@ -354,7 +357,7 @@ func (r *Realisation) ParseAndCheck() []error {
 
 	stmt := stmts[0].Stmt
 
-	err = stmt.(ExprToProcess).NegotiateTypes()
+	err = stmt.(ExprToProcess).NegotiateTypes(r.tc)
 	if err != nil {
 		return []error{err}
 	}

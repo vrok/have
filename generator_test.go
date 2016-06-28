@@ -19,9 +19,10 @@ func inMemTranspile(code string) (string, error) {
 
 	parser.matchTopDecls(result)
 
+	ctx := NewTypesContext()
 	for _, stmt := range result {
 		typedStmt := stmt.Stmt.(ExprToProcess)
-		if err := typedStmt.NegotiateTypes(); err != nil {
+		if err := typedStmt.NegotiateTypes(ctx); err != nil {
 			return "", err
 		}
 	}
@@ -29,7 +30,7 @@ func inMemTranspile(code string) (string, error) {
 	cc := &CodeChunk{}
 
 	for _, stmt := range result {
-		stmt.Stmt.(Generable).Generate(cc)
+		stmt.Stmt.(Generable).Generate(ctx, cc)
 	}
 
 	return cc.ReadAll(), nil

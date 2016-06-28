@@ -352,7 +352,7 @@ type ReturnStmt struct {
 
 type Generic interface {
 	Name() string
-	Generate(params ...Type) (Object, []error)
+	GetRealisation(params ...Type) (Object, []error)
 	Code() []rune
 	Imports() Imports
 	Params() []string
@@ -371,7 +371,7 @@ type GenericFunc struct {
 
 func (gf *GenericFunc) Name() string           { return gf.Func.name }
 func (gf *GenericFunc) ObjectType() ObjectType { return OBJECT_GENERIC }
-func (gf *GenericFunc) Generate(params ...Type) (Object, []error) {
+func (gf *GenericFunc) GetRealisation(params ...Type) (Object, []error) {
 	r := &Realisation{
 		Generic: gf,
 		Params:  params,

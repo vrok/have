@@ -89,7 +89,7 @@ func (cc *CodeChunk) NewBlockChunk() *CodeChunk {
 
 type forcedIndent struct{}
 
-func (f forcedIndent) Generate(current *CodeChunk) {
+func (f forcedIndent) Generate(tc *TypesContext, current *CodeChunk) {
 	current.AddChunks(forcedIndentChunk)
 }
 
@@ -101,7 +101,7 @@ var ForcedIndent = &forcedIndent{}
 // Use "%iC" variant for InlineGenerables.
 // Indents are inserted automatically, but for multi-line statements that need
 // extra indents in the middle, use the ForcedIndent generable.
-func (cc *CodeChunk) AddChprintf(format string, a ...interface{}) {
+func (cc *CodeChunk) AddChprintf(tc *TypesContext, format string, a ...interface{}) {
 	var nonGenerables []interface{}
 
 	ops := splitter.FindAllString(format, -1)
@@ -122,13 +122,13 @@ func (cc *CodeChunk) AddChprintf(format string, a ...interface{}) {
 			case "%iC":
 				ig, ok := v.(InlineGenerable)
 				if ok {
-					ig.InlineGenerate(cc, false)
+					ig.InlineGenerate(tc, cc, false)
 				} else {
 					// Fallback to Generable
-					v.Generate(cc)
+					v.Generate(tc, cc)
 				}
 			case "%C":
-				v.Generate(cc)
+				v.Generate(tc, cc)
 			}
 
 			i++
@@ -143,37 +143,37 @@ func (cc *CodeChunk) AddChprintf(format string, a ...interface{}) {
 
 type Generable interface {
 	// Generate the full version of the output code.
-	Generate(current *CodeChunk)
+	Generate(tc *TypesContext, current *CodeChunk)
 }
 
 type InlineGenerable interface {
 	Generable
 	// Generate a shorter version of the code that e.g. fits into for-loop header.
-	InlineGenerate(current *CodeChunk, noParenth bool)
+	InlineGenerate(tc *TypesContext, current *CodeChunk, noParenth bool)
 }
 
 type EmptyGenerable struct{}
 
-func (eg EmptyGenerable) Generate(current *CodeChunk)                       {}
-func (vs EmptyGenerable) InlineGenerate(current *CodeChunk, noParenth bool) {}
+func (eg EmptyGenerable) Generate(tc *TypesContext, current *CodeChunk)                       {}
+func (vs EmptyGenerable) InlineGenerate(tc *TypesContext, current *CodeChunk, noParenth bool) {}
 
-func (i *ImportStmt) Generate(current *CodeChunk) {
-	current.AddChprintf("import %s \"%s\"\n", i.name, i.path)
+func (i *ImportStmt) Generate(tc *TypesContext, current *CodeChunk) {
+	current.AddChprintf(tc, "import %s \"%s\"\n", i.name, i.path)
 }
 
-func (id *Ident) Generate(current *CodeChunk) {
+func (id *Ident) Generate(tc *TypesContext, current *CodeChunk) {
 	current.AddString(id.name)
 }
 
-func (n *NilExpr) Generate(current *CodeChunk) {
+func (n *NilExpr) Generate(tc *TypesContext, current *CodeChunk) {
 	current.AddString("nil")
 }
 
-func (n *PassStmt) Generate(current *CodeChunk) {
+func (n *PassStmt) Generate(tc *TypesContext, current *CodeChunk) {
 	current.AddString("// pass\n")
 }
 
-func (lit *BasicLit) Generate(current *CodeChunk) {
+func (lit *BasicLit) Generate(tc *TypesContext, current *CodeChunk) {
 	val := ""
 	switch lit.token.Type {
 	case TOKEN_TRUE:
@@ -193,49 +193,49 @@ func (lit *BasicLit) Generate(current *CodeChunk) {
 	current.AddString(val)
 }
 
-func (lit *CompoundLit) Generate(current *CodeChunk) {
-	current.AddChprintf("%s{", lit.typ)
+func (lit *CompoundLit) Generate(tc *TypesContext, current *CodeChunk) {
+	current.AddChprintf(tc, "%s{", lit.typ)
 
 	if lit.kind == COMPOUND_EMPTY {
-		current.AddChprintf("}")
+		current.AddChprintf(tc, "}")
 		return
 	}
 
-	current.AddChprintf("\n")
+	current.AddChprintf(tc, "\n")
 	ch := current.NewBlockChunk()
 
 	switch lit.kind {
 	case COMPOUND_LISTLIKE:
 		for _, val := range lit.elems {
-			ch.NewChunk().AddChprintf("%C,\n", val)
+			ch.NewChunk().AddChprintf(tc, "%C,\n", val)
 		}
 	case COMPOUND_MAPLIKE:
 		lit.eachKeyVal(func(key, val Expr) {
-			ch.NewChunk().AddChprintf("%C: %C,\n", key, val)
+			ch.NewChunk().AddChprintf(tc, "%C: %C,\n", key, val)
 		})
 	default:
 		panic("shouldn't ever happen, please report a bug")
 	}
 
-	current.AddChprintf("%C}", ForcedIndent)
+	current.AddChprintf(tc, "%C}", ForcedIndent)
 }
 
-func (op *UnaryOp) Generate(current *CodeChunk) {
+func (op *UnaryOp) Generate(tc *TypesContext, current *CodeChunk) {
 	// TODO: Put the right operator in
-	current.AddChprintf("(%s%C)", op.op.Value.(string), op.Right.(Generable))
+	current.AddChprintf(tc, "(%s%C)", op.op.Value.(string), op.Right.(Generable))
 }
 
-func (op *BinaryOp) Generate(current *CodeChunk) {
+func (op *BinaryOp) Generate(tc *TypesContext, current *CodeChunk) {
 	// TODO: Put the right operator in
-	current.AddChprintf("(%C %s %C)", op.Left.(Generable), op.op.Value.(string), op.Right.(Generable))
+	current.AddChprintf(tc, "(%C %s %C)", op.Left.(Generable), op.op.Value.(string), op.Right.(Generable))
 }
 
-func (td *TypeDecl) Generate(current *CodeChunk) {
+func (td *TypeDecl) Generate(tc *TypesContext, current *CodeChunk) {
 	current = current.NewChunk()
-	current.AddChprintf("type %s %s\n", td.Name(), td.AliasedType)
+	current.AddChprintf(tc, "type %s %s\n", td.Name(), td.AliasedType)
 }
 
-func (vd *VarDecl) Generate(current *CodeChunk) {
+func (vd *VarDecl) Generate(tc *TypesContext, current *CodeChunk) {
 	current = current.NewChunk()
 
 	names := current.NewChunk()
@@ -245,40 +245,40 @@ func (vd *VarDecl) Generate(current *CodeChunk) {
 	noMoreInits := false
 
 	vd.eachPair(func(v *Variable, init Expr) {
-		names.AddChprintf("%s", v.name)
+		names.AddChprintf(tc, "%s", v.name)
 
 		var it Type
 		if init != nil {
-			it, _ = init.(TypedExpr).Type()
+			it, _ = init.(TypedExpr).Type(tc)
 		}
 
 		if noMoreInits {
 		} else if init != nil && it.Kind() == KIND_TUPLE {
 			// For tuples we can't do any type casting/conversion. It is a bit magical
 			// in Go, nothing can be in between.
-			inits.AddChprintf("%C", init)
+			inits.AddChprintf(tc, "%C", init)
 			noMoreInits = true
 		} else {
 			if init != nil {
-				inits.AddChprintf("(%s)(%C)", v.Type, init)
+				inits.AddChprintf(tc, "(%s)(%C)", v.Type, init)
 			} else {
-				inits.AddChprintf("(%s)(%s)", v.Type, v.Type.ZeroValue())
+				inits.AddChprintf(tc, "(%s)(%s)", v.Type, v.Type.ZeroValue())
 			}
 		}
 
 		if i+1 < count {
-			names.AddChprintf(", ")
+			names.AddChprintf(tc, ", ")
 			if !noMoreInits {
-				inits.AddChprintf(", ")
+				inits.AddChprintf(tc, ", ")
 			}
 		}
 		i++
 	})
 
-	names.AddChprintf(" = ")
+	names.AddChprintf(tc, " = ")
 }
 
-func (dc DeclChain) Generate(current *CodeChunk) {
+func (dc DeclChain) Generate(tc *TypesContext, current *CodeChunk) {
 	current = current.NewChunk()
 
 	names := current.NewChunk()
@@ -286,33 +286,33 @@ func (dc DeclChain) Generate(current *CodeChunk) {
 
 	i, count := 0, dc.countVars()
 	dc.eachPair(func(v *Variable, init Expr) {
-		names.AddChprintf("%s", v.name)
+		names.AddChprintf(tc, "%s", v.name)
 		if init != nil {
-			inits.AddChprintf("(%s)(%C)", v.Type, init)
+			inits.AddChprintf(tc, "(%s)(%C)", v.Type, init)
 		} else {
-			inits.AddChprintf("(%s)(%s)", v.Type, v.Type.ZeroValue())
+			inits.AddChprintf(tc, "(%s)(%s)", v.Type, v.Type.ZeroValue())
 		}
 		if i+1 < count {
-			names.AddChprintf(", ")
-			inits.AddChprintf(", ")
+			names.AddChprintf(tc, ", ")
+			inits.AddChprintf(tc, ", ")
 		}
 		i++
 	})
 
-	names.AddChprintf(" = ")
+	names.AddChprintf(tc, " = ")
 }
 
-func (vs *VarStmt) Generate(current *CodeChunk) {
+func (vs *VarStmt) Generate(tc *TypesContext, current *CodeChunk) {
 	if vs.IsFuncStmt {
-		vs.Vars[0].Inits[0].(Generable).Generate(current)
+		vs.Vars[0].Inits[0].(Generable).Generate(tc, current)
 		return
 	}
 	for _, vd := range vs.Vars {
-		current.AddChprintf("var %C\n", vd)
+		current.AddChprintf(tc, "var %C\n", vd)
 	}
 }
 
-func (vs *VarStmt) InlineGenerate(current *CodeChunk, noParenth bool) {
+func (vs *VarStmt) InlineGenerate(tc *TypesContext, current *CodeChunk, noParenth bool) {
 	if vs == nil || len(vs.Vars) == 0 {
 		return
 	}
@@ -322,7 +322,7 @@ func (vs *VarStmt) InlineGenerate(current *CodeChunk, noParenth bool) {
 
 	vs.Vars.eachPair(func(vd *Variable, init Expr) {
 		left.AddString(vd.name)
-		right.AddChprintf("(%s)(%C)", vd.Type, init.(Generable))
+		right.AddChprintf(tc, "(%s)(%C)", vd.Type, init.(Generable))
 
 		if i+1 < len(vs.Vars) {
 			left.AddString(", ")
@@ -335,70 +335,70 @@ func (vs *VarStmt) InlineGenerate(current *CodeChunk, noParenth bool) {
 	left.AddString(" := ")
 }
 
-func (ds *DotSelector) Generate(current *CodeChunk) {
-	current.AddChprintf("%C.%C", ds.Left, ds.Right)
+func (ds *DotSelector) Generate(tc *TypesContext, current *CodeChunk) {
+	current.AddChprintf(tc, "%C.%C", ds.Left, ds.Right)
 }
 
-func (ta *TypeAssertion) Generate(current *CodeChunk) {
+func (ta *TypeAssertion) Generate(tc *TypesContext, current *CodeChunk) {
 	if ta.ForSwitch {
-		current.AddChprintf("%C.(type)", ta.Left)
+		current.AddChprintf(tc, "%C.(type)", ta.Left)
 	} else {
-		current.AddChprintf("%C.(%s)", ta.Left, ta.Right.typ)
+		current.AddChprintf(tc, "%C.(%s)", ta.Left, ta.Right.typ)
 	}
 }
 
-func (as *AssignStmt) Generate(current *CodeChunk) {
-	as.InlineGenerate(current, true)
+func (as *AssignStmt) Generate(tc *TypesContext, current *CodeChunk) {
+	as.InlineGenerate(tc, current, true)
 	current.AddString("\n")
 }
 
-func (as *AssignStmt) InlineGenerate(current *CodeChunk, noParenth bool) {
+func (as *AssignStmt) InlineGenerate(tc *TypesContext, current *CodeChunk, noParenth bool) {
 	for i, v := range as.Lhs {
-		v.(Generable).Generate(current)
+		v.(Generable).Generate(tc, current)
 		if i+1 < len(as.Lhs) {
 			current.AddString(", ")
 		}
 	}
 
-	current.AddChprintf(" %s ", as.Token.Value)
+	current.AddChprintf(tc, " %s ", as.Token.Value)
 
 	for i, v := range as.Rhs {
-		v.(Generable).Generate(current)
+		v.(Generable).Generate(tc, current)
 		if i+1 < len(as.Rhs) {
 			current.AddString(", ")
 		}
 	}
 }
 
-func (ae *ArrayExpr) Generate(current *CodeChunk) {
-	current.AddChprintf("%C[", ae.Left)
+func (ae *ArrayExpr) Generate(tc *TypesContext, current *CodeChunk) {
+	current.AddChprintf(tc, "%C[", ae.Left)
 	for i, arg := range ae.Index {
-		current.AddChprintf("%iC", arg)
+		current.AddChprintf(tc, "%iC", arg)
 		if i+1 < len(ae.Index) {
 			current.AddString(", ")
 		}
 	}
-	current.AddChprintf("]")
+	current.AddChprintf(tc, "]")
 }
 
-func (se *SliceExpr) Generate(current *CodeChunk) {
+func (se *SliceExpr) Generate(tc *TypesContext, current *CodeChunk) {
 	if se.From != nil {
-		current.AddChprintf("%C", se.From)
+		current.AddChprintf(tc, "%C", se.From)
 	}
 
-	current.AddChprintf(":")
+	current.AddChprintf(tc, ":")
 
 	if se.To != nil {
-		current.AddChprintf("%C", se.To)
+		current.AddChprintf(tc, "%C", se.To)
 	}
 
 	// TODO: third component
 }
 
-func (fc *FuncCallExpr) Generate(current *CodeChunk) {
-	current.AddChprintf("%iC(", fc.Left.(Generable))
+func (fc *FuncCallExpr) Generate(tc *TypesContext, current *CodeChunk) {
+	current.AddChprintf(tc, "%iC(", fc.Left.(Generable))
 	for i, arg := range fc.Args {
-		current.AddChprintf("%iC", arg)
+		current.AddChprintf(tc, "%iC", arg)
 		if i+1 < len(fc.Args) {
 			current.AddString(", ")
 		}
@@ -406,23 +406,23 @@ func (fc *FuncCallExpr) Generate(current *CodeChunk) {
 	current.AddString(")")
 }
 
-func (fd *FuncDecl) Generate(current *CodeChunk) {
-	fd.InlineGenerate(current, true)
-	current.AddChprintf("\n")
+func (fd *FuncDecl) Generate(tc *TypesContext, current *CodeChunk) {
+	fd.InlineGenerate(tc, current, true)
+	current.AddChprintf(tc, "\n")
 }
 
-func (fd *FuncDecl) InlineGenerate(current *CodeChunk, noParenth bool) {
+func (fd *FuncDecl) InlineGenerate(tc *TypesContext, current *CodeChunk, noParenth bool) {
 	current = current.NewChunk()
 	if fd.Receiver == nil {
-		current.AddChprintf("func %s(", fd.name)
+		current.AddChprintf(tc, "func %s(", fd.name)
 	} else {
-		current.AddChprintf("func (self %s) %s(", fd.Receiver.Type, fd.name)
+		current.AddChprintf(tc, "func (self %s) %s(", fd.Receiver.Type, fd.name)
 	}
 
 	i := 0
 
 	fd.Args.eachPair(func(arg *Variable, init Expr) {
-		current.AddChprintf("%s %s", arg.name, arg.Type)
+		current.AddChprintf(tc, "%s %s", arg.name, arg.Type)
 		if i+1 < fd.Args.countVars() {
 			current.AddString(", ")
 		}
@@ -435,9 +435,9 @@ func (fd *FuncDecl) InlineGenerate(current *CodeChunk, noParenth bool) {
 		i = 0
 		fd.Results.eachPair(func(arg *Variable, init Expr) {
 			if arg.name == "" {
-				current.AddChprintf("%s", arg.Type)
+				current.AddChprintf(tc, "%s", arg.Type)
 			} else {
-				current.AddChprintf("%s %s", arg.name, arg.Type)
+				current.AddChprintf(tc, "%s %s", arg.name, arg.Type)
 			}
 			if i+1 < fd.Results.countVars() {
 				current.AddString(", ")
@@ -448,37 +448,37 @@ func (fd *FuncDecl) InlineGenerate(current *CodeChunk, noParenth bool) {
 	}
 
 	current.AddString(" {\n")
-	fd.Code.Generate(current)
+	fd.Code.Generate(tc, current)
 
-	current.AddChprintf("%C}", ForcedIndent)
+	current.AddChprintf(tc, "%C}", ForcedIndent)
 }
 
-func (bl *CodeBlock) Generate(current *CodeChunk) {
+func (bl *CodeBlock) Generate(tc *TypesContext, current *CodeChunk) {
 	block := current.NewBlockChunk()
 	for _, stmt := range bl.Statements {
-		stmt.(Generable).Generate(block.NewChunk())
+		stmt.(Generable).Generate(tc, block.NewChunk())
 	}
 }
 
-func (es *ExprStmt) Generate(current *CodeChunk) {
-	current.AddChprintf("%C\n", es.Expression.(Generable))
+func (es *ExprStmt) Generate(tc *TypesContext, current *CodeChunk) {
+	current.AddChprintf(tc, "%C\n", es.Expression.(Generable))
 }
 
-func (es *ExprStmt) InlineGenerate(current *CodeChunk, noParenth bool) {
-	es.Expression.(Generable).Generate(current)
+func (es *ExprStmt) InlineGenerate(tc *TypesContext, current *CodeChunk, noParenth bool) {
+	es.Expression.(Generable).Generate(tc, current)
 }
 
-func (fs *IfStmt) Generate(current *CodeChunk) {
+func (fs *IfStmt) Generate(tc *TypesContext, current *CodeChunk) {
 	current = current.NewChunk()
 
 	if fs.Branches[0].ScopedVarDecl != nil {
-		current.AddChprintf("if %iC; %C {\n", fs.Branches[0].ScopedVarDecl, fs.Branches[0].Condition)
+		current.AddChprintf(tc, "if %iC; %C {\n", fs.Branches[0].ScopedVarDecl, fs.Branches[0].Condition)
 	} else {
-		current.AddChprintf("if %C {\n", fs.Branches[0].Condition)
+		current.AddChprintf(tc, "if %C {\n", fs.Branches[0].Condition)
 	}
 
-	fs.Branches[0].Code.Generate(current)
-	current.AddChprintf("%C}", ForcedIndent)
+	fs.Branches[0].Code.Generate(tc, current)
+	current.AddChprintf(tc, "%C}", ForcedIndent)
 
 	for i, branch := range fs.Branches {
 		if i == 0 {
@@ -486,64 +486,64 @@ func (fs *IfStmt) Generate(current *CodeChunk) {
 		}
 
 		if branch.Condition != nil {
-			current.AddChprintf(" else if %C {\n", branch.Condition)
+			current.AddChprintf(tc, " else if %C {\n", branch.Condition)
 		} else {
-			current.AddChprintf(" else {\n")
+			current.AddChprintf(tc, " else {\n")
 		}
 
-		branch.Code.Generate(current)
-		current.AddChprintf("%C}", ForcedIndent)
+		branch.Code.Generate(tc, current)
+		current.AddChprintf(tc, "%C}", ForcedIndent)
 	}
 
 	current.AddString("\n")
 }
 
-func (ss *SwitchStmt) Generate(current *CodeChunk) {
+func (ss *SwitchStmt) Generate(tc *TypesContext, current *CodeChunk) {
 	current = current.NewChunk()
 
 	if ss.ScopedVar != nil {
-		current.AddChprintf("switch %iC; %iC {\n", ss.ScopedVar, ss.Value)
+		current.AddChprintf(tc, "switch %iC; %iC {\n", ss.ScopedVar, ss.Value)
 	} else {
-		current.AddChprintf("switch %iC {\n", ss.Value)
+		current.AddChprintf(tc, "switch %iC {\n", ss.Value)
 	}
 
 	for _, branch := range ss.Branches {
 		if len(branch.Values) == 0 {
-			current.AddChprintf("default:\n")
+			current.AddChprintf(tc, "default:\n")
 		} else {
-			current.AddChprintf("case ")
+			current.AddChprintf(tc, "case ")
 
 			for i, val := range branch.Values {
-				current.AddChprintf("%C", val)
+				current.AddChprintf(tc, "%C", val)
 				if i+1 < len(branch.Values) {
-					current.AddChprintf(", ")
+					current.AddChprintf(tc, ", ")
 				}
 			}
 
-			current.AddChprintf(":\n")
+			current.AddChprintf(tc, ":\n")
 		}
 
-		branch.Code.Generate(current)
+		branch.Code.Generate(tc, current)
 	}
 
-	current.AddChprintf("}\n")
+	current.AddChprintf(tc, "}\n")
 }
 
-func (fs *ForStmt) Generate(current *CodeChunk) {
+func (fs *ForStmt) Generate(tc *TypesContext, current *CodeChunk) {
 	current = current.NewChunk()
 
 	// TODO: Handle `for` variants other than 3-way
-	current.AddChprintf("for %iC; %C; %iC {\n%C%C}\n", fs.ScopedVarDecl, fs.Condition, fs.RepeatStmt, fs.Code, ForcedIndent)
+	current.AddChprintf(tc, "for %iC; %C; %iC {\n%C%C}\n", fs.ScopedVarDecl, fs.Condition, fs.RepeatStmt, fs.Code, ForcedIndent)
 }
 
-func (f *File) Generate(current *CodeChunk) {
-	current.AddChprintf("package %s\n\n", f.pkg)
+func (f *File) Generate(tc *TypesContext, current *CodeChunk) {
+	current.AddChprintf(tc, "package %s\n\n", f.pkg)
 	for _, stmt := range f.statements {
-		stmt.Stmt.(Generable).Generate(current)
+		stmt.Stmt.(Generable).Generate(tc, current)
 	}
 }
 
-func (bs *BranchStmt) Generate(current *CodeChunk) {
+func (bs *BranchStmt) Generate(tc *TypesContext, current *CodeChunk) {
 	var typ = ""
 	switch bs.Token.Type {
 	case TOKEN_BREAK:
@@ -556,29 +556,29 @@ func (bs *BranchStmt) Generate(current *CodeChunk) {
 		panic("impossible")
 	}
 	if bs.Right == nil {
-		current.AddChprintf("%s\n", typ)
+		current.AddChprintf(tc, "%s\n", typ)
 	} else {
-		current.AddChprintf("%s %C\n", typ, bs.Right)
+		current.AddChprintf(tc, "%s %C\n", typ, bs.Right)
 	}
 }
 
-func (rs *ReturnStmt) Generate(current *CodeChunk) {
-	current.AddChprintf("return")
+func (rs *ReturnStmt) Generate(tc *TypesContext, current *CodeChunk) {
+	current.AddChprintf(tc, "return")
 	for i, v := range rs.Values {
-		current.AddChprintf(" %C", v)
+		current.AddChprintf(tc, " %C", v)
 		if i+1 < len(rs.Values) {
-			current.AddChprintf(",")
+			current.AddChprintf(tc, ",")
 		}
 	}
-	current.AddChprintf("\n")
+	current.AddChprintf(tc, "\n")
 }
 
-func (ls *LabelStmt) Generate(current *CodeChunk) {
-	current.AddChprintf("%s:\n", ls.Name())
+func (ls *LabelStmt) Generate(tc *TypesContext, current *CodeChunk) {
+	current.AddChprintf(tc, "%s:\n", ls.Name())
 }
 
-func (ss *StructStmt) Generate(current *CodeChunk) {
-	current.AddChprintf("type %s struct {\n", ss.Struct.Name)
+func (ss *StructStmt) Generate(tc *TypesContext, current *CodeChunk) {
+	current.AddChprintf(tc, "type %s struct {\n", ss.Struct.Name)
 
 	ch := current.NewBlockChunk()
 	for _, name := range ss.Struct.Keys {
@@ -586,22 +586,22 @@ func (ss *StructStmt) Generate(current *CodeChunk) {
 			// Not a plain member, but a method
 			continue
 		}
-		ch.AddChprintf("%s %s\n", name, ss.Struct.Members[name])
+		ch.AddChprintf(tc, "%s %s\n", name, ss.Struct.Members[name])
 	}
 
-	current.AddChprintf("%C}\n\n", ForcedIndent)
+	current.AddChprintf(tc, "%C}\n\n", ForcedIndent)
 
 	for _, name := range ss.Struct.Keys {
 		if _, ok := ss.Struct.Methods[name]; !ok {
 			// Not a method, a plain member
 			continue
 		}
-		current.AddChprintf("%C\n", ss.Struct.Methods[name])
+		current.AddChprintf(tc, "%C\n", ss.Struct.Methods[name])
 	}
 }
 
-func (is *IfaceStmt) Generate(current *CodeChunk) {
-	current.AddChprintf("type %s %s\n", is.Iface.name, is.Iface)
+func (is *IfaceStmt) Generate(tc *TypesContext, current *CodeChunk) {
+	current.AddChprintf(tc, "type %s %s\n", is.Iface.name, is.Iface)
 }
 
 // TODO: Now just write Generables for all statements/expressions and we're done...

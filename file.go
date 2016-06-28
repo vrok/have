@@ -13,9 +13,10 @@ type File struct {
 	objects    map[string]Object
 	tfile      *token.File
 	parser     *Parser
+	tc         *TypesContext
 }
 
-func NewFile(name, code string, tfile *token.File) *File {
+func NewFile(name, code string, tc *TypesContext, tfile *token.File) *File {
 	return &File{name: name,
 		code:    code,
 		tfile:   tfile,
@@ -35,7 +36,7 @@ func (f *File) Parse() []error {
 func (f *File) Typecheck() []error {
 	for _, stmt := range f.statements {
 		typedStmt := stmt.Stmt.(ExprToProcess)
-		if err := typedStmt.NegotiateTypes(); err != nil {
+		if err := typedStmt.NegotiateTypes(f.tc); err != nil {
 			return []error{err}
 		}
 
@@ -59,6 +60,6 @@ func (f *File) ParseAndCheck() []error {
 
 func (f *File) GenerateCode() string {
 	cc := &CodeChunk{}
-	f.Generate(cc)
+	f.Generate(f.tc, cc)
 	return cc.ReadAll()
 }
