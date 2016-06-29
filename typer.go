@@ -7,6 +7,10 @@ type TypesContext struct {
 	types map[Expr]Type
 }
 
+func (tc *TypesContext) SetType(e Expr, typ Type) { tc.types[e] = typ }
+func (tc *TypesContext) GetType(e Expr) Type      { return nonilTyp(tc.types[e]) }
+func (tc *TypesContext) IsTypeSet(e Expr) bool    { _, ok := tc.types[e]; return ok }
+
 func NewTypesContext() *TypesContext {
 	return &TypesContext{
 		types: map[Expr]Type{},
@@ -890,8 +894,8 @@ func (ex *TypeExpr) ApplyType(tc *TypesContext, typ Type) error {
 func (ex *TypeExpr) GuessType(tc *TypesContext) (ok bool, typ Type) { return false, nil }
 
 func (ex *TypeAssertion) Type(tc *TypesContext) (Type, error) {
-	if ex.typ != nil {
-		return ex.typ, nil
+	if tc.IsTypeSet(ex) {
+		return tc.GetType(ex), nil
 	}
 	if ex.ForSwitch {
 		return &UnknownType{}, nil
@@ -913,7 +917,8 @@ func (ex *TypeAssertion) ApplyType(tc *TypesContext, typ Type) error {
 			fmt.Errorf("Second value returned from type assertion is bool, bools aren't assignable to %s", tuple.Members[1])
 		}
 
-		ex.typ, typ = typ, tuple.Members[0]
+		tc.SetType(ex, typ)
+		typ = tuple.Members[0]
 	}
 
 	if ex.Right.typ.String() != typ.String() {
@@ -1085,9 +1090,9 @@ func (ex *ArrayExpr) baseTypesOfContainer(containerType Type) (ok bool, key, val
 }
 
 func (ex *ArrayExpr) Type(tc *TypesContext) (Type, error) {
-	if ex.typ != nil {
+	if tc.IsTypeSet(ex) {
 		// Some type was negotiated already.
-		return ex.typ, nil
+		return tc.GetType(ex), nil
 	}
 
 	if generic, ok := ExprToGeneric(ex.Left); ok {
@@ -1101,7 +1106,7 @@ func (ex *ArrayExpr) Type(tc *TypesContext) (Type, error) {
 			}
 			types = append(types, typ)
 		}
-		obj, errors := generic.GetRealisation(types...)
+		obj, errors := generic.GetRealisation(tc, types...)
 		if len(errors) > 0 {
 			// TODO: return all errors
 			return nil, errors[0]
@@ -1243,7 +1248,7 @@ func (ex *ArrayExpr) ApplyType(tc *TypesContext, typ Type) error {
 		return fmt.Errorf("Type %s cannot be assigned to %s", valueTyp, typ)
 	}
 
-	ex.typ = typ
+	tc.SetType(ex, typ)
 	return nil
 }
 
@@ -1602,9 +1607,9 @@ func (ex *BinaryOp) GuessType(tc *TypesContext) (ok bool, typ Type) {
 }
 
 func (ex *UnaryOp) Type(tc *TypesContext) (Type, error) {
-	if ex.typ != nil {
+	if tc.IsTypeSet(ex) {
 		// Some type was negotiated already.
-		return ex.typ, nil
+		return tc.GetType(ex), nil
 	}
 
 	rightType, err := ex.Right.(TypedExpr).Type(tc)
@@ -1674,7 +1679,8 @@ func (ex *UnaryOp) ApplyType(tc *TypesContext, typ Type) error {
 				fmt.Errorf("Second value returned from chan receive is bool, and bools aren't assignable to %s", tuple.Members[1])
 			}
 
-			ex.typ, typ = typ, tuple.Members[0]
+			tc.SetType(ex, typ)
+			typ = tuple.Members[0]
 		}
 
 		if !IsAssignable(rootTyp.(*ChanType).Of, typ) {
@@ -1755,13 +1761,13 @@ func (ex *Ident) GuessType(tc *TypesContext) (ok bool, typ Type) {
 }
 
 func (ex *NilExpr) Type(tc *TypesContext) (Type, error) {
-	return nonilTyp(ex.typ), nil
+	return tc.GetType(ex), nil
 }
 
 func (ex *NilExpr) ApplyType(tc *TypesContext, typ Type) error {
 	switch RootType(typ).Kind() {
 	case KIND_POINTER, KIND_INTERFACE, KIND_MAP, KIND_SLICE, KIND_FUNC:
-		ex.typ = typ
+		tc.SetType(ex, typ)
 		return nil
 	}
 	return fmt.Errorf("Type %s can't be set to nil", typ)
@@ -1772,7 +1778,7 @@ func (ex *NilExpr) GuessType(tc *TypesContext) (ok bool, typ Type) {
 }
 
 func (ex *BasicLit) Type(tc *TypesContext) (Type, error) {
-	return nonilTyp(ex.typ), nil
+	return tc.GetType(ex), nil
 }
 
 func (ex *BasicLit) ApplyType(tc *TypesContext, typ Type) error {
@@ -1797,7 +1803,7 @@ func (ex *BasicLit) ApplyType(tc *TypesContext, typ Type) error {
 	case (ex.token.Type == TOKEN_TRUE || ex.token.Type == TOKEN_FALSE) &&
 		actualType.(*SimpleType).ID == SIMPLE_TYPE_BOOL:
 
-		ex.typ = typ
+		tc.SetType(ex, typ)
 		return nil
 	}
 	return fmt.Errorf("Can't use this literal for this type")

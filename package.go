@@ -35,6 +35,7 @@ func newPackageWithManager(path string, manager *PkgManager) (*Package, error) {
 		files:   files,
 		objects: make(map[string]Object),
 		manager: manager,
+		tc:      NewTypesContext(),
 	}, nil
 }
 
@@ -339,9 +340,10 @@ func (r *Realisation) ParseAndCheck() []error {
 
 	// Fill parser.genericParams so that the parser can immediately substitute them with
 	// concrete types.
-	genericParams := make(map[string]Type, len(r.Generic.Params()))
-	for i := 0; i < len(r.Generic.Params()); i++ {
-		name, val := r.Generic.Params()[i], r.Params[i]
+	_, paramsList := r.Generic.Signature()
+	genericParams := make(map[string]Type, len(paramsList))
+	for i := 0; i < len(paramsList); i++ {
+		name, val := paramsList[i], r.Params[i]
 		genericParams[name] = val
 	}
 	//r.ParseAndCheck()

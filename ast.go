@@ -351,11 +351,10 @@ type ReturnStmt struct {
 }
 
 type Generic interface {
-	Name() string
-	GetRealisation(params ...Type) (Object, []error)
+	Signature() (name string, params []string)
+	GetRealisation(tc *TypesContext, params ...Type) (Object, []error)
 	Code() []rune
 	Imports() Imports
-	Params() []string
 }
 
 // Implements Stmt, Object
@@ -369,12 +368,14 @@ type GenericFunc struct {
 	imports Imports
 }
 
-func (gf *GenericFunc) Name() string           { return gf.Func.name }
-func (gf *GenericFunc) ObjectType() ObjectType { return OBJECT_GENERIC }
-func (gf *GenericFunc) GetRealisation(params ...Type) (Object, []error) {
+func (gf *GenericFunc) Name() string                  { return gf.Func.name }
+func (gf *GenericFunc) Signature() (string, []string) { return gf.Func.name, gf.params }
+func (gf *GenericFunc) ObjectType() ObjectType        { return OBJECT_GENERIC }
+func (gf *GenericFunc) GetRealisation(tc *TypesContext, params ...Type) (Object, []error) {
 	r := &Realisation{
 		Generic: gf,
 		Params:  params,
+		tc:      tc,
 		// TODO: ...
 	}
 	errs := r.ParseAndCheck()
@@ -385,7 +386,6 @@ func (gf *GenericFunc) GetRealisation(params ...Type) (Object, []error) {
 }
 func (gf *GenericFunc) Code() []rune     { return gf.code }
 func (gf *GenericFunc) Imports() Imports { return gf.imports }
-func (gf *GenericFunc) Params() []string { return gf.params }
 
 type GenericStruct struct {
 }
@@ -841,13 +841,11 @@ func NewBlankExpr() *BlankExpr { return &BlankExpr{expr{0}} }
 
 type NilExpr struct {
 	expr
-	typ Type
 }
 
 // implements Expr
 type BasicLit struct {
 	expr
-	typ Type
 
 	token *Token
 }
@@ -899,7 +897,6 @@ type UnaryOp struct {
 	Right Expr
 	op    *Token
 	// Type can be e.g. a tuple (X, bool) after type negotiation.
-	typ Type
 }
 
 type PrimaryExpr interface {
@@ -914,7 +911,6 @@ type ArrayExpr struct {
 	Index []Expr
 
 	// Type can be e.g. a tuple (X, bool) after type negotiation.
-	typ Type
 }
 
 // Represents subslice extraction - for x[a:b], it represents a:b.
@@ -944,7 +940,6 @@ type TypeAssertion struct {
 	Right     *TypeExpr
 
 	// Type can be e.g. a tuple (X, bool) after type negotiation.
-	typ Type
 }
 
 // implements PrimaryExpr

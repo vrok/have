@@ -19,6 +19,7 @@ type File struct {
 func NewFile(name, code string, tc *TypesContext, tfile *token.File) *File {
 	return &File{name: name,
 		code:    code,
+		tc:      tc,
 		tfile:   tfile,
 		objects: make(map[string]Object)}
 }

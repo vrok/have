@@ -1352,9 +1352,9 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 			}
 		}
 	case TOKEN_STR:
-		left = &BasicLit{expr{token.Offset}, nil, token}
+		left = &BasicLit{expr{token.Offset}, token}
 	case TOKEN_INT, TOKEN_FLOAT, TOKEN_IMAG, TOKEN_TRUE, TOKEN_FALSE, TOKEN_RUNE:
-		return &BasicLit{expr{token.Offset}, nil, token}, nil
+		return &BasicLit{expr{token.Offset}, token}, nil
 	case TOKEN_NIL:
 		return &NilExpr{}, nil
 	case TOKEN_FUNC:
@@ -1401,7 +1401,7 @@ loop:
 				if p.expect(TOKEN_RPARENTH) == nil {
 					return nil, fmt.Errorf("Expected `)`")
 				}
-				return &TypeAssertion{expr{token.Offset}, te == nil, left, te, nil}, nil
+				return &TypeAssertion{expr{token.Offset}, te == nil, left, te}, nil
 			case TOKEN_WORD:
 				left = &DotSelector{expr{token.Offset}, left, &Ident{expr{t.Offset}, t.Value.(string), nil, false}}
 			default:
@@ -1452,7 +1452,7 @@ loop:
 			if p.expect(TOKEN_RBRACKET) == nil {
 				return nil, fmt.Errorf("Expected `]`")
 			}
-			left = &ArrayExpr{expr{token.Offset}, left, index, nil}
+			left = &ArrayExpr{expr{token.Offset}, left, index}
 		case TOKEN_LBRACE:
 			p.putBack(token)
 			literal, err := p.parseCompoundLit()

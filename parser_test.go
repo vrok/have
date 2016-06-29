@@ -63,13 +63,13 @@ func TestPrimaryExpr(t *testing.T) {
 				expr:  expr{4},
 				Left:  &Ident{expr{0}, "test", nil, false},
 				Right: &Ident{expr{5}, "tere", nil, false}},
-			Index: []Expr{&BasicLit{expr{10}, nil, &Token{TOKEN_INT, 10, 123}}}})
+			Index: []Expr{&BasicLit{expr{10}, &Token{TOKEN_INT, 10, 123}}}})
 	testPrimaryExpr(t, "dywan[1:5]", &ArrayExpr{
 		expr: expr{5},
 		Left: &Ident{expr{0}, "dywan", nil, false},
 		Index: []Expr{&SliceExpr{expr: expr{6},
-			From: &BasicLit{expr{6}, nil, &Token{TOKEN_INT, 6, 1}},
-			To:   &BasicLit{expr{8}, nil, &Token{TOKEN_INT, 8, 5}},
+			From: &BasicLit{expr{6}, &Token{TOKEN_INT, 6, 1}},
+			To:   &BasicLit{expr{8}, &Token{TOKEN_INT, 8, 5}},
 		}},
 	})
 	testPrimaryExpr(t, "{1,2}", &CompoundLit{})
@@ -189,9 +189,9 @@ func testArgs(t *testing.T, code string, expected []Expr) {
 func TestArgs(t *testing.T) {
 	testArgs(t, "", []Expr{})
 	testArgs(t, ")", []Expr{})
-	testArgs(t, "1,bla", []Expr{&BasicLit{expr{0}, nil, &Token{TOKEN_INT, 0, "1"}},
+	testArgs(t, "1,bla", []Expr{&BasicLit{expr{0}, &Token{TOKEN_INT, 0, "1"}},
 		&Ident{expr{2}, "bla", nil, false}})
-	testArgs(t, "1,bla)", []Expr{&BasicLit{expr{0}, nil, &Token{TOKEN_INT, 0, "1"}},
+	testArgs(t, "1,bla)", []Expr{&BasicLit{expr{0}, &Token{TOKEN_INT, 0, "1"}},
 		&Ident{expr{2}, "bla", nil, false}})
 }
 
@@ -865,7 +865,6 @@ func TestVarDecl(t *testing.T) {
 						Inits: []Expr{
 							&BasicLit{
 								expr: expr{pos: 15},
-								typ:  nil,
 								token: &Token{
 									Type:   13,
 									Offset: 15,
@@ -874,7 +873,6 @@ func TestVarDecl(t *testing.T) {
 							},
 							&BasicLit{
 								expr: expr{pos: 18},
-								typ:  nil,
 								token: &Token{
 									Type:   13,
 									Offset: 18,
@@ -893,7 +891,6 @@ func TestVarDecl(t *testing.T) {
 						Inits: []Expr{
 							&BasicLit{
 								expr: expr{pos: 26},
-								typ:  nil,
 								token: &Token{
 									Type:   13,
 									Offset: 26,
@@ -967,7 +964,6 @@ func TestVarDecl(t *testing.T) {
 						Inits: []Expr{
 							&BasicLit{
 								expr: expr{pos: 15},
-								typ:  nil,
 								token: &Token{
 									Type:   13,
 									Offset: 15,
