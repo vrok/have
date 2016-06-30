@@ -8,7 +8,7 @@ import (
 type Package struct {
 	path         string
 	files        []*File
-	realisations []*Realisation
+	instantiations []*Instantiation
 	objects      map[string]Object
 	manager      *PkgManager
 	tc           *TypesContext
@@ -322,7 +322,7 @@ func (m *PkgManager) Load(path string) (*Package, []error) {
 	return pkg, nil
 }
 
-type Realisation struct {
+type Instantiation struct {
 	FullName string
 	Params   []Type
 	Generic  Generic
@@ -332,9 +332,9 @@ type Realisation struct {
 	tc     *TypesContext
 }
 
-func (r *Realisation) ParseAndCheck() []error {
+func (r *Instantiation) ParseAndCheck() []error {
 	r.parser = NewParser(NewLexer(r.Generic.Code()))
-	// Parser sees the realisation as a separate file, so we need to plug in imports from
+	// Parser sees the instantiation as a separate file, so we need to plug in imports from
 	// the original file.
 	r.parser.imports = r.Generic.Imports()
 
@@ -354,7 +354,7 @@ func (r *Realisation) ParseAndCheck() []error {
 		return []error{err}
 	}
 	if len(stmts) != 1 {
-		panic(fmt.Sprintf("Internal error: parsing a generic realisation returned %d statements", len(stmts)))
+		panic(fmt.Sprintf("Internal error: parsing a generic instantiation returned %d statements", len(stmts)))
 	}
 
 	stmt := stmts[0].Stmt

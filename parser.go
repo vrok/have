@@ -1135,13 +1135,13 @@ func (p *Parser) parseFuncType() (*FuncType, error) {
 }
 
 // False when parsing in normal mode, true when parsing a generic
-// realisation/instantiation.
-func (p *Parser) parsingGenericRealisation() bool {
+// instantiation/instantiation.
+func (p *Parser) parsingGenericInstantiation() bool {
 	return p.genericParams != nil
 }
 
 func (p *Parser) typeFromWord(name string) Type {
-	if p.parsingGenericRealisation() {
+	if p.parsingGenericInstantiation() {
 		// Substitute a generic param occurence with a concrete type.
 		if typ, ok := p.genericParams[name]; ok {
 			return typ
@@ -1334,7 +1334,7 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 		ident := &Ident{expr: expr{token.Offset}, name: name}
 		left = ident
 
-		if p.parsingGenericRealisation() && p.genericParams[name] != nil {
+		if p.parsingGenericInstantiation() && p.genericParams[name] != nil {
 			typ, ok := p.genericParams[name]
 			if !ok {
 				panic("Internal error")
@@ -1746,8 +1746,8 @@ func (p *Parser) parseFuncHeader(genericPossible bool) (*FuncDecl, error) {
 
 				name := typeName.Value.(string)
 
-				if !p.parsingGenericRealisation() {
-					// When parsing a generic realisation, ignore the params.
+				if !p.parsingGenericInstantiation() {
+					// When parsing a generic instantiation, ignore the params.
 					// We're just re-parsing the code, substituting generic params occurences
 					// with concrete types as we go.
 					genericTypes = append(genericTypes, name)
