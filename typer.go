@@ -1,10 +1,26 @@
 // Negotiate and validate types in an AST.
 package have
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
+
+// Generic instantiation key.
+type InstKey string
+
+func NewInstKey(g Generic, params []Type) InstKey {
+	name, _ := g.Signature()
+	strParams := make([]string, len(params))
+	for _, p := range params {
+		strParams = append(strParams, p.String())
+	}
+	return InstKey(name + "[" + strings.Join(strParams, ", ") + "]")
+}
 
 type TypesContext struct {
-	types map[Expr]Type
+	types          map[Expr]Type
+	instantiations map[InstKey]*Instantiation
 }
 
 func (tc *TypesContext) SetType(e Expr, typ Type) { tc.types[e] = typ }
@@ -13,7 +29,8 @@ func (tc *TypesContext) IsTypeSet(e Expr) bool    { _, ok := tc.types[e]; return
 
 func NewTypesContext() *TypesContext {
 	return &TypesContext{
-		types: map[Expr]Type{},
+		types:          map[Expr]Type{},
+		instantiations: map[InstKey]*Instantiation{},
 	}
 }
 

@@ -351,6 +351,8 @@ type ReturnStmt struct {
 }
 
 type Generic interface {
+	Object
+
 	Signature() (name string, params []string)
 	Instantiate(tc *TypesContext, params ...Type) (Object, []error)
 	Code() []rune
@@ -372,12 +374,20 @@ func (gf *GenericFunc) Name() string                  { return gf.Func.name }
 func (gf *GenericFunc) Signature() (string, []string) { return gf.Func.name, gf.params }
 func (gf *GenericFunc) ObjectType() ObjectType        { return OBJECT_GENERIC }
 func (gf *GenericFunc) Instantiate(tc *TypesContext, params ...Type) (Object, []error) {
+	// First, check if we've already been here and it's cached.
+	instKey := NewInstKey(gf, params)
+	i, ok := tc.instantiations[instKey]
+	if ok {
+		return i.Object, nil
+	}
+
 	r := &Instantiation{
 		Generic: gf,
 		Params:  params,
 		tc:      tc,
 		// TODO: ...
 	}
+	tc.instantiations[instKey] = r
 	errs := r.ParseAndCheck()
 	if len(errs) > 0 {
 		return nil, errs

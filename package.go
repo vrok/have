@@ -6,12 +6,12 @@ import (
 )
 
 type Package struct {
-	path         string
-	files        []*File
+	path           string
+	files          []*File
 	instantiations []*Instantiation
-	objects      map[string]Object
-	manager      *PkgManager
-	tc           *TypesContext
+	objects        map[string]Object
+	manager        *PkgManager
+	tc             *TypesContext
 }
 
 func NewPackage(path string, files ...*File) *Package {
@@ -348,6 +348,7 @@ func (r *Instantiation) ParseAndCheck() []error {
 	}
 	//r.ParseAndCheck()
 	r.parser.genericParams = genericParams
+	r.parser.generic = r.Generic
 
 	stmts, err := r.parser.Parse()
 	if err != nil {
@@ -359,11 +360,6 @@ func (r *Instantiation) ParseAndCheck() []error {
 
 	stmt := stmts[0].Stmt
 
-	err = stmt.(ExprToProcess).NegotiateTypes(r.tc)
-	if err != nil {
-		return []error{err}
-	}
-
 	var obj Object
 	switch s := stmt.(type) {
 	case *VarStmt:
@@ -373,5 +369,10 @@ func (r *Instantiation) ParseAndCheck() []error {
 		panic("TODO - generic structs")
 	}
 	r.Object = obj
+
+	err = stmt.(ExprToProcess).NegotiateTypes(r.tc)
+	if err != nil {
+		return []error{err}
+	}
 	return nil
 }

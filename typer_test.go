@@ -1375,6 +1375,41 @@ var x = a[float32]()`,
 			true,
 			"float32",
 		},
+		{`
+func a[T](x T) T:
+	return 1 + x
+var x = a[float32](4)`,
+			true,
+			"float32",
+		},
+		{`
+func a[T](x T) T: # Trying to add string literal "aaa" to float32
+	return "aaa" + x
+var x = a[float32](4)`,
+			false,
+			"",
+		},
+		{`
+func a[T, K](x T, y K) T:
+	return x + y
+var x = a[float32, float32](4, 5)`,
+			true,
+			"float32",
+		},
+		{`
+func a[T, K](x T, y K) T:
+	return x + y # Error, can't add float32 and string
+var x = a[float32, string](4, "s")`,
+			false,
+			"",
+		},
+		{`
+func a[T](x T) T: # a[T] used in a[T]
+	return x + a[T](10)
+var x = a[float32](4)`,
+			true,
+			"float32",
+		},
 	})
 }
 

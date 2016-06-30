@@ -20,8 +20,11 @@ type Parser struct {
 	unboundIdents  map[string][]*Ident
 	topLevelDecls  map[string]Object
 
-	imports       Imports
+	imports Imports
+
+	// genericParams and generic normally are nils, unless we're parsing a generic instantiation
 	genericParams map[string]Type
+	generic       Generic
 
 	dontLookup bool
 
@@ -1845,7 +1848,11 @@ func (p *Parser) parseFunc(genericPossible bool) (*FuncDecl, Object, error) {
 
 	if fd.Receiver == nil {
 		// Add it to scope so that recursive calls can work.
-		p.identStack.addObject(obj)
+		if p.parsingGenericInstantiation() {
+			p.identStack.addObject(p.generic)
+		} else {
+			p.identStack.addObject(obj)
+		}
 	}
 
 	fd, err = p.parseFuncBody(fd)
