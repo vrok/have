@@ -1106,7 +1106,7 @@ func (ex *ArrayExpr) Type(tc *TypesContext) (Type, error) {
 			}
 			types = append(types, typ)
 		}
-		obj, errors := generic.GetInstantiation(tc, types...)
+		obj, errors := generic.Instantiate(tc, types...)
 		if len(errors) > 0 {
 			// TODO: return all errors
 			return nil, errors[0]

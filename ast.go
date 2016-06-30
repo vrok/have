@@ -352,7 +352,7 @@ type ReturnStmt struct {
 
 type Generic interface {
 	Signature() (name string, params []string)
-	GetInstantiation(tc *TypesContext, params ...Type) (Object, []error)
+	Instantiate(tc *TypesContext, params ...Type) (Object, []error)
 	Code() []rune
 	Imports() Imports
 }
@@ -371,7 +371,7 @@ type GenericFunc struct {
 func (gf *GenericFunc) Name() string                  { return gf.Func.name }
 func (gf *GenericFunc) Signature() (string, []string) { return gf.Func.name, gf.params }
 func (gf *GenericFunc) ObjectType() ObjectType        { return OBJECT_GENERIC }
-func (gf *GenericFunc) GetInstantiation(tc *TypesContext, params ...Type) (Object, []error) {
+func (gf *GenericFunc) Instantiate(tc *TypesContext, params ...Type) (Object, []error) {
 	r := &Instantiation{
 		Generic: gf,
 		Params:  params,
