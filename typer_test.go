@@ -1420,7 +1420,7 @@ var x = a[float32]`,
 		{`
 func a[T](x T) T:
 	return x
-var x func(float32)(float32) = a[float32]`,
+var x func(float32)float32 = a[float32]`,
 			true,
 			"func(float32) float32",
 		},
