@@ -544,15 +544,15 @@ func TestFuncDecl(t *testing.T) {
 	pass`, false},
 		{`func abc(x, y int int, z string) int: # Error: unexpected token (double int)
 	pass`, false},
-		{`func abc() int, float64:
+		{`func abc() (int, float64):
   var x = 1
 `, true},
 		{`func abc() (x int):
 		  var x = 1
 `, true},
-		{`func abc() int, struct:
+		{`func abc() (int, struct:
     x int
-    y float64:
+    y float64):
   var x = 1
 `, true},
 	}

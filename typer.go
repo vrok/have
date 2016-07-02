@@ -104,6 +104,10 @@ func IsInterface(t Type) bool {
 	return RootType(t).Kind() == KIND_INTERFACE
 }
 
+func IsIdentincal(to, what Type) bool {
+	return to.String() == what.String()
+}
+
 // Implements the definition of assignability from the Go spec.
 func IsAssignable(to, what Type) bool {
 	if IsInterface(to) {
@@ -1133,7 +1137,14 @@ func (ex *ArrayExpr) Type(tc *TypesContext) (Type, error) {
 			return nil, fmt.Errorf("Result of a generic is not a value")
 		}
 
-		return obj.(*Variable).Type, nil
+		t := obj.(*Variable).Type
+		if t.Known() {
+			// No guessing possible, so apply it immediately.
+			// It might need to be changed in the future if we change the language to be
+			// more relaxed.
+			tc.SetType(ex, t)
+		}
+		return t, nil
 	}
 
 	if len(ex.Index) != 1 {
@@ -1214,6 +1225,16 @@ func (ex *ArrayExpr) leftExprType(tc *TypesContext) (Type, error) {
 }
 
 func (ex *ArrayExpr) ApplyType(tc *TypesContext, typ Type) error {
+	if tc.IsTypeSet(ex) {
+		// Some type was negotiated already.
+		t := tc.GetType(ex)
+
+		if !IsIdentincal(t, typ) {
+			return fmt.Errorf("Array expression has type %s, not %s", t, typ)
+		}
+		return nil
+	}
+
 	lt, err := ex.leftExprType(tc)
 	if err != nil {
 		return err

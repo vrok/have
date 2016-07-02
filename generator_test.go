@@ -199,8 +199,8 @@ var x = ([]string)(nil)
 var y = ([]string)(x[1:4])
 y = x[1:4]
 `},
-		{source: `func a() int,
-		string:
+		{source: `func a() (int,
+		string):
 	return 1,
 		"bla"`, reference: `func a() (int, string) {
 	return 1, "bla"
@@ -264,7 +264,7 @@ func TestGenerateReturnStmts(t *testing.T) {
 			reference: `func a() (int) {
 	return 7
 }`},
-		{source: `func a() int, string:
+		{source: `func a() (int, string):
 	return 7, "ble"`,
 			reference: `func a() (int, string) {
 	return 7, "ble"

@@ -402,7 +402,7 @@ var a int = f()`,
 func TestTypesTupleAssign(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
-func a() int, int:
+func a() (int, int):
 	pass
 var x, y = a()
 var z = x`,
@@ -410,7 +410,7 @@ var z = x`,
 			"int",
 		},
 		{`
-func a() int, int:
+func a() (int, int):
 	pass
 var x, y int = a()
 var z = x`,
@@ -418,7 +418,7 @@ var z = x`,
 			"int",
 		},
 		{`
-func a() int, string:
+func a() (int, string):
 	pass
 var x, y = a()
 var z = y`,
@@ -426,7 +426,7 @@ var z = y`,
 			"string",
 		},
 		{`
-func a() int, string:
+func a() (int, string):
 	pass
 var x, y = a()
 var z int = y`,
@@ -434,7 +434,7 @@ var z int = y`,
 			"",
 		},
 		{`
-func a() int, int:
+func a() (int, int):
 	pass
 var x, y int
 x, y = a()
@@ -443,7 +443,7 @@ var z = x`,
 			"int",
 		},
 		{`
-func a() int, int:
+func a() (int, int):
 	pass
 func b(x, y int) int:
 	pass
@@ -452,7 +452,7 @@ var z = b(a())`,
 			"int",
 		},
 		{`
-func a() int, string:
+func a() (int, string):
 	pass
 func b(x, y int) int:
 	pass
@@ -462,7 +462,7 @@ var z = b(a())`,
 		},
 		{`
 type B []int
-func a() int, []int:
+func a() (int, []int):
 	return 1, {}
 var x int, y B
 x, y = a()
@@ -543,7 +543,7 @@ var b = Abc{}.x()
 		},
 		{`
 struct Abc:
-	func x() int, string:
+	func x() (int, string):
 		pass
 var b, c = Abc{}.x()
 var d = c
@@ -628,7 +628,7 @@ interface A:
 struct Abc:
 	func x():
 		pass
-func zab() Abc, int:
+func zab() (Abc, int):
 	pass
 func ka(a A, i int) A:
 	pass	
@@ -643,7 +643,7 @@ interface A:
 struct Abc:
 	func y():
 		pass
-func zab() Abc, int:
+func zab() (Abc, int):
 	pass
 func ka(a A, i int) A:
 	pass	
@@ -658,7 +658,7 @@ interface A:
 struct Abc:
 	func x():
 		pass
-func z() Abc, int:
+func z() (Abc, int):
 	pass
 var a A, b int
 a, b = z()
@@ -673,7 +673,7 @@ interface A:
 struct Abc:
 	func x():
 		pass
-func z() Abc, int:
+func z() (Abc, int):
 	pass
 var a A, b int
 a, b = z()
@@ -770,7 +770,7 @@ var x = a()
 			"",
 		},
 		{`
-func a() int, int:
+func a() (int, int):
 	return 1
 var x = a()
 `,
@@ -794,7 +794,7 @@ func TestTypesTmp(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
 type B []int
-func a() int, []int:
+func a() (int, []int):
 	return 1, {}
 var x int, y B
 x, y = a()
@@ -1409,6 +1409,20 @@ func a[T](x T) T: # a[T] used in a[T]
 var x = a[float32](4)`,
 			true,
 			"float32",
+		},
+		{`
+func a[T](x T) T:
+	return x
+var x = a[float32]`,
+			true,
+			"func(float32) float32",
+		},
+		{`
+func a[T](x T) T:
+	return x
+var x func(float32)(float32) = a[float32]`,
+			true,
+			"func(float32) float32",
 		},
 	})
 }

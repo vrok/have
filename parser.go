@@ -1,6 +1,7 @@
 package have
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -1180,6 +1181,15 @@ func (p *Parser) typeFromWord(name string) Type {
 }
 
 func (p *Parser) parseType() (Type, error) {
+	return p.attemptTypeParse(false)
+}
+
+var doesntLookLikeTypeErr = errors.New("Not a type")
+
+// When justTry is false, it just parses a type.
+// But when jutryTry is true, this function, besides parsing, can also be used
+// to check if the next token could be the beginning of a type at all.
+func (p *Parser) attemptTypeParse(justTry bool) (Type, error) {
 	token := p.nextToken()
 	switch token.Type {
 	case TOKEN_MUL:
@@ -1277,6 +1287,10 @@ func (p *Parser) parseType() (Type, error) {
 		p.putBack(token)
 		return p.parseFuncType()
 	default:
+		if justTry {
+			p.putBack(token)
+			return nil, doesntLookLikeTypeErr
+		}
 		// TODO add location info
 		return nil, fmt.Errorf("Expected type name, got %s", token.Type)
 	}
@@ -1804,13 +1818,14 @@ func (p *Parser) parseFuncHeader(genericPossible bool) (*FuncDecl, error) {
 			return nil, fmt.Errorf("Expected `)`")
 		}
 	} else {
-		// Check if ':' is next - if so, function doesn't return anything.
-		t = p.peek()
-		if t.Type != TOKEN_COLON && t.Type != TOKEN_INDENT && t.Type != TOKEN_RPARENTH {
-			results, err = p.parseArgsDecl()
-			if err != nil {
-				return nil, err
-			}
+		typ, err := p.attemptTypeParse(true)
+		switch err {
+		case doesntLookLikeTypeErr:
+			// OK, function doesn't return anything
+		case nil:
+			results = []*VarDecl{&VarDecl{Vars: []*Variable{&Variable{Type: typ}}}}
+		default:
+			return nil, err
 		}
 	}
 
