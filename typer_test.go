@@ -1424,6 +1424,13 @@ var x func(float32)float32 = a[float32]`,
 			true,
 			"func(float32) float32",
 		},
+		{`
+func a[T](x T) T:
+	return x
+var x = a(1.2)`,
+			true,
+			"float64",
+		},
 	})
 }
 
@@ -1644,6 +1651,111 @@ func TestTypesSimple(t *testing.T) {
 				fmt.Printf("Case %d: Bad type: %s, %s, %s\n", i, c.typ, firstVar.Type.String(),
 					fit.String())
 				fmt.Printf("Code:\n%s\n", c.code)
+			}
+		}
+	}
+}
+
+func TestGenericFuncDeduction(t *testing.T) {
+	cases := []struct {
+		code, want string
+	}{
+		{
+			`
+var x int
+func f[T](arg T) T:
+	pass
+f(x)`,
+			"f[int]",
+		},
+		{
+			`
+var x int
+func f[T](arg *T) T:
+	pass
+f(&x)`,
+			"f[int]",
+		},
+		{
+			`
+var x map[string]float32
+func f[T, K](arg map[T]K) T:
+	pass
+f(x)`,
+			"f[string, float32]",
+		},
+		{
+			`
+var x []float32
+func f[T](arg []T) T:
+	pass
+f(x)`,
+			"f[float32]",
+		},
+		{
+			`
+var x map[*int][]float32
+func f[T, K](arg map[T]K) T:
+	pass
+f(x)`,
+			"f[*int, []float32]",
+		},
+		{
+			`
+var x map[*int][]float32
+func f[T, K](arg map[*T][]K) T:
+	pass
+f(x)`,
+			"f[int, float32]",
+		},
+		{
+			`
+var x func(int)int
+func f[T](arg func(T)T) T:
+	pass
+f(x)`,
+			"f[int]",
+		},
+	}
+
+	for i, c := range cases {
+		if *justCase >= 0 && i != *justCase {
+			continue
+		}
+
+		tc := NewTypesContext()
+
+		parser := NewParser(NewLexer([]rune(strings.TrimSpace(c.code))))
+		result, err := parser.Parse()
+		if err != nil {
+			t.Fail()
+			fmt.Printf("Case %d: Failed parsing: %s\n", i, err)
+		}
+
+		parser.matchTopDecls(result)
+
+		var stmtWithTypes ExprToProcess = nil
+		var ok = false
+
+		for _, stmt := range result {
+			stmtWithTypes, ok = stmt.Stmt.(ExprToProcess)
+			if ok {
+				err = stmtWithTypes.NegotiateTypes(tc)
+				if err != nil {
+					t.Fail()
+					t.Fatalf("Case %d: %s", i, err)
+					break
+				}
+			}
+		}
+
+		if len(tc.instantiations) != 1 {
+			t.Fatalf("Case %d: Unexpected number of instantiations: %d", i, len(tc.instantiations))
+		}
+
+		for k, _ := range tc.instantiations {
+			if string(k) != c.want {
+				t.Fatalf("Case %d: Deduced wrong arguments: %s instead of %s", i, k, c.want)
 			}
 		}
 	}

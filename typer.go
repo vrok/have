@@ -11,7 +11,7 @@ type InstKey string
 
 func NewInstKey(g Generic, params []Type) InstKey {
 	name, _ := g.Signature()
-	strParams := make([]string, len(params))
+	strParams := make([]string, 0, len(params))
 	for _, p := range params {
 		strParams = append(strParams, p.String())
 	}
@@ -777,8 +777,48 @@ func ExprToGeneric(e Expr) (t Generic, ok bool) {
 	return nil, false
 }
 
+func (ex *FuncCallExpr) inferGeneric(tc *TypesContext) (*Variable, error) {
+	generic, isGeneric := ExprToGeneric(ex.Left)
+	if !isGeneric {
+		return nil, nil
+	}
+	// Generic function call with indirect generic params
+	_, params := generic.Signature()
+	genericFn, isFn := generic.(*GenericFunc)
+	if !isFn {
+		return nil, fmt.Errorf("Expression is not a function")
+	}
+
+	var argTypes []Type
+	genericFn.Func.Args.eachPair(func(v *Variable, init Expr) {
+		argTypes = append(argTypes, v.Type)
+	})
+
+	gnParams, err := deduceGenericParams(tc, params, argTypes, ex.Args)
+	if err != nil {
+		return nil, err
+	}
+
+	obj, errors := generic.Instantiate(tc, gnParams...)
+	if len(errors) > 0 {
+		// TODO: return all errors
+		return nil, errors[0]
+	}
+
+	if obj.ObjectType() != OBJECT_VAR {
+		return nil, fmt.Errorf("Result of a generic is not a value")
+	}
+
+	//t := obj.(*Variable).Type
+	return obj.(*Variable), nil
+}
+
 func (ex *FuncCallExpr) Type(tc *TypesContext) (Type, error) {
-	if castType, cast := ExprToTypeName(tc, ex.Left); cast {
+	if tc.IsTypeSet(ex) {
+		return tc.GetType(ex), nil
+	}
+
+	if castType, isCast := ExprToTypeName(tc, ex.Left); isCast {
 		if len(ex.Args) != 1 {
 			return nil, fmt.Errorf("Type casts take only 1 argument")
 		}
@@ -786,10 +826,19 @@ func (ex *FuncCallExpr) Type(tc *TypesContext) (Type, error) {
 			return castType, nil
 		}
 	} else {
-		callee := ex.Left.(TypedExpr)
-		calleeType, err := callee.Type(tc)
+		generic, err := ex.inferGeneric(tc)
 		if err != nil {
 			return nil, err
+		}
+		var calleeType Type
+		if generic != nil {
+			calleeType = generic.Type
+		} else {
+			callee := ex.Left.(TypedExpr)
+			calleeType, err = callee.Type(tc)
+			if err != nil {
+				return nil, err
+			}
 		}
 		calleeType = UnderlyingType(calleeType)
 		if calleeType.Kind() != KIND_FUNC {
@@ -809,7 +858,7 @@ func (ex *FuncCallExpr) Type(tc *TypesContext) (Type, error) {
 }
 
 func (ex *FuncCallExpr) ApplyType(tc *TypesContext, typ Type) error {
-	if castType, cast := ExprToTypeName(tc, ex.Left); cast {
+	if castType, isCast := ExprToTypeName(tc, ex.Left); isCast {
 		if len(ex.Args) != 1 {
 			return fmt.Errorf("Type conversion takes exactly one argument")
 		}
@@ -822,13 +871,24 @@ func (ex *FuncCallExpr) ApplyType(tc *TypesContext, typ Type) error {
 		if !IsAssignable(typ, castType) {
 			return fmt.Errorf("Cannot assign `%s` to `%s`", castType, typ)
 		}
+		tc.SetType(ex, typ)
 		return nil
 	} else {
-		callee := ex.Left.(TypedExpr)
-		calleeType, err := callee.Type(tc)
+		generic, err := ex.inferGeneric(tc)
 		if err != nil {
 			return err
 		}
+		var calleeType Type
+		if generic != nil {
+			calleeType = generic.Type
+		} else {
+			callee := ex.Left.(TypedExpr)
+			calleeType, err = callee.Type(tc)
+			if err != nil {
+				return err
+			}
+		}
+
 		calleeType = UnderlyingType(calleeType)
 		if calleeType.Kind() != KIND_FUNC {
 			return fmt.Errorf("Only functions can be called, not %s", calleeType)
@@ -869,6 +929,7 @@ func (ex *FuncCallExpr) ApplyType(tc *TypesContext, typ Type) error {
 				}
 			}
 		}
+		tc.SetType(ex, typ)
 		return nil
 	}
 }
@@ -1123,7 +1184,7 @@ func (ex *ArrayExpr) Type(tc *TypesContext) (Type, error) {
 		for i, arg := range ex.Index {
 			typ, ok := ExprToTypeName(tc, arg)
 			if !ok {
-				return nil, fmt.Errorf("Argument #%d to generic is not a type", i)
+				return nil, fmt.Errorf("Generic parameter #%d is not a type", i)
 			}
 			types = append(types, typ)
 		}
@@ -1873,4 +1934,83 @@ func firstKnown(types ...Type) Type {
 	}
 
 	return nil
+}
+
+func deduceGenericParams(tc *TypesContext, params []string, decls []Type, uses []Expr) ([]Type, error) {
+	if len(decls) != len(uses) {
+		// TODO: tuple passing
+		return nil, fmt.Errorf("Invalid number of arguments: %d instead of %d", len(uses), len(decls))
+	}
+
+	// Requirements for each param inferred from uses. If all goes well, each param
+	// should have exacly one requirement.
+	reqs := make(map[string]Type, len(params))
+
+	usesTypes := make([]Type, len(uses))
+	for i, expr := range uses {
+		typ, err := expr.(TypedExpr).Type(tc)
+		if err != nil {
+			return nil, err
+		}
+		usesTypes[i] = typ
+	}
+
+	var err error
+
+	for i := range uses {
+		decl, use := decls[i], usesTypes[i]
+
+		if !use.Known() {
+			continue
+		}
+
+		declSubts := []Type{}
+		mapSubtype(decl, func(t Type) bool {
+			declSubts = append(declSubts, t)
+			return true
+		})
+		i := 0
+		mapSubtype(use, func(t Type) bool {
+			if err != nil {
+				return false
+			}
+
+			declSubt := declSubts[i]
+			if declSubt.Kind() == KIND_GENERIC {
+				name := declSubt.(*GenericType).Name
+				if req, ok := reqs[name]; ok {
+					if req.Kind() != t.Kind() {
+						err = fmt.Errorf("%s can't be at once %s and %s", name, req, t)
+						return false
+						// ERROR, contradictory requirements
+					}
+				} else {
+					reqs[name] = t
+				}
+				i++
+				return false
+			} else if declSubt.Kind() != t.Kind() {
+				err = fmt.Errorf("Generic function and the parameter have incomptible types (%s and %s)", declSubt.Kind(), t.Kind())
+				return false
+			}
+
+			i++
+			return true
+		})
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Check if all is known. If not, we'll need to another round with GuessTypes.
+	if len(reqs) != len(params) {
+		return nil, fmt.Errorf("Not all parameters were guessed")
+	}
+
+	result := make([]Type, 0, len(params))
+	for _, p := range params {
+		result = append(result, reqs[p])
+	}
+	return result, nil
 }

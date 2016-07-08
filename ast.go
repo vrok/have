@@ -410,10 +410,13 @@ type GenericType struct {
 	Concrete Type
 }
 
-func (t *GenericType) Known() bool       { return t.Concrete.Known() }
-func (t *GenericType) String() string    { return t.Concrete.String() }
-func (t *GenericType) Kind() Kind        { return t.Concrete.Kind() }
-func (t *GenericType) ZeroValue() string { return t.Concrete.ZeroValue() }
+func (t *GenericType) Known() bool    { return t.Concrete.Known() }
+func (t *GenericType) String() string { return t.Concrete.String() }
+
+//func (t *GenericType) Kind() Kind                             { return t.Concrete.Kind() }
+func (t *GenericType) Kind() Kind                             { return KIND_GENERIC }
+func (t *GenericType) ZeroValue() string                      { return t.Concrete.ZeroValue() }
+func (t *GenericType) MapSubtypes(callback func(t Type) bool) {}
 
 type Kind int
 
@@ -441,6 +444,20 @@ type Type interface {
 	String() string
 	Kind() Kind
 	ZeroValue() string
+	MapSubtypes(callback func(t Type) bool)
+}
+
+// Helper function used by all MapSubtypes implementations.
+func mapSubtype(t Type, callback func(t Type) bool) {
+	if goOn := callback(t); goOn {
+		t.MapSubtypes(callback)
+	}
+}
+
+func mapSubtypes(ts []Type, callback func(t Type) bool) {
+	for _, t := range ts {
+		mapSubtype(t, callback)
+	}
 }
 
 type SimpleTypeID int
@@ -516,6 +533,7 @@ func (t *SimpleType) ZeroValue() string {
 		return "0"
 	}
 }
+func (t *SimpleType) MapSubtypes(callback func(t Type) bool) {}
 
 func IsBoolAssignable(t Type) bool {
 	return IsAssignable(&SimpleType{SIMPLE_TYPE_BOOL}, t)
@@ -588,15 +606,17 @@ func (t *ArrayType) ZeroValue() string {
 	b.WriteString("}")
 	return b.String()
 }
+func (t *ArrayType) MapSubtypes(callback func(t Type) bool) { mapSubtype(t.Of, callback) }
 
 type SliceType struct {
 	Of Type
 }
 
-func (t *SliceType) Known() bool       { return t.Of.Known() }
-func (t *SliceType) String() string    { return "[]" + t.Of.String() }
-func (t *SliceType) Kind() Kind        { return KIND_SLICE }
-func (t *SliceType) ZeroValue() string { return "nil" }
+func (t *SliceType) Known() bool                            { return t.Of.Known() }
+func (t *SliceType) String() string                         { return "[]" + t.Of.String() }
+func (t *SliceType) Kind() Kind                             { return KIND_SLICE }
+func (t *SliceType) ZeroValue() string                      { return "nil" }
+func (t *SliceType) MapSubtypes(callback func(t Type) bool) { mapSubtype(t.Of, callback) }
 
 type MapType struct {
 	By, Of Type
@@ -606,6 +626,10 @@ func (t *MapType) Known() bool       { return t.By.Known() && t.Of.Known() }
 func (t *MapType) String() string    { return "map[" + t.By.String() + "]" + t.Of.String() }
 func (t *MapType) Kind() Kind        { return KIND_MAP }
 func (t *MapType) ZeroValue() string { return "nil" }
+func (t *MapType) MapSubtypes(callback func(t Type) bool) {
+	mapSubtype(t.By, callback)
+	mapSubtype(t.Of, callback)
+}
 
 type FuncType struct {
 	Args, Results []Type
@@ -658,6 +682,10 @@ func (t *FuncType) Header() string {
 
 func (t *FuncType) Kind() Kind        { return KIND_FUNC }
 func (t *FuncType) ZeroValue() string { return "nil" }
+func (t *FuncType) MapSubtypes(callback func(t Type) bool) {
+	mapSubtypes(t.Args, callback)
+	mapSubtypes(t.Results, callback)
+}
 
 type ChanDir int
 
@@ -683,17 +711,19 @@ func (t *ChanType) String() string {
 		return fmt.Sprintf("chan %s", t.Of)
 	}
 }
-func (t *ChanType) Kind() Kind        { return KIND_CHAN }
-func (t *ChanType) ZeroValue() string { return "nil" }
+func (t *ChanType) Kind() Kind                             { return KIND_CHAN }
+func (t *ChanType) ZeroValue() string                      { return "nil" }
+func (t *ChanType) MapSubtypes(callback func(t Type) bool) { mapSubtype(t.Of, callback) }
 
 type PointerType struct {
 	To Type
 }
 
-func (t *PointerType) Known() bool       { return t.To.Known() }
-func (t *PointerType) String() string    { return "*" + t.To.String() }
-func (t *PointerType) Kind() Kind        { return KIND_POINTER }
-func (t *PointerType) ZeroValue() string { return "nil" }
+func (t *PointerType) Known() bool                            { return t.To.Known() }
+func (t *PointerType) String() string                         { return "*" + t.To.String() }
+func (t *PointerType) Kind() Kind                             { return KIND_POINTER }
+func (t *PointerType) ZeroValue() string                      { return "nil" }
+func (t *PointerType) MapSubtypes(callback func(t Type) bool) { mapSubtype(t.To, callback) }
 
 type TupleType struct {
 	Members []Type
@@ -724,6 +754,8 @@ func (t *TupleType) String() string {
 func (t *TupleType) Kind() Kind { return KIND_TUPLE }
 
 func (t *TupleType) ZeroValue() string { panic("this should not happen") }
+
+func (t *TupleType) MapSubtypes(callback func(t Type) bool) { mapSubtypes(t.Members, callback) }
 
 type StructType struct {
 	Members map[string]Type
@@ -765,6 +797,11 @@ func (t *StructType) String() string {
 
 func (t *StructType) Kind() Kind        { return KIND_STRUCT }
 func (t *StructType) ZeroValue() string { return fmt.Sprintf("%s{}", t) }
+func (t *StructType) MapSubtypes(callback func(t Type) bool) {
+	for _, k := range t.Keys {
+		mapSubtype(t.Members[k], callback)
+	}
+}
 
 type IfaceType struct {
 	// Keys in the order of declaration
@@ -790,7 +827,8 @@ func (t *IfaceType) String() string {
 	return out.String()
 }
 
-func (t *IfaceType) ZeroValue() string { return "nil" }
+func (t *IfaceType) ZeroValue() string                      { return "nil" }
+func (t *IfaceType) MapSubtypes(callback func(t Type) bool) {}
 
 type CustomType struct {
 	// Base name of the type. Doesn't include package name for external types.
@@ -816,16 +854,21 @@ func (t *CustomType) RootType() Type {
 	}
 	return current
 }
-
 func (t *CustomType) ZeroValue() string { return t.RootType().ZeroValue() }
+func (t *CustomType) MapSubtypes(callback func(t Type) bool) {
+	if t.Decl != nil {
+		mapSubtype(t.Decl.AliasedType, callback)
+	}
+}
 
 type UnknownType struct {
 }
 
-func (t *UnknownType) Known() bool       { return false }
-func (t *UnknownType) String() string    { return "_" }
-func (t *UnknownType) Kind() Kind        { return KIND_UNKNOWN }
-func (t *UnknownType) ZeroValue() string { return "nil" }
+func (t *UnknownType) Known() bool                            { return false }
+func (t *UnknownType) String() string                         { return "_" }
+func (t *UnknownType) Kind() Kind                             { return KIND_UNKNOWN }
+func (t *UnknownType) ZeroValue() string                      { return "nil" }
+func (t *UnknownType) MapSubtypes(callback func(t Type) bool) {}
 
 type TypeExpr struct {
 	expr
