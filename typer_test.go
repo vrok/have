@@ -1658,66 +1658,122 @@ func TestTypesSimple(t *testing.T) {
 
 func TestGenericFuncDeduction(t *testing.T) {
 	cases := []struct {
-		code, want string
+		code, want, err string
 	}{
-		{
-			`
+		{`
 var x int
 func f[T](arg T) T:
 	pass
 f(x)`,
 			"f[int]",
+			"",
 		},
-		{
-			`
+		{`
+func f[T](arg T) T:
+	pass
+f(1)`,
+			"f[int]",
+			"",
+		},
+		{`
+var x int
+func f[T](a1, a2 T) T:
+	pass
+f(x, 1)`,
+			"f[int]",
+			"",
+		},
+		{`
+var x float32
+func f[T](a1, a2 T) T:
+	pass
+f(x, 1)`,
+			"f[float32]",
+			"",
+		},
+		{`
+var x float32
+func f[T](a1, a2 T) T:
+	pass
+f(x, "aaa")`,
+			"f[float32]",
+			"Can't use this literal for type float32",
+		},
+		{`
+var x float32
+func f[T](a1, a2 T) T:
+	pass
+f("aaa", "a")`,
+			"f[string]",
+			"",
+		},
+		{`
 var x int
 func f[T](arg *T) T:
 	pass
 f(&x)`,
 			"f[int]",
+			"",
 		},
-		{
-			`
+		{`
 var x map[string]float32
 func f[T, K](arg map[T]K) T:
 	pass
 f(x)`,
 			"f[string, float32]",
+			"",
 		},
-		{
-			`
+		{`
 var x []float32
 func f[T](arg []T) T:
 	pass
 f(x)`,
 			"f[float32]",
+			"",
 		},
-		{
-			`
+		{`
 var x map[*int][]float32
 func f[T, K](arg map[T]K) T:
 	pass
 f(x)`,
 			"f[*int, []float32]",
+			"",
 		},
-		{
-			`
+		{`
 var x map[*int][]float32
 func f[T, K](arg map[*T][]K) T:
 	pass
 f(x)`,
 			"f[int, float32]",
+			"",
 		},
-		{
-			`
+		{`
 var x func(int)int
 func f[T](arg func(T)T) T:
 	pass
 f(x)`,
 			"f[int]",
+			"",
+		},
+		{`
+var x int
+var y string
+func f[T](a1, a2 T) T:
+	pass
+f(x, y)`,
+			"",
+			"T can't be both int and string",
+		},
+		{`
+func f[T](a1, a2 T) T:
+	pass
+f(1, "aaa")`,
+			"",
+			"T can't be both int and string",
 		},
 	}
 
+caseLoop:
 	for i, c := range cases {
 		if *justCase >= 0 && i != *justCase {
 			continue
@@ -1737,14 +1793,21 @@ f(x)`,
 		var stmtWithTypes ExprToProcess = nil
 		var ok = false
 
-		for _, stmt := range result {
+		for stmtNo, stmt := range result {
 			stmtWithTypes, ok = stmt.Stmt.(ExprToProcess)
 			if ok {
 				err = stmtWithTypes.NegotiateTypes(tc)
-				if err != nil {
-					t.Fail()
-					t.Fatalf("Case %d: %s", i, err)
-					break
+				if c.err == "" || stmtNo+1 < len(result) {
+					if err != nil {
+						t.Fail()
+						t.Fatalf("Case %d: %s", i, err)
+						break
+					}
+				} else {
+					if err == nil || !strings.Contains(err.Error(), c.err) {
+						t.Fatalf("Case %d: Didn't return error containing `%s`, but `%s`", i, c.err, err)
+					}
+					continue caseLoop
 				}
 			}
 		}

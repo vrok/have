@@ -1905,7 +1905,7 @@ func (ex *BasicLit) ApplyType(tc *TypesContext, typ Type) error {
 		tc.SetType(ex, typ)
 		return nil
 	}
-	return fmt.Errorf("Can't use this literal for this type")
+	return fmt.Errorf("Can't use this literal for type %s", typ)
 }
 
 func (ex *BasicLit) GuessType(tc *TypesContext) (ok bool, typ Type) {
@@ -1957,49 +1957,69 @@ func deduceGenericParams(tc *TypesContext, params []string, decls []Type, uses [
 
 	var err error
 
-	for i := range uses {
-		decl, use := decls[i], usesTypes[i]
-
-		if !use.Known() {
-			continue
+	for _, guessing := range [...]bool{false, true} {
+		if len(reqs) == len(params) {
+			// We've already deduced all types, no need to guess. This isn't just an optimisation,
+			// e.g. for func[T](a, b T) instantiated like this: func(x, 1), where x is float32, guessing
+			// the type of `1` would result in an error (T required to be both int and float32).
+			break
 		}
 
-		declSubts := []Type{}
-		mapSubtype(decl, func(t Type) bool {
-			declSubts = append(declSubts, t)
-			return true
-		})
-		i := 0
-		mapSubtype(use, func(t Type) bool {
-			if err != nil {
-				return false
-			}
+		for i := range uses {
+			decl, use := decls[i], usesTypes[i]
 
-			declSubt := declSubts[i]
-			if declSubt.Kind() == KIND_GENERIC {
-				name := declSubt.(*GenericType).Name
-				if req, ok := reqs[name]; ok {
-					if req.Kind() != t.Kind() {
-						err = fmt.Errorf("%s can't be at once %s and %s", name, req, t)
-						return false
-						// ERROR, contradictory requirements
-					}
-				} else {
-					reqs[name] = t
+			if !guessing {
+				if !use.Known() {
+					continue
 				}
-				i++
-				return false
-			} else if declSubt.Kind() != t.Kind() {
-				err = fmt.Errorf("Generic function and the parameter have incomptible types (%s and %s)", declSubt.Kind(), t.Kind())
-				return false
+			} else {
+				if use.Known() {
+					continue
+				}
+				var ok bool
+				ok, use = uses[i].(TypedExpr).GuessType(tc)
+				if !ok {
+					return nil, fmt.Errorf("Argument #i has unknown type", i)
+				}
 			}
 
-			i++
-			return true
-		})
+			declSubts := []Type{}
+			mapSubtype(decl, func(t Type) bool {
+				declSubts = append(declSubts, t)
+				return true
+			})
+			j := 0
+			mapSubtype(use, func(t Type) bool {
+				if err != nil {
+					return false
+				}
 
-		if err != nil {
-			return nil, err
+				declSubt := declSubts[j]
+				if declSubt.Kind() == KIND_GENERIC {
+					name := declSubt.(*GenericType).Name
+					if req, ok := reqs[name]; ok {
+						if req.String() != t.String() {
+							err = fmt.Errorf("%s can't be both %s and %s", name, req, t)
+							return false
+							// ERROR, contradictory requirements
+						}
+					} else {
+						reqs[name] = t
+					}
+					j++
+					return false
+				} else if declSubt.Kind() != t.Kind() {
+					err = fmt.Errorf("Generic function and the parameter have incomptible types (%s and %s)", declSubt.Kind(), t.Kind())
+					return false
+				}
+
+				j++
+				return true
+			})
+
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
