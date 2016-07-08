@@ -1850,6 +1850,13 @@ var placeholder int = 0`,
 			true,
 			"int",
 		},
+		{`
+if true:
+	1 + 1 # Error: expression evaluated but not used (it's only checked for blocks ATM)
+var placeholder int = 0`,
+			false,
+			"",
+		},
 	})
 }
 
