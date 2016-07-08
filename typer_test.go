@@ -1824,6 +1824,35 @@ caseLoop:
 	}
 }
 
+func TestTypesExprStmt(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+func f():
+    pass
+f()
+var placeholder int = 0`,
+			true,
+			"int",
+		},
+		{`
+func f[T]():
+    pass
+f[int]()
+var placeholder int = 0`,
+			true,
+			"int",
+		},
+		{`
+func f[T](a T):
+    pass
+f(1)
+var placeholder int = 0`,
+			true,
+			"int",
+		},
+	})
+}
+
 /*
 func TestTypesLateIdentLookup(t *testing.T) {
 	testVarTypes(t, []typeTestCase{

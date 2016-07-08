@@ -685,8 +685,26 @@ func (vd *VarDecl) NegotiateTypes(tc *TypesContext) error {
 }
 
 func (es *ExprStmt) NegotiateTypes(tc *TypesContext) error {
-	uk := Type(&UnknownType{})
-	return NegotiateExprType(tc, &uk, es.Expression.(TypedExpr))
+	te := es.Expression.(TypedExpr)
+	typ, err := te.Type(tc)
+	if err != nil {
+		return err
+	}
+	if !typ.Known() {
+		ok, typ_ := te.GuessType(tc)
+		if ok {
+			typ = typ_
+		}
+	}
+	if !typ.Known() {
+		fc, ok := es.Expression.(*FuncCallExpr)
+		if ok && fc.IsNullResult(tc) {
+			return nil
+		}
+		return fmt.Errorf("Couldn't infer types")
+	}
+
+	return es.Expression.(TypedExpr).ApplyType(tc, typ)
 }
 
 func (ex *BlankExpr) Type(tc *TypesContext) (Type, error)            { return &UnknownType{}, nil }
@@ -813,6 +831,25 @@ func (ex *FuncCallExpr) inferGeneric(tc *TypesContext) (*Variable, error) {
 	return obj.(*Variable), nil
 }
 
+func (ex *FuncCallExpr) getCalleeType(tc *TypesContext) (Type, error) {
+	generic, err := ex.inferGeneric(tc)
+	if err != nil {
+		return nil, err
+	}
+	var calleeType Type
+	if generic != nil {
+		calleeType = generic.Type
+	} else {
+		callee := ex.Left.(TypedExpr)
+		calleeType, err = callee.Type(tc)
+		if err != nil {
+			return nil, err
+		}
+	}
+	calleeType = UnderlyingType(calleeType)
+	return calleeType, nil
+}
+
 func (ex *FuncCallExpr) Type(tc *TypesContext) (Type, error) {
 	if tc.IsTypeSet(ex) {
 		return tc.GetType(ex), nil
@@ -826,21 +863,10 @@ func (ex *FuncCallExpr) Type(tc *TypesContext) (Type, error) {
 			return castType, nil
 		}
 	} else {
-		generic, err := ex.inferGeneric(tc)
+		calleeType, err := ex.getCalleeType(tc)
 		if err != nil {
 			return nil, err
 		}
-		var calleeType Type
-		if generic != nil {
-			calleeType = generic.Type
-		} else {
-			callee := ex.Left.(TypedExpr)
-			calleeType, err = callee.Type(tc)
-			if err != nil {
-				return nil, err
-			}
-		}
-		calleeType = UnderlyingType(calleeType)
 		if calleeType.Kind() != KIND_FUNC {
 			return &UnknownType{}, nil
 		}
@@ -874,22 +900,10 @@ func (ex *FuncCallExpr) ApplyType(tc *TypesContext, typ Type) error {
 		tc.SetType(ex, typ)
 		return nil
 	} else {
-		generic, err := ex.inferGeneric(tc)
+		calleeType, err := ex.getCalleeType(tc)
 		if err != nil {
 			return err
 		}
-		var calleeType Type
-		if generic != nil {
-			calleeType = generic.Type
-		} else {
-			callee := ex.Left.(TypedExpr)
-			calleeType, err = callee.Type(tc)
-			if err != nil {
-				return err
-			}
-		}
-
-		calleeType = UnderlyingType(calleeType)
 		if calleeType.Kind() != KIND_FUNC {
 			return fmt.Errorf("Only functions can be called, not %s", calleeType)
 		}
@@ -943,6 +957,25 @@ func (ex *FuncCallExpr) GuessType(tc *TypesContext) (ok bool, typ Type) {
 	}
 }
 
+// True if this function call doesn't return any value.
+// Needs to operate on function call that has been already typechecked.
+func (ex *FuncCallExpr) IsNullResult(tc *TypesContext) bool {
+	calleeType, err := ex.getCalleeType(tc)
+	if err != nil {
+		return false
+	}
+	if calleeType.Kind() != KIND_FUNC {
+		return false
+	}
+
+	//if calleeType.Kind() == KIND_TUPLE {
+	//	panic("todo")
+	//}
+
+	asFunc := calleeType.(*FuncType)
+	return len(asFunc.Results) == 0
+}
+
 func (ex *FuncDecl) Type(tc *TypesContext) (Type, error) {
 	return ex.typ, nil
 }
@@ -961,6 +994,13 @@ func (cb *CodeBlock) CheckTypes(tc *TypesContext) error {
 		typedStmt := stmt.(ExprToProcess)
 		if err := typedStmt.NegotiateTypes(tc); err != nil {
 			return err
+		}
+
+		if es, ok := stmt.(*ExprStmt); ok {
+			_, ok := es.Expression.(*FuncCallExpr)
+			if !ok {
+				return fmt.Errorf("Expression evaluated but not used")
+			}
 		}
 	}
 	return nil

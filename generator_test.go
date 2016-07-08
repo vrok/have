@@ -56,45 +56,45 @@ func testCases(t *testing.T, cases []generatorTestCase) {
 
 func TestGenerateExpr(t *testing.T) {
 	cases := []generatorTestCase{
-		{source: "1", reference: "1\n"},
-		{source: "\"bla\"", reference: "\"bla\"\n"},
-		{source: "true", reference: "true\n"},
-		{source: "false", reference: "false\n"},
-		{source: "'a'", reference: "'a'\n"},
-		{source: "'ą'", reference: "'ą'\n"},
-		{source: "1+1", reference: "(1 + 1)\n"},
-		{source: "1+(-1)", reference: "(1 + (-1))\n"},
-		{source: "func a():\n 1", reference: "func a() {\n\t1\n}\n"},
-		{source: "func a(x, y int):\n 1", reference: "func a(x int, y int) {\n\t1\n}\n"},
+		{source: "print(1)", reference: "print(1)\n"},
+		{source: "print(\"bla\")", reference: "print(\"bla\")\n"},
+		{source: "print(true)", reference: "print(true)\n"},
+		{source: "print(false)", reference: "print(false)\n"},
+		{source: "print('a')", reference: "print('a')\n"},
+		{source: "print('ą')", reference: "print('ą')\n"},
+		{source: "print(1+1)", reference: "print((1 + 1))\n"},
+		{source: "print(1+(-1))", reference: "print((1 + (-1)))\n"},
+		{source: "func a():\n print(1)", reference: "func a() {\n\tprint(1)\n}\n"},
+		{source: "func a(x, y int):\n print(1)", reference: "func a(x int, y int) {\n\tprint(1)\n}\n"},
 		{source: "print(\"test\")", reference: "print(\"test\")\n"},
-		{source: "if 1 == 2:\n 1", reference: `
+		{source: "if 1 == 2:\n print(1)", reference: `
 if (1 == 2) {
-	1
+	print(1)
 }`,
 		},
-		{source: "if t = 1; t == 2:\n 1", reference: `
+		{source: "if t = 1; t == 2:\n print(1)", reference: `
 if t := (int)(1); (t == 2) {
-	1
+	print(1)
 }`,
 		},
-		{source: "if t = 1, k = \"aaa\"; t == 2 && k == \"bbb\":\n 1", reference: `
+		{source: "if t = 1, k = \"aaa\"; t == 2 && k == \"bbb\":\n print(1)", reference: `
 if t, k := (int)(1), (string)("aaa"); ((t == 2) && (k == "bbb")) {
-	1
+	print(1)
 } `,
 		},
-		{source: "if 1 == 2:\n 1\nelse:\n 2\n", reference: `
+		{source: "if 1 == 2:\n print(1)\nelse:\n print(2)\n", reference: `
 if (1 == 2) {
-	1
+	print(1)
 } else {
-	2
+	print(2)
 }`},
-		{source: "if 1 == 2:\n 1\nelif true == false:\n 5\nelse:\n 2\n", reference: `
+		{source: "if 1 == 2:\n print(1)\nelif true == false:\n print(5)\nelse:\n print(2)\n", reference: `
 if (1 == 2) {
-	1
+	print(1)
 } else if (true == false) {
-	5
+	print(5)
 } else {
-	2
+	print(2)
 }`},
 		{source: `for x = 0; x < 100; print("a"):
 	print("b")`, reference: `for x := (int)(0); (x < 100); print("a") {
