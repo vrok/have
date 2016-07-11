@@ -354,7 +354,7 @@ func TestParseInlineStruct(t *testing.T) {
 	}
 	for _, c := range cases {
 		parser := NewParser(NewLexer([]rune(c)))
-		result, err := parser.parseStruct(nil)
+		result, err := parser.parseStruct(nil, false)
 
 		// TODO: better assertions, more test cases.
 		// We'll need something more succint than comparing whole ASTs.
@@ -768,6 +768,25 @@ func TestParseGenericFunc(t *testing.T) {
 	return 1`, false},
 		{`func a[T](x T) T: # some recursion
 	return a(x + 1)`, true},
+	}
+	validityTest(t, cases)
+}
+
+func TestParseGenericStruct(t *testing.T) {
+	cases := []validityTestCase{
+		{`struct A[T]:
+	pass`, true},
+		{`struct A[T, K]:
+	pass`, true},
+		{`struct A[T, K]:
+	func x() T:
+		return T{}`, true},
+		{`struct A[T]:
+	func x() K: # K is unknown
+		return 1}`, false},
+		{`struct A[T]:
+	func x() A[T]:
+		return self`, true},
 	}
 	validityTest(t, cases)
 }

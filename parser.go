@@ -958,30 +958,56 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 	return nil, fmt.Errorf("Impossible happened")
 }
 
-func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl) (*StructType, error) {
+func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl, genericPossible bool) (*StructType, error) {
 	name := ""
+
+	var genericParams []string
+	var err error
+
 	if receiverTypeDecl != nil {
 		// For class-like (with methods) struct declarations we need to get
 		// TypeDecl (incomplete at this stage) of the struct being parsed.
 		// It is needed for `self` variable.
 
-		tokens, ok := p.expectSeries(TOKEN_STRUCT, TOKEN_WORD, TOKEN_COLON)
+		tokens, ok := p.expectSeries(TOKEN_STRUCT, TOKEN_WORD)
 		if !ok {
 			return nil, fmt.Errorf("Couldn't parse struct header")
 		}
 		name = tokens[1].Value.(string)
+
+		switch t := p.peek(); t.Type {
+		case TOKEN_LBRACKET:
+			if !genericPossible {
+				return nil, fmt.Errorf("Generic types can only be declared top-level")
+			}
+			// Scope for generic params
+			p.identStack.pushScope()
+			defer p.identStack.popScope()
+			genericParams, err = p.parseGenericParams()
+			if err != nil {
+				return nil, err
+			}
+
+			if p.expect(TOKEN_COLON) == nil {
+				return nil, fmt.Errorf("Expected `:` after `]`")
+			}
+		case TOKEN_COLON:
+			p.nextToken()
+		default:
+			return nil, fmt.Errorf("Couldn't parse struct header")
+		}
 	} else {
 		if _, ok := p.expectSeries(TOKEN_STRUCT, TOKEN_COLON); !ok {
 			return nil, fmt.Errorf("Couldn't parse struct declaration")
 		}
 	}
 
-	_, err := p.expectNewIndent()
+	_, err = p.expectNewIndent()
 	if err != nil {
 		return nil, err
 	}
 
-	result := &StructType{Name: name, Members: map[string]Type{}, Keys: []string{}, Methods: map[string]*FuncDecl{}}
+	result := &StructType{Name: name, Members: map[string]Type{}, Keys: []string{}, Methods: map[string]*FuncDecl{}, GenericParams: genericParams}
 
 	selfType := &CustomType{Name: name, Decl: receiverTypeDecl}
 	self, selfp := &Variable{name: "self", Type: selfType}, &Variable{name: "self", Type: &PointerType{To: selfType}}
@@ -1276,7 +1302,7 @@ func (p *Parser) attemptTypeParse(justTry bool) (Type, error) {
 		}
 	case TOKEN_STRUCT:
 		p.putBack(token)
-		return p.parseStruct(nil)
+		return p.parseStruct(nil, false)
 	case TOKEN_INTERFACE:
 		p.putBack(token)
 		return p.parseInterface(false)
@@ -1726,6 +1752,46 @@ func typesFromVars(vd DeclChain) []Type {
 	return result
 }
 
+func (p *Parser) parseGenericParams() ([]string, error) {
+	t := p.expect(TOKEN_LBRACKET)
+	if t == nil {
+		return nil, fmt.Errorf("Expected `[`")
+	}
+	genericTypes := []string{}
+
+loop:
+	for {
+		typeName := p.expect(TOKEN_WORD)
+		if typeName == nil {
+			return nil, fmt.Errorf("Expected generic type name")
+		}
+
+		name := typeName.Value.(string)
+
+		if !p.parsingGenericInstantiation() {
+			// When parsing a generic instantiation, ignore the params.
+			// We're just re-parsing the code, substituting generic params occurences
+			// with concrete types as we go.
+			genericTypes = append(genericTypes, name)
+
+			p.identStack.addObject(&GenericTypeDecl{
+				stmt: stmt{expr: expr{typeName.Offset}},
+				name: name},
+			)
+		}
+
+		switch t := p.nextToken(); t.Type {
+		case TOKEN_COMMA:
+		case TOKEN_RBRACKET:
+			break loop
+		default:
+			return nil, fmt.Errorf("Unexpected token %s", t)
+		}
+	}
+
+	return genericTypes, nil
+}
+
 // Parses function header (declaration without the body).
 // Returns a partially complete FuncDecl, that can be later filled with
 // function's body, etc.
@@ -1739,6 +1805,8 @@ func (p *Parser) parseFuncHeader(genericPossible bool) (*FuncDecl, error) {
 		p.nextToken()
 	}
 
+	var err error
+
 	funcName := ""
 	genericTypes := []string{}
 
@@ -1751,37 +1819,9 @@ func (p *Parser) parseFuncHeader(genericPossible bool) (*FuncDecl, error) {
 			if !genericPossible {
 				return nil, fmt.Errorf("Unexpected generic function")
 			}
-
-			p.nextToken()
-
-		loop:
-			for {
-				typeName := p.expect(TOKEN_WORD)
-				if typeName == nil {
-					return nil, fmt.Errorf("Expected generic type name")
-				}
-
-				name := typeName.Value.(string)
-
-				if !p.parsingGenericInstantiation() {
-					// When parsing a generic instantiation, ignore the params.
-					// We're just re-parsing the code, substituting generic params occurences
-					// with concrete types as we go.
-					genericTypes = append(genericTypes, name)
-
-					p.identStack.addObject(&GenericTypeDecl{
-						stmt: stmt{expr: expr{typeName.Offset}},
-						name: name},
-					)
-				}
-
-				switch t := p.nextToken(); t.Type {
-				case TOKEN_COMMA:
-				case TOKEN_RBRACKET:
-					break loop
-				default:
-					return nil, fmt.Errorf("Unexpected token %s", t)
-				}
+			genericTypes, err = p.parseGenericParams()
+			if err != nil {
+				return nil, err
 			}
 		}
 	case TOKEN_LPARENTH:
@@ -2097,16 +2137,25 @@ func (p *Parser) parseSimpleStmt(labelPossible bool) (SimpleStmt, error) {
 	}
 }
 
-func (p *Parser) parseStructStmt() (*StructStmt, error) {
+func (p *Parser) parseStructStmt() (Stmt, error) {
 	firstTok := p.peek()
 
 	typeDecl := &TypeDecl{
 		stmt: stmt{expr: expr{firstTok.Offset}},
 	}
 
-	structDecl, err := p.parseStruct(typeDecl)
+	structDecl, err := p.parseStruct(typeDecl, true)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(structDecl.GenericParams) > 0 {
+		return &GenericStruct{
+			params:  structDecl.GenericParams,
+			struc:   structDecl,
+			code:    p.lex.Slice(firstTok, p.peek()),
+			imports: p.imports,
+		}, nil
 	}
 
 	typeDecl.name = structDecl.Name

@@ -359,6 +359,43 @@ type Generic interface {
 	Imports() Imports
 }
 
+type GenericStruct struct {
+	stmt
+	params []string
+	struc  *StructType
+
+	// TODO: Use token.Pos
+	code    []rune
+	imports Imports
+}
+
+func (gs *GenericStruct) Name() string                  { return gs.struc.Name }
+func (gs *GenericStruct) Signature() (string, []string) { return gs.struc.Name, gs.params }
+func (gs *GenericStruct) ObjectType() ObjectType        { return OBJECT_GENERIC }
+func (gs *GenericStruct) Instantiate(tc *TypesContext, params ...Type) (Object, []error) {
+	// First, check if we've already been here and it's cached.
+	instKey := NewInstKey(gs, params)
+	i, ok := tc.instantiations[instKey]
+	if ok {
+		return i.Object, nil
+	}
+
+	r := &Instantiation{
+		Generic: gs,
+		Params:  params,
+		tc:      tc,
+		// TODO: ...
+	}
+	tc.instantiations[instKey] = r
+	errs := r.ParseAndCheck()
+	if len(errs) > 0 {
+		return nil, errs
+	}
+	return r.Object, nil
+}
+func (gs *GenericStruct) Code() []rune     { return gs.code }
+func (gs *GenericStruct) Imports() Imports { return gs.imports }
+
 // Implements Stmt, Object
 type GenericFunc struct {
 	stmt
@@ -396,13 +433,6 @@ func (gf *GenericFunc) Instantiate(tc *TypesContext, params ...Type) (Object, []
 }
 func (gf *GenericFunc) Code() []rune     { return gf.code }
 func (gf *GenericFunc) Imports() Imports { return gf.imports }
-
-type GenericStruct struct {
-}
-
-func (gf *GenericFunc) ImplicitGenerate(resultType Type, paramTypes ...Type) (*FuncDecl, []error) {
-	panic("TODO")
-}
 
 // Implements Type
 type GenericType struct {
@@ -763,6 +793,8 @@ type StructType struct {
 	Keys    []string
 	Methods map[string]*FuncDecl
 	Name    string
+	// Names of generic type paramaters. Nil for standard functions.
+	GenericParams []string
 }
 
 func (t *StructType) GetTypeN(n int) Type {
