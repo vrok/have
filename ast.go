@@ -144,13 +144,13 @@ func (o *TypeDecl) Type() Type {
 // Represents an argument to a generic statment (in early stages of compilation they
 // can't be treated as type declarations - they are just placeholders for future types).
 // Implements Object and Stmt
-type GenericTypeDecl struct {
+type GenericParamTypeDecl struct {
 	stmt
 	name string
 }
 
-func (g *GenericTypeDecl) Name() string           { return g.name }
-func (g *GenericTypeDecl) ObjectType() ObjectType { return OBJECT_GENERIC_TYPE }
+func (g *GenericParamTypeDecl) Name() string           { return g.name }
+func (g *GenericParamTypeDecl) ObjectType() ObjectType { return OBJECT_GENERIC_TYPE }
 
 var builtinTypeNames []string = []string{"bool", "byte", "complex128", "complex64", "error", "float32",
 	"float64", "int", "int16", "int32", "int64", "int8", "rune",

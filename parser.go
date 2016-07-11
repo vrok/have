@@ -1774,7 +1774,7 @@ loop:
 			// with concrete types as we go.
 			genericTypes = append(genericTypes, name)
 
-			p.identStack.addObject(&GenericTypeDecl{
+			p.identStack.addObject(&GenericParamTypeDecl{
 				stmt: stmt{expr: expr{typeName.Offset}},
 				name: name},
 			)
