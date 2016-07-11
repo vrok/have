@@ -435,18 +435,18 @@ func (gf *GenericFunc) Code() []rune     { return gf.code }
 func (gf *GenericFunc) Imports() Imports { return gf.imports }
 
 // Implements Type
-type GenericType struct {
+type GenericParamType struct {
 	Name     string
 	Concrete Type
 }
 
-func (t *GenericType) Known() bool    { return t.Concrete.Known() }
-func (t *GenericType) String() string { return t.Concrete.String() }
+func (t *GenericParamType) Known() bool    { return t.Concrete.Known() }
+func (t *GenericParamType) String() string { return t.Concrete.String() }
 
 //func (t *GenericType) Kind() Kind                             { return t.Concrete.Kind() }
-func (t *GenericType) Kind() Kind                             { return KIND_GENERIC }
-func (t *GenericType) ZeroValue() string                      { return t.Concrete.ZeroValue() }
-func (t *GenericType) MapSubtypes(callback func(t Type) bool) {}
+func (t *GenericParamType) Kind() Kind                             { return KIND_GENERIC }
+func (t *GenericParamType) ZeroValue() string                      { return t.Concrete.ZeroValue() }
+func (t *GenericParamType) MapSubtypes(callback func(t Type) bool) {}
 
 type Kind int
 

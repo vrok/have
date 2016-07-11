@@ -1193,7 +1193,7 @@ func (p *Parser) typeFromWord(name string) Type {
 				return &CustomType{Name: name, Decl: decl}
 			}
 		case obj.ObjectType() == OBJECT_GENERIC_TYPE:
-			return &GenericType{Name: obj.Name()}
+			return &GenericParamType{Name: obj.Name()}
 		default:
 			panic("niemożliwe")
 		}

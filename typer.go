@@ -2036,7 +2036,7 @@ func deduceGenericParams(tc *TypesContext, params []string, decls []Type, uses [
 
 				declSubt := declSubts[j]
 				if declSubt.Kind() == KIND_GENERIC {
-					name := declSubt.(*GenericType).Name
+					name := declSubt.(*GenericParamType).Name
 					if req, ok := reqs[name]; ok {
 						if req.String() != t.String() {
 							err = fmt.Errorf("%s can't be both %s and %s", name, req, t)
