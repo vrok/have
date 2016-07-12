@@ -359,6 +359,8 @@ type Generic interface {
 	Imports() Imports
 }
 
+// Implements Stmt and Type.
+// It is a pseudo-type, can't be directly used in a program.
 type GenericStruct struct {
 	stmt
 	params []string
@@ -447,6 +449,45 @@ func (t *GenericParamType) String() string { return t.Concrete.String() }
 func (t *GenericParamType) Kind() Kind                             { return KIND_GENERIC }
 func (t *GenericParamType) ZeroValue() string                      { return t.Concrete.ZeroValue() }
 func (t *GenericParamType) MapSubtypes(callback func(t Type) bool) {}
+
+type GenericType struct {
+	Left   Expr
+	Params []Type
+	// This is filled by type checker, it's empty right after parsing.
+	Generic *GenericStruct
+	// This is filled by type checker, it's empty right after parsing.
+	Struct *StructType
+}
+
+func (t *GenericType) Known() bool {
+	for _, p := range t.Params {
+		if !p.Known() {
+			return false
+		}
+	}
+	return true
+}
+func (t *GenericType) String() string {
+	b := &bytes.Buffer{}
+	b.WriteString(t.Generic.Name() + "[")
+	for i, p := range t.Params {
+		b.WriteString(p.String())
+		if i+1 < len(t.Params) {
+			b.WriteString(", ")
+		}
+	}
+	b.WriteByte(']')
+	return b.String()
+}
+func (t *GenericType) Kind() Kind { return KIND_STRUCT }
+func (t *GenericType) ZeroValue() string {
+	return t.Struct.ZeroValue()
+}
+func (t *GenericType) MapSubtypes(callback func(t Type) bool) {
+	for _, p := range t.Params {
+		mapSubtype(p, callback)
+	}
+}
 
 type Kind int
 

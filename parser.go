@@ -1206,6 +1206,30 @@ func (p *Parser) typeFromWord(name string) Type {
 	}
 }
 
+func (p *Parser) parseGenericParamTypes() ([]Type, error) {
+	if p.expect(TOKEN_LBRACKET) == nil {
+		return nil, fmt.Errorf("Expected `[`")
+	}
+
+	var result []Type
+	for {
+		typ, err := p.parseType()
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, typ)
+
+		switch p.nextToken().Type {
+		case TOKEN_COMMA:
+		case TOKEN_RBRACKET:
+			return result, nil
+		default:
+			return nil, fmt.Errorf("Unexpected token")
+		}
+	}
+}
+
 func (p *Parser) parseType() (Type, error) {
 	return p.attemptTypeParse(false)
 }
@@ -1280,25 +1304,55 @@ func (p *Parser) attemptTypeParse(justTry bool) (Type, error) {
 		}
 	case TOKEN_WORD:
 		name := token.Value.(string)
-		if p.peek().Type == TOKEN_DOT {
-			p.nextToken()
-			membNameTok := p.nextToken()
-			if membNameTok.Type != TOKEN_WORD {
-				return nil, fmt.Errorf("Package member name expected after `.`")
-			}
-			membName := membNameTok.Value.(string)
 
-			pkg, ok := p.imports[name]
-			if !ok {
-				return nil, fmt.Errorf("Package `%s` not imported", name)
-			}
+		switch {
+		case tokenTypesEq(p.peekN(3), []TokenType{TOKEN_DOT, TOKEN_WORD, TOKEN_LBRACKET}):
+			// External generic type
+			dot, memberName := p.nextToken(), p.nextToken()
 
-			fullName := name + "." + membName
-			typ := &CustomType{Name: membName, Package: pkg}
-			p.unboundTypes[fullName] = append(p.unboundTypes[fullName], typ)
-			return typ, nil
-		} else {
-			return p.typeFromWord(name), nil
+			//pkg := &Ident{expr: expr{token.Offset}, name: name}
+			pkg := p.wordToExpr(token)
+			member := &Ident{expr: expr{memberName.Offset}, name: memberName.Value.(string)}
+
+			// HERE
+			left := &DotSelector{expr: expr{dot.Offset}, Left: pkg, Right: member}
+
+			params, err := p.parseGenericParamTypes()
+			if err != nil {
+				return nil, err
+			}
+			return &GenericType{Left: left, Params: params}, nil
+		case p.peek().Type == TOKEN_LBRACKET:
+			// Local generic type
+			//pkg := &Ident{expr: expr{token.Offset}, name: name}
+			pkg := p.wordToExpr(token)
+			params, err := p.parseGenericParamTypes()
+			if err != nil {
+				return nil, err
+			}
+			return &GenericType{Left: pkg, Params: params}, nil
+		default:
+			// Not a generic type
+			if p.peek().Type == TOKEN_DOT {
+				p.nextToken()
+				membNameTok := p.nextToken()
+				if membNameTok.Type != TOKEN_WORD {
+					return nil, fmt.Errorf("Package member name expected after `.`")
+				}
+				membName := membNameTok.Value.(string)
+
+				pkg, ok := p.imports[name]
+				if !ok {
+					return nil, fmt.Errorf("Package `%s` not imported", name)
+				}
+
+				fullName := name + "." + membName
+				typ := &CustomType{Name: membName, Package: pkg}
+				p.unboundTypes[fullName] = append(p.unboundTypes[fullName], typ)
+				return typ, nil
+			} else {
+				return p.typeFromWord(name), nil
+			}
 		}
 	case TOKEN_STRUCT:
 		p.putBack(token)
@@ -1352,6 +1406,35 @@ func (p *Parser) parseFuncTypeOrLit() (Expr, error) {
 	}
 }
 
+// word.Type must be TOKEN_WORD
+func (p *Parser) wordToExpr(word *Token) PrimaryExpr {
+	if word.Type != TOKEN_WORD {
+		panic("wordToExpr: token is not a word")
+	}
+	name := word.Value.(string)
+	ident := &Ident{expr: expr{word.Offset}, name: name}
+	var result PrimaryExpr = ident
+
+	if p.parsingGenericInstantiation() && p.genericParams[name] != nil {
+		typ, ok := p.genericParams[name]
+		if !ok {
+			panic("Internal error")
+		}
+		result = &TypeExpr{expr: expr{word.Offset}, typ: typ}
+	} else if !p.dontLookup {
+		if v := p.identStack.findObject(name); v == nil && !p.ignoreUnknowns {
+			if pkg := p.imports[name]; pkg == nil {
+				p.unboundIdents[name] = append(p.unboundIdents[name], ident)
+			} else {
+				ident.object = pkg
+			}
+		} else {
+			ident.object = v
+		}
+	}
+	return result
+}
+
 func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 	token := p.nextToken()
 	var left Expr
@@ -1373,27 +1456,7 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 			return nil, fmt.Errorf("Expected closing `)`")
 		}
 	case TOKEN_WORD:
-		name := token.Value.(string)
-		ident := &Ident{expr: expr{token.Offset}, name: name}
-		left = ident
-
-		if p.parsingGenericInstantiation() && p.genericParams[name] != nil {
-			typ, ok := p.genericParams[name]
-			if !ok {
-				panic("Internal error")
-			}
-			left = &TypeExpr{expr: expr{token.Offset}, typ: typ}
-		} else if !p.dontLookup {
-			if v := p.identStack.findObject(name); v == nil && !p.ignoreUnknowns {
-				if pkg := p.imports[name]; pkg == nil {
-					p.unboundIdents[name] = append(p.unboundIdents[name], ident)
-				} else {
-					ident.object = pkg
-				}
-			} else {
-				ident.object = v
-			}
-		}
+		left = p.wordToExpr(token)
 	case TOKEN_STR:
 		left = &BasicLit{expr{token.Offset}, token}
 	case TOKEN_INT, TOKEN_FLOAT, TOKEN_IMAG, TOKEN_TRUE, TOKEN_FALSE, TOKEN_RUNE:
@@ -2150,12 +2213,14 @@ func (p *Parser) parseStructStmt() (Stmt, error) {
 	}
 
 	if len(structDecl.GenericParams) > 0 {
-		return &GenericStruct{
+		gs := &GenericStruct{
 			params:  structDecl.GenericParams,
 			struc:   structDecl,
 			code:    p.lex.Slice(firstTok, p.peek()),
 			imports: p.imports,
-		}, nil
+		}
+		p.identStack.addObject(gs)
+		return gs, nil
 	}
 
 	typeDecl.name = structDecl.Name

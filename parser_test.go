@@ -510,6 +510,7 @@ func validityTest(t *testing.T, cases []validityTestCase) {
 		if c.valid && !passed {
 			t.Fail()
 			fmt.Printf("Error parsing %s %s\n", err, spew.Sdump(block))
+			fmt.Printf("Unbound idents and types: [%s], [%s]\n", spew.Sdump(parser.unboundIdents), spew.Sdump(parser.unboundTypes))
 		} else if !c.valid && passed {
 			t.Fail()
 			fmt.Printf("Parsing case %d should've failed (err: %s)\n%s\n---\n%s\n",
@@ -784,9 +785,13 @@ func TestParseGenericStruct(t *testing.T) {
 		{`struct A[T]:
 	func x() K: # K is unknown
 		return 1}`, false},
+		// This would be a cool test if validityTest allowed hanging idents:
+		//		{`struct A[T]:
+		//	func x() A[T]:
+		//		return self`, true},
 		{`struct A[T]:
-	func x() A[T]:
-		return self`, true},
+	pass
+var x A[int]`, true},
 	}
 	validityTest(t, cases)
 }
