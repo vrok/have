@@ -4,6 +4,8 @@ package have
 import (
 	"fmt"
 	"strings"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 // Generic instantiation key.
@@ -13,6 +15,7 @@ func NewInstKey(g Generic, params []Type) InstKey {
 	name, _ := g.Signature()
 	strParams := make([]string, 0, len(params))
 	for _, p := range params {
+		//fmt.Printf("ZZZ NEW INST KEY %s, %s\n", spew.Sdump(g), spew.Sdump(params))
 		strParams = append(strParams, p.String())
 	}
 	return InstKey(name + "[" + strings.Join(strParams, ", ") + "]")
@@ -74,9 +77,12 @@ func nonilTyp(t Type) Type {
 }
 
 func RootType(t Type) Type {
-	if t.Kind() == KIND_CUSTOM {
-		return t.(*CustomType).RootType()
+	if at, ok := t.(DeclaredType); ok {
+		return at.RootType()
 	}
+	//if t.Kind() == KIND_CUSTOM {
+	//	return t.(*CustomType).RootType()
+	//}
 	return t
 }
 
@@ -195,6 +201,10 @@ func (td *TypeDecl) NegotiateTypes(tc *TypesContext) error { return nil }
 func (bs *BranchStmt) NegotiateTypes(tc *TypesContext) error { return nil }
 
 func (ls *LabelStmt) NegotiateTypes(tc *TypesContext) error { return nil }
+
+func (ls *GenericFunc) NegotiateTypes(tc *TypesContext) error { return nil }
+
+func (ls *GenericStruct) NegotiateTypes(tc *TypesContext) error { return nil }
 
 func (rs *ReturnStmt) NegotiateTypes(tc *TypesContext) error {
 	if rs.Func.Results.countVars() != len(rs.Values) {
@@ -1148,7 +1158,7 @@ func (ex *DotSelector) Type(tc *TypesContext) (Type, error) {
 		panic("todo")
 	default:
 		if leftType.Known() {
-			return nil, fmt.Errorf("Dot selector used for type %s", leftType)
+			return nil, fmt.Errorf("Dot selector used for type %s", spew.Sdump(leftType))
 		}
 		return &UnknownType{}, nil
 	}
@@ -2035,7 +2045,7 @@ func deduceGenericParams(tc *TypesContext, params []string, decls []Type, uses [
 				}
 
 				declSubt := declSubts[j]
-				if declSubt.Kind() == KIND_GENERIC {
+				if declSubt.Kind() == KIND_GENERIC_PARAM {
 					name := declSubt.(*GenericParamType).Name
 					if req, ok := reqs[name]; ok {
 						if req.String() != t.String() {

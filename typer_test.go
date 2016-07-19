@@ -12,33 +12,28 @@ type typeTestCase struct {
 	typ        string
 }
 
+// Helper for tests. Takes a scrap of code, parses & typechecks it as if it
+// was a package.
+func processFileAsPkg(code string) (*Package, []*TopLevelStmt, []error) {
+	f := NewFile("main.go", "package main\n"+code, nil, nil)
+
+	pkg := NewPackage("main", f)
+	errs := pkg.ParseAndCheck()
+
+	return pkg, pkg.files[0].statements, errs
+}
+
 func testVarTypes(t *testing.T, cases []typeTestCase) {
 	for i, c := range cases {
 		if *justCase >= 0 && i != *justCase {
 			continue
 		}
-		parser := NewParser(NewLexer([]rune(strings.TrimSpace(c.code))))
-		result, err := parser.Parse()
-		if err != nil {
-			t.Fail()
-			fmt.Printf("FAIL: Failed parsing: %s\n", err)
-		}
 
-		parser.matchTopDecls(result)
+		pkg, stmts, errs := processFileAsPkg(strings.TrimSpace(c.code))
 
-		ctx := NewTypesContext()
-
-		var stmtWithTypes ExprToProcess = nil
-		var ok = false
-
-		for _, stmt := range result {
-			stmtWithTypes, ok = stmt.Stmt.(ExprToProcess)
-			if ok {
-				err = stmtWithTypes.NegotiateTypes(ctx)
-				if err != nil {
-					break
-				}
-			}
+		var err error
+		if len(errs) > 0 {
+			err = errs[0]
 		}
 
 		if (err == nil) != c.shouldPass {
@@ -49,14 +44,14 @@ func testVarTypes(t *testing.T, cases []typeTestCase) {
 		}
 
 		if c.shouldPass {
-			firstDecl := stmtWithTypes.(*VarStmt).Vars[0]
+			firstDecl := stmts[len(stmts)-1].Stmt.(*VarStmt).Vars[0]
 
 			firstVar, firstInit := firstDecl.Vars[0], Expr(nil)
 			if len(firstDecl.Inits) > 0 {
 				firstInit = firstDecl.Inits[0]
 			}
 
-			fit, err := firstInit.(TypedExpr).Type(ctx)
+			fit, err := firstInit.(TypedExpr).Type(pkg.tc)
 			if firstVar.Type.String() != c.typ || !IsAssignable(fit, firstVar.Type) || err != nil {
 				t.Fail()
 				fmt.Printf("FAIL: Case %d: Bad type: %s, %s, %s\n", i, c.typ, firstVar.Type.String(),
@@ -1434,6 +1429,32 @@ var x = a(1.2)`,
 	})
 }
 
+func TestTypesGenericTypes(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+struct A[T]:
+	func x() T:
+		return 1
+var a A[int]
+var x = a.x()`,
+			true,
+			"int",
+		},
+		{`
+struct A[T]:
+	func x() T:
+		return "a"
+struct B[T]:
+	func y(a A[T]) T:
+		return a.x()
+var a A[string], b B[string]
+var x = b.y(a)`,
+			true,
+			"string",
+		},
+	})
+}
+
 func TestTypesSimple(t *testing.T) {
 	var cases = []struct {
 		code       string
@@ -1773,42 +1794,25 @@ f(1, "aaa")`,
 		},
 	}
 
-caseLoop:
 	for i, c := range cases {
 		if *justCase >= 0 && i != *justCase {
 			continue
 		}
 
-		tc := NewTypesContext()
+		pkg, _, errs := processFileAsPkg(strings.TrimSpace(c.code))
 
-		parser := NewParser(NewLexer([]rune(strings.TrimSpace(c.code))))
-		result, err := parser.Parse()
-		if err != nil {
-			t.Fail()
-			fmt.Printf("Case %d: Failed parsing: %s\n", i, err)
+		var err error
+		if len(errs) > 0 {
+			err = errs[0]
 		}
 
-		parser.matchTopDecls(result)
+		tc := pkg.tc
 
-		var stmtWithTypes ExprToProcess = nil
-		var ok = false
-
-		for stmtNo, stmt := range result {
-			stmtWithTypes, ok = stmt.Stmt.(ExprToProcess)
-			if ok {
-				err = stmtWithTypes.NegotiateTypes(tc)
-				if c.err == "" || stmtNo+1 < len(result) {
-					if err != nil {
-						t.Fail()
-						t.Fatalf("Case %d: %s", i, err)
-						break
-					}
-				} else {
-					if err == nil || !strings.Contains(err.Error(), c.err) {
-						t.Fatalf("Case %d: Didn't return error containing `%s`, but `%s`", i, c.err, err)
-					}
-					continue caseLoop
-				}
+		if c.err != "" {
+			if err == nil || !strings.Contains(err.Error(), c.err) {
+				t.Fatalf("Case %d: Didn't return error containing `%s`, but `%s`", i, c.err, err)
+			} else {
+				continue
 			}
 		}
 

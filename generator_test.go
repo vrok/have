@@ -11,28 +11,17 @@ type generatorTestCase struct {
 }
 
 func inMemTranspile(code string) (string, error) {
-	parser := NewParser(NewLexer([]rune(code)))
-	result, err := parser.Parse()
-	if err != nil {
-		return "", err
-	}
+	pkg, stmts, errs := processFileAsPkg(strings.TrimSpace(code))
+	ctx := pkg.tc
 
-	parser.matchTopDecls(result)
-
-	ctx := NewTypesContext()
-	for _, stmt := range result {
-		typedStmt := stmt.Stmt.(ExprToProcess)
-		if err := typedStmt.NegotiateTypes(ctx); err != nil {
-			return "", err
-		}
+	if len(errs) > 0 {
+		return "", errs[0]
 	}
 
 	cc := &CodeChunk{}
-
-	for _, stmt := range result {
+	for _, stmt := range stmts {
 		stmt.Stmt.(Generable).Generate(ctx, cc)
 	}
-
 	return cc.ReadAll(), nil
 }
 

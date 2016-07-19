@@ -789,9 +789,9 @@ func TestParseGenericStruct(t *testing.T) {
 		//		{`struct A[T]:
 		//	func x() A[T]:
 		//		return self`, true},
-		{`struct A[T]:
-	pass
-var x A[int]`, true},
+		//		{`struct A[T]:
+		//	pass
+		//var x A[int]`, true},
 	}
 	validityTest(t, cases)
 }

@@ -38,8 +38,9 @@ type SimpleStmt interface {
 type TopLevelStmt struct {
 	Stmt
 
-	deps          []string
-	unboundTypes  map[string][]*CustomType
+	deps []string
+	// This stores either CustomTypes or GenericStruct
+	unboundTypes  map[string][]DeclaredType
 	unboundIdents map[string][]*Ident
 }
 
@@ -70,9 +71,22 @@ func (s *TopLevelStmt) Decls() []string {
 		stmt.Vars.eachPair(func(v *Variable, init Expr) {
 			result = append(result, v.name)
 		})
+	case *StructStmt:
+		result = append(result, stmt.Decl.Name())
+	case *TypeDecl:
+		result = append(result, stmt.Name())
+	case *IfaceStmt:
+		result = append(result, stmt.Iface.name)
+	case *GenericFunc:
+		result = append(result, stmt.Name())
+	case *GenericStruct:
+		result = append(result, stmt.Name())
+	case *ImportStmt, *AssignStmt, *SendStmt, *SwitchStmt, *ExprStmt, *IfStmt, *ForStmt, *BranchStmt, *LabelStmt:
 	case declStmt:
 		// TODO: Tests are leaking, add an interface to prevent this
 		result = stmt.Decls()
+	default:
+		panic(fmt.Errorf("todo %#v", s.Stmt))
 	}
 	return result
 }
@@ -209,6 +223,7 @@ type SendStmt struct {
 type StructStmt struct {
 	stmt
 	Struct *StructType
+	Decl   *TypeDecl
 }
 
 // implements Stmt
@@ -442,16 +457,30 @@ type GenericParamType struct {
 	Concrete Type
 }
 
-func (t *GenericParamType) Known() bool    { return t.Concrete.Known() }
-func (t *GenericParamType) String() string { return t.Concrete.String() }
+func (t *GenericParamType) Known() bool {
+	if t.Concrete == nil {
+		return false
+	}
+	return t.Concrete.Known()
+}
+func (t *GenericParamType) String() string {
+	if t.Concrete == nil {
+		return t.Name
+	}
+	return t.Concrete.String()
+}
 
 //func (t *GenericType) Kind() Kind                             { return t.Concrete.Kind() }
-func (t *GenericParamType) Kind() Kind                             { return KIND_GENERIC }
+func (t *GenericParamType) Kind() Kind                             { return KIND_GENERIC_PARAM }
 func (t *GenericParamType) ZeroValue() string                      { return t.Concrete.ZeroValue() }
 func (t *GenericParamType) MapSubtypes(callback func(t Type) bool) {}
 
 type GenericType struct {
-	Left   Expr
+	// Base name of the type. Doesn't include package name for external types.
+	Name string
+	// nil means local
+	Package *ImportStmt
+
 	Params []Type
 	// This is filled by type checker, it's empty right after parsing.
 	Generic *GenericStruct
@@ -479,7 +508,7 @@ func (t *GenericType) String() string {
 	b.WriteByte(']')
 	return b.String()
 }
-func (t *GenericType) Kind() Kind { return KIND_STRUCT }
+func (t *GenericType) Kind() Kind { return KIND_GENERIC_INST }
 func (t *GenericType) ZeroValue() string {
 	return t.Struct.ZeroValue()
 }
@@ -487,6 +516,15 @@ func (t *GenericType) MapSubtypes(callback func(t Type) bool) {
 	for _, p := range t.Params {
 		mapSubtype(p, callback)
 	}
+}
+func (t *GenericType) RootType() Type {
+	return t.Struct
+}
+func (t *GenericType) NamePtr() *string {
+	return &t.Name
+}
+func (t *GenericType) PackagePtr() *ImportStmt {
+	return t.Package
 }
 
 type Kind int
@@ -503,9 +541,10 @@ const (
 	KIND_TUPLE
 	KIND_FUNC
 	KIND_CHAN
-	// Type checker code doesn't have to bother with KIND_GENERIC, all types of the generic kind
+	// Type checker code doesn't have to bother with KIND_GENERIC_PARAM, all types of the generic kind
 	// are substituted with actual types before they end up in type checker.
-	KIND_GENERIC
+	KIND_GENERIC_PARAM
+	KIND_GENERIC_INST
 	KIND_UNKNOWN
 )
 
@@ -516,6 +555,13 @@ type Type interface {
 	Kind() Kind
 	ZeroValue() string
 	MapSubtypes(callback func(t Type) bool)
+}
+
+type DeclaredType interface {
+	Type
+	NamePtr() *string
+	RootType() Type
+	PackagePtr() *ImportStmt
 }
 
 // Helper function used by all MapSubtypes implementations.
@@ -932,6 +978,12 @@ func (t *CustomType) MapSubtypes(callback func(t Type) bool) {
 	if t.Decl != nil {
 		mapSubtype(t.Decl.AliasedType, callback)
 	}
+}
+func (t *CustomType) NamePtr() *string {
+	return &t.Name
+}
+func (t *CustomType) PackagePtr() *ImportStmt {
+	return t.Package
 }
 
 type UnknownType struct {

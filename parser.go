@@ -17,7 +17,7 @@ type Parser struct {
 
 	// TODO: Remove after implementing unboundVars
 	ignoreUnknowns bool
-	unboundTypes   map[string][]*CustomType
+	unboundTypes   map[string][]DeclaredType
 	unboundIdents  map[string][]*Ident
 	topLevelDecls  map[string]Object
 
@@ -33,6 +33,13 @@ type Parser struct {
 }
 
 type Imports map[string]*ImportStmt
+
+const LocalPkg = "."
+
+// Return local (relative to the file) package
+func (i *Imports) Local() *Package {
+	return (*i)[LocalPkg].pkg
+}
 
 func (p *Parser) nextToken() *Token {
 	if len(p.tokensBuf) > 0 {
@@ -66,7 +73,7 @@ func NewParserWithoutBuiltins(lex *Lexer) *Parser {
 	return &Parser{lex: lex,
 		identStack:       &IdentStack{map[string]Object{}},
 		branchTreesStack: []*BranchStmtsTree{NewBranchStmtsTree()},
-		unboundTypes:     make(map[string][]*CustomType),
+		unboundTypes:     make(map[string][]DeclaredType),
 		unboundIdents:    make(map[string][]*Ident),
 		topLevelDecls:    make(map[string]Object),
 		imports:          make(map[string]*ImportStmt)}
@@ -834,7 +841,7 @@ groupsLoop:
 			varDecls = append(varDecls, &VarDecl{Vars: vars})
 			break groupsLoop
 		default:
-			return nil, fmt.Errorf("Unexpected token after new vars list: %#v", t)
+			return nil, fmt.Errorf("Unexpected token after new vars list: %s", t.Type)
 		}
 
 		var inits []Expr
@@ -1305,50 +1312,43 @@ func (p *Parser) attemptTypeParse(justTry bool) (Type, error) {
 	case TOKEN_WORD:
 		name := token.Value.(string)
 
-		switch {
-		case tokenTypesEq(p.peekN(3), []TokenType{TOKEN_DOT, TOKEN_WORD, TOKEN_LBRACKET}):
-			// External generic type
-			dot, memberName := p.nextToken(), p.nextToken()
-
-			//pkg := &Ident{expr: expr{token.Offset}, name: name}
-			pkg := p.wordToExpr(token)
-			member := &Ident{expr: expr{memberName.Offset}, name: memberName.Value.(string)}
-
-			// HERE
-			left := &DotSelector{expr: expr{dot.Offset}, Left: pkg, Right: member}
-
-			params, err := p.parseGenericParamTypes()
-			if err != nil {
-				return nil, err
+		// Not a generic type
+		if p.peek().Type == TOKEN_DOT {
+			p.nextToken()
+			membNameTok := p.nextToken()
+			if membNameTok.Type != TOKEN_WORD {
+				return nil, fmt.Errorf("Package member name expected after `.`")
 			}
-			return &GenericType{Left: left, Params: params}, nil
-		case p.peek().Type == TOKEN_LBRACKET:
-			// Local generic type
-			//pkg := &Ident{expr: expr{token.Offset}, name: name}
-			pkg := p.wordToExpr(token)
-			params, err := p.parseGenericParamTypes()
-			if err != nil {
-				return nil, err
+			membName := membNameTok.Value.(string)
+
+			pkg, ok := p.imports[name]
+			if !ok {
+				return nil, fmt.Errorf("Package `%s` not imported", name)
 			}
-			return &GenericType{Left: pkg, Params: params}, nil
-		default:
-			// Not a generic type
-			if p.peek().Type == TOKEN_DOT {
-				p.nextToken()
-				membNameTok := p.nextToken()
-				if membNameTok.Type != TOKEN_WORD {
-					return nil, fmt.Errorf("Package member name expected after `.`")
-				}
-				membName := membNameTok.Value.(string)
 
-				pkg, ok := p.imports[name]
-				if !ok {
-					return nil, fmt.Errorf("Package `%s` not imported", name)
+			fullName := name + "." + membName
+			var typ DeclaredType
+			if p.peek().Type == TOKEN_LBRACKET {
+				// Imported generic type
+				params, err := p.parseGenericParamTypes()
+				if err != nil {
+					return nil, err
 				}
-
-				fullName := name + "." + membName
-				typ := &CustomType{Name: membName, Package: pkg}
-				p.unboundTypes[fullName] = append(p.unboundTypes[fullName], typ)
+				typ = &GenericType{Name: membName, Package: pkg, Params: params}
+			} else {
+				typ = &CustomType{Name: membName, Package: pkg}
+			}
+			p.unboundTypes[fullName] = append(p.unboundTypes[fullName], typ)
+			return typ, nil
+		} else {
+			if p.peek().Type == TOKEN_LBRACKET {
+				// Local generic type
+				params, err := p.parseGenericParamTypes()
+				if err != nil {
+					return nil, err
+				}
+				typ := &GenericType{Name: name, Params: params}
+				p.unboundTypes[name] = append(p.unboundTypes[name], typ)
 				return typ, nil
 			} else {
 				return p.typeFromWord(name), nil
@@ -2229,7 +2229,7 @@ func (p *Parser) parseStructStmt() (Stmt, error) {
 
 	p.identStack.addObject(typeDecl)
 
-	return &StructStmt{stmt{expr: expr{firstTok.Offset}}, structDecl}, nil
+	return &StructStmt{stmt{expr: expr{firstTok.Offset}}, structDecl, typeDecl}, nil
 }
 
 func (p *Parser) parseIfaceStmt() (*IfaceStmt, error) {
@@ -2383,29 +2383,6 @@ func (p *Parser) reapNewDecls() error {
 	return nil
 }
 
-// Match top-level idents within one file. Useful in tests.
-func (p *Parser) matchTopDecls(stmts []*TopLevelStmt) {
-	for _, stmt := range stmts {
-		types, idents := stmt.unboundTypes, stmt.unboundIdents
-		for name, ts := range types {
-			decl := p.topLevelDecls[name]
-			if decl == nil || decl.ObjectType() != OBJECT_TYPE {
-				continue
-			}
-
-			for _, t := range ts {
-				t.Decl = decl.(*TypeDecl)
-			}
-		}
-
-		for name, ids := range idents {
-			for _, id := range ids {
-				id.object = p.topLevelDecls[name]
-			}
-		}
-	}
-}
-
 func (p *Parser) parseUnindentedBlock() ([]Stmt, error) {
 	var result = []Stmt{}
 	for t := p.nextToken(); t.Type != TOKEN_EOF; t = p.nextToken() {
@@ -2442,7 +2419,7 @@ func (p *Parser) Parse() ([]*TopLevelStmt, error) {
 		})
 		p.reapNewDecls()
 		// Reset unbound types/idents before next statement
-		p.unboundTypes = make(map[string][]*CustomType)
+		p.unboundTypes = make(map[string][]DeclaredType)
 		p.unboundIdents = make(map[string][]*Ident)
 	}
 	return result, nil

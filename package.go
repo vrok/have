@@ -6,21 +6,24 @@ import (
 )
 
 type Package struct {
-	path           string
-	files          []*File
-	instantiations []*Instantiation
-	objects        map[string]Object
-	manager        *PkgManager
-	tc             *TypesContext
+	path    string
+	files   []*File
+	objects map[string]Object
+	manager *PkgManager
+	tc      *TypesContext
 }
 
 func NewPackage(path string, files ...*File) *Package {
-	return &Package{
+	pkg := &Package{
 		path:    path,
 		files:   files,
 		objects: make(map[string]Object),
 		tc:      NewTypesContext(),
 	}
+	for _, f := range files {
+		f.tc = pkg.tc
+	}
+	return pkg
 }
 
 // Create a package using files from a PkgLocator.
@@ -30,13 +33,17 @@ func newPackageWithManager(path string, manager *PkgManager) (*Package, error) {
 		return nil, err
 	}
 
-	return &Package{
+	pkg := &Package{
 		path:    path,
 		files:   files,
 		objects: make(map[string]Object),
 		manager: manager,
 		tc:      NewTypesContext(),
-	}, nil
+	}
+	for _, f := range files {
+		f.tc = pkg.tc
+	}
+	return pkg, nil
 }
 
 func (p *Package) Get(name string) Object {
@@ -155,6 +162,70 @@ func topoSort(stmts []*TopLevelStmt) ([]*TopLevelStmt, error) {
 	return result, nil
 }
 
+func matchUnbounds(tc *TypesContext, imports Imports, unboundTypes map[string][]DeclaredType, unboundIdents map[string][]*Ident) (errors []error) {
+	for name, ts := range unboundTypes {
+		var pkg *Package
+		var baseName string
+
+		if strings.Contains(name, ".") {
+			pkg = ts[0].PackagePtr().pkg
+			baseName = name[strings.Index(name, ".")+1:]
+		} else {
+			pkg = imports.Local()
+			baseName = name
+		}
+
+		obj := pkg.GetObject(baseName)
+		if obj == nil {
+			errors = append(errors, fmt.Errorf("Unknown type %s", name))
+			continue
+		}
+
+		switch decl := obj.(type) {
+		case *TypeDecl:
+			for _, t := range ts {
+				switch typ := t.(type) {
+				case *CustomType:
+					typ.Decl = decl
+				default:
+					errors = append(errors, fmt.Errorf("Not a named type: %s", typ))
+				}
+			}
+		case *GenericStruct:
+			for _, t := range ts {
+				switch typ := t.(type) {
+				case *GenericType:
+					obj, errs := decl.Instantiate(tc, typ.Params...)
+					if len(errs) > 0 {
+						panic(errs[0])
+					}
+
+					typ.Generic = decl
+					typ.Struct = obj.(*TypeDecl).AliasedType.(*StructType)
+				default:
+					errors = append(errors, fmt.Errorf("Not a named type: %s", typ))
+				}
+			}
+		}
+
+		delete(unboundTypes, name)
+	}
+
+	for name, ids := range unboundIdents {
+		// Even when an object is not found, we don't report an error yet.
+		// Running type checker can change the situation - some idents can have
+		// `memberName` set to true.
+		object := imports.Local().GetObject(name)
+		for _, id := range ids {
+			id.object = object
+		}
+		if object != nil {
+			delete(unboundIdents, name)
+		}
+	}
+	return
+}
+
 func (o *Package) ParseAndCheck() []error {
 	var errors []error
 	for _, f := range o.files {
@@ -177,6 +248,11 @@ func (o *Package) ParseAndCheck() []error {
 
 			importStmt.pkg = pkg
 		}
+		f.parser.imports[LocalPkg] = &ImportStmt{
+			name: LocalPkg,
+			path: "",
+			pkg:  o,
+		}
 	}
 
 	if len(errors) > 0 {
@@ -196,43 +272,7 @@ func (o *Package) ParseAndCheck() []error {
 	for _, f := range o.files {
 		for _, stmt := range f.statements {
 			stmt.loadDeps()
-			types, idents := stmt.unboundTypes, stmt.unboundIdents
-			for name, ts := range types {
-				var pkg *Package
-				var baseName string
-
-				if strings.Contains(name, ".") {
-					pkg = ts[0].Package.pkg
-					baseName = name[strings.Index(name, ".")+1:]
-				} else {
-					pkg = o
-					baseName = name
-				}
-
-				decl := pkg.GetType(baseName)
-				if decl == nil {
-					errors = append(errors, fmt.Errorf("Unknown type %s", name))
-					continue
-				}
-
-				for _, t := range ts {
-					t.Decl = decl
-				}
-				delete(types, name)
-			}
-
-			for name, ids := range idents {
-				// Even when an object is not found, we don't report an error yet.
-				// Running type checker can change the situation - some idents can have
-				// `memberName` set to true.
-				object := o.GetObject(name)
-				for _, id := range ids {
-					id.object = object
-				}
-				if object != nil {
-					delete(idents, name)
-				}
-			}
+			errors = append(errors, matchUnbounds(o.tc, f.parser.imports, stmt.unboundTypes, stmt.unboundIdents)...)
 		}
 	}
 
@@ -358,19 +398,26 @@ func (r *Instantiation) ParseAndCheck() []error {
 		panic(fmt.Sprintf("Internal error: parsing a generic instantiation returned %d statements", len(stmts)))
 	}
 
-	stmt := stmts[0].Stmt
+	tlStmt := stmts[0]
+
+	errors := matchUnbounds(r.tc, r.parser.imports, tlStmt.unboundTypes, tlStmt.unboundIdents)
+	if len(errors) > 0 {
+		return errors
+	}
 
 	var obj Object
-	switch s := stmt.(type) {
+	switch s := tlStmt.Stmt.(type) {
 	case *VarStmt:
 		// Generic func
 		obj = s.Vars[0].Vars[0]
-	case *TypeDecl:
-		panic("TODO - generic structs")
+	case *StructStmt:
+		obj = s.Decl
+	default:
+		panic("Internal error")
 	}
 	r.Object = obj
 
-	err = stmt.(ExprToProcess).NegotiateTypes(r.tc)
+	err = tlStmt.Stmt.(ExprToProcess).NegotiateTypes(r.tc)
 	if err != nil {
 		return []error{err}
 	}
