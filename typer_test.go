@@ -1445,12 +1445,36 @@ struct A[T]:
 	func x() T:
 		return "a"
 struct B[T]:
+	func y() T:
+		var a A[T]
+		return a.x()
+var b B[string]
+var x = b.y()`,
+			true,
+			"string",
+		},
+		{`
+struct A[T]:
+	func x() T:
+		return "a"
+struct B[T]:
 	func y(a A[T]) T:
 		return a.x()
 var a A[string], b B[string]
 var x = b.y(a)`,
 			true,
 			"string",
+		},
+		{`
+struct A[T]:
+	func x() T:
+		return 11.2
+func x[T](a A[T]) T:
+	return a.x()
+var a A[float32]
+var x = x(a)`,
+			true,
+			"float32",
 		},
 	})
 }
