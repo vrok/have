@@ -145,6 +145,12 @@ func Implements(iface, value Type) bool {
 		valueMethods = value.(*CustomType).Decl.Methods
 	case KIND_INTERFACE:
 		valueMethods = value.(*IfaceType).Methods
+	case KIND_GENERIC_INST:
+		gen, ok := value.(*GenericType)
+		if !ok {
+			return false
+		}
+		valueMethods = gen.Struct.Methods
 	default:
 		// Other types can't have methods, but they still can satsifty
 		// the empty interface.

@@ -1476,6 +1476,30 @@ var x = x(a)`,
 			true,
 			"float32",
 		},
+		{`
+struct A[T]:
+	func x() T:
+		return 11
+interface I:
+	func x() float32
+var a A[float32]
+var i I = a
+var x = i`,
+			true,
+			"I",
+		},
+		{`
+struct A[T]:
+	func x() T:
+		return 11
+interface I:
+	func x() float32
+var a A[int]
+var i I = a # Error: x() returns int, not float32
+var x = i`,
+			false,
+			"I",
+		},
 	})
 }
 
