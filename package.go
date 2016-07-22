@@ -195,7 +195,7 @@ func matchUnbounds(tc *TypesContext, imports Imports, unboundTypes map[string][]
 			for _, t := range ts {
 				switch typ := t.(type) {
 				case *GenericType:
-					obj, errs := decl.Instantiate(tc, typ.Params...)
+					obj, _, errs := decl.Instantiate(tc, typ.Params...)
 					if len(errs) > 0 {
 						panic(errs[0])
 					}
@@ -367,9 +367,23 @@ type Instantiation struct {
 	Params   []Type
 	Generic  Generic
 	Object   Object
+	Init     Expr // Nil for generics generating types
+
+	goName string // cache
 
 	parser *Parser
 	tc     *TypesContext
+}
+
+func (r *Instantiation) getGoName() string {
+	if r.goName == "" {
+		r.goName = string(NewInstKey(r.Generic, r.Params))
+		r.goName = strings.Replace(r.goName, "[", "_", -1)
+		r.goName = strings.Replace(r.goName, "]", "_", -1)
+		r.goName = strings.Replace(r.goName, "*", "PTR_", -1)
+		r.goName = strings.TrimRight(r.goName, "_")
+	}
+	return r.goName
 }
 
 func (r *Instantiation) ParseAndCheck() []error {
@@ -405,17 +419,17 @@ func (r *Instantiation) ParseAndCheck() []error {
 		return errors
 	}
 
-	var obj Object
 	switch s := tlStmt.Stmt.(type) {
 	case *VarStmt:
 		// Generic func
-		obj = s.Vars[0].Vars[0]
+		r.Object = s.Vars[0].Vars[0]
+		r.Init = s.Vars[0].Inits[0]
+		r.Init.(*FuncDecl).name = r.getGoName()
 	case *StructStmt:
-		obj = s.Decl
+		r.Object = s.Decl
 	default:
 		panic("Internal error")
 	}
-	r.Object = obj
 
 	err = tlStmt.Stmt.(ExprToProcess).NegotiateTypes(r.tc)
 	if err != nil {

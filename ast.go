@@ -369,7 +369,7 @@ type Generic interface {
 	Object
 
 	Signature() (name string, params []string)
-	Instantiate(tc *TypesContext, params ...Type) (Object, []error)
+	Instantiate(tc *TypesContext, params ...Type) (Object, string, []error)
 	Code() []rune
 	Imports() Imports
 }
@@ -389,12 +389,12 @@ type GenericStruct struct {
 func (gs *GenericStruct) Name() string                  { return gs.struc.Name }
 func (gs *GenericStruct) Signature() (string, []string) { return gs.struc.Name, gs.params }
 func (gs *GenericStruct) ObjectType() ObjectType        { return OBJECT_GENERIC }
-func (gs *GenericStruct) Instantiate(tc *TypesContext, params ...Type) (Object, []error) {
+func (gs *GenericStruct) Instantiate(tc *TypesContext, params ...Type) (Object, string, []error) {
 	// First, check if we've already been here and it's cached.
 	instKey := NewInstKey(gs, params)
 	i, ok := tc.instantiations[instKey]
 	if ok {
-		return i.Object, nil
+		return i.Object, "sliwka", nil
 	}
 
 	r := &Instantiation{
@@ -406,9 +406,9 @@ func (gs *GenericStruct) Instantiate(tc *TypesContext, params ...Type) (Object, 
 	tc.instantiations[instKey] = r
 	errs := r.ParseAndCheck()
 	if len(errs) > 0 {
-		return nil, errs
+		return nil, "", errs
 	}
-	return r.Object, nil
+	return r.Object, "sliwka", nil
 }
 func (gs *GenericStruct) Code() []rune     { return gs.code }
 func (gs *GenericStruct) Imports() Imports { return gs.imports }
@@ -427,12 +427,12 @@ type GenericFunc struct {
 func (gf *GenericFunc) Name() string                  { return gf.Func.name }
 func (gf *GenericFunc) Signature() (string, []string) { return gf.Func.name, gf.params }
 func (gf *GenericFunc) ObjectType() ObjectType        { return OBJECT_GENERIC }
-func (gf *GenericFunc) Instantiate(tc *TypesContext, params ...Type) (Object, []error) {
+func (gf *GenericFunc) Instantiate(tc *TypesContext, params ...Type) (Object, string, []error) {
 	// First, check if we've already been here and it's cached.
 	instKey := NewInstKey(gf, params)
 	i, ok := tc.instantiations[instKey]
 	if ok {
-		return i.Object, nil
+		return i.Object, i.getGoName(), nil
 	}
 
 	r := &Instantiation{
@@ -444,9 +444,9 @@ func (gf *GenericFunc) Instantiate(tc *TypesContext, params ...Type) (Object, []
 	tc.instantiations[instKey] = r
 	errs := r.ParseAndCheck()
 	if len(errs) > 0 {
-		return nil, errs
+		return nil, "", errs
 	}
-	return r.Object, nil
+	return r.Object, r.getGoName(), nil
 }
 func (gf *GenericFunc) Code() []rune     { return gf.code }
 func (gf *GenericFunc) Imports() Imports { return gf.imports }

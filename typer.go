@@ -15,14 +15,18 @@ func NewInstKey(g Generic, params []Type) InstKey {
 	name, _ := g.Signature()
 	strParams := make([]string, 0, len(params))
 	for _, p := range params {
-		//fmt.Printf("ZZZ NEW INST KEY %s, %s\n", spew.Sdump(g), spew.Sdump(params))
 		strParams = append(strParams, p.String())
 	}
 	return InstKey(name + "[" + strings.Join(strParams, ", ") + "]")
 }
 
 type TypesContext struct {
-	types          map[Expr]Type
+	// Stores negotiated types of expression.
+	types map[Expr]Type
+	// Stores strings that should be used in place of expressions for code generation.
+	// Useful e.g. for instantiations of generics.
+	goNames map[Expr]string
+	// Stores instantiations of generics.
 	instantiations map[InstKey]*Instantiation
 }
 
@@ -33,6 +37,7 @@ func (tc *TypesContext) IsTypeSet(e Expr) bool    { _, ok := tc.types[e]; return
 func NewTypesContext() *TypesContext {
 	return &TypesContext{
 		types:          map[Expr]Type{},
+		goNames:        map[Expr]string{},
 		instantiations: map[InstKey]*Instantiation{},
 	}
 }
@@ -811,16 +816,16 @@ func ExprToGeneric(e Expr) (t Generic, ok bool) {
 	return nil, false
 }
 
-func (ex *FuncCallExpr) inferGeneric(tc *TypesContext) (*Variable, error) {
+func (ex *FuncCallExpr) inferGeneric(tc *TypesContext) (*Variable, string, error) {
 	generic, isGeneric := ExprToGeneric(ex.Left)
 	if !isGeneric {
-		return nil, nil
+		return nil, "", nil
 	}
 	// Generic function call with indirect generic params
 	_, params := generic.Signature()
 	genericFn, isFn := generic.(*GenericFunc)
 	if !isFn {
-		return nil, fmt.Errorf("Expression is not a function")
+		return nil, "", fmt.Errorf("Expression is not a function")
 	}
 
 	var argTypes []Type
@@ -830,31 +835,32 @@ func (ex *FuncCallExpr) inferGeneric(tc *TypesContext) (*Variable, error) {
 
 	gnParams, err := deduceGenericParams(tc, params, argTypes, ex.Args)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	obj, errors := generic.Instantiate(tc, gnParams...)
+	obj, goName, errors := generic.Instantiate(tc, gnParams...)
 	if len(errors) > 0 {
 		// TODO: return all errors
-		return nil, errors[0]
+		return nil, "", errors[0]
 	}
 
 	if obj.ObjectType() != OBJECT_VAR {
-		return nil, fmt.Errorf("Result of a generic is not a value")
+		return nil, "", fmt.Errorf("Result of a generic is not a value")
 	}
 
 	//t := obj.(*Variable).Type
-	return obj.(*Variable), nil
+	return obj.(*Variable), goName, nil
 }
 
 func (ex *FuncCallExpr) getCalleeType(tc *TypesContext) (Type, error) {
-	generic, err := ex.inferGeneric(tc)
+	generic, goName, err := ex.inferGeneric(tc)
 	if err != nil {
 		return nil, err
 	}
 	var calleeType Type
 	if generic != nil {
 		calleeType = generic.Type
+		tc.goNames[ex.Left] = goName
 	} else {
 		callee := ex.Left.(TypedExpr)
 		calleeType, err = callee.Type(tc)
@@ -1244,7 +1250,7 @@ func (ex *ArrayExpr) Type(tc *TypesContext) (Type, error) {
 			}
 			types = append(types, typ)
 		}
-		obj, errors := generic.Instantiate(tc, types...)
+		obj, goName, errors := generic.Instantiate(tc, types...)
 		if len(errors) > 0 {
 			// TODO: return all errors
 			return nil, errors[0]
@@ -1261,6 +1267,7 @@ func (ex *ArrayExpr) Type(tc *TypesContext) (Type, error) {
 			// more relaxed.
 			tc.SetType(ex, t)
 		}
+		tc.goNames[ex] = goName
 		return t, nil
 	}
 

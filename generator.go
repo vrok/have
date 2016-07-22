@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"sort"
 )
 
 // CodeChunk can either be a string of smaller CodeChunks
@@ -162,6 +163,10 @@ func (i *ImportStmt) Generate(tc *TypesContext, current *CodeChunk) {
 }
 
 func (id *Ident) Generate(tc *TypesContext, current *CodeChunk) {
+	if alias, ok := tc.goNames[id]; ok {
+		current.AddChprintf(tc, alias)
+		return
+	}
 	current.AddString(id.name)
 }
 
@@ -336,6 +341,10 @@ func (vs *VarStmt) InlineGenerate(tc *TypesContext, current *CodeChunk, noParent
 }
 
 func (ds *DotSelector) Generate(tc *TypesContext, current *CodeChunk) {
+	if alias, ok := tc.goNames[ds]; ok {
+		current.AddChprintf(tc, alias)
+		return
+	}
 	current.AddChprintf(tc, "%C.%C", ds.Left, ds.Right)
 }
 
@@ -371,6 +380,11 @@ func (as *AssignStmt) InlineGenerate(tc *TypesContext, current *CodeChunk, noPar
 }
 
 func (ae *ArrayExpr) Generate(tc *TypesContext, current *CodeChunk) {
+	if alias, ok := tc.goNames[ae]; ok {
+		current.AddChprintf(tc, alias)
+		return
+	}
+
 	current.AddChprintf(tc, "%C[", ae.Left)
 	for i, arg := range ae.Index {
 		current.AddChprintf(tc, "%iC", arg)
@@ -602,6 +616,32 @@ func (ss *StructStmt) Generate(tc *TypesContext, current *CodeChunk) {
 
 func (is *IfaceStmt) Generate(tc *TypesContext, current *CodeChunk) {
 	current.AddChprintf(tc, "type %s %s\n", is.Iface.name, is.Iface)
+}
+
+type instList []*Instantiation
+
+func (l instList) Len() int           { return len(l) }
+func (l instList) Less(i, j int) bool { return l[i].getGoName() < l[j].getGoName() }
+func (l instList) Swap(i, j int)      { l[i], l[j] = l[j], l[i] }
+
+func (gf *GenericFunc) Generate(tc *TypesContext, current *CodeChunk) {
+	var insts instList
+	for _, inst := range tc.instantiations {
+		if inst.Generic == gf {
+			insts = append(insts, inst)
+		}
+	}
+
+	sort.Sort(insts)
+
+	for _, inst := range insts {
+		current.AddChprintf(tc, "// Generic instantiation\n")
+		if inst.Init != nil {
+			current.AddChprintf(tc, "%C\n", inst.Init)
+		} else {
+			panic("todo")
+		}
+	}
 }
 
 // TODO: Now just write Generables for all statements/expressions and we're done...

@@ -189,6 +189,40 @@ var y = (int)(10)`},
 	testPkg(t, false, files)
 }
 
+func TestCompilePackageGenericFunc(t *testing.T) {
+	files := []struct {
+		name, file, gocode string
+	}{
+		{
+			"hello.hav",
+			`package main
+func bla[T](a T) T:
+	return a
+func main():
+	bla(7)
+	bla("ble")
+`,
+			`
+package main
+
+// Generic instantiation
+func bla_int(a int) (int) {
+	return a
+}
+
+// Generic instantiation
+func bla_string(a string) (string) {
+	return a
+}
+
+func main() {
+	bla_int(7)
+	bla_string("ble")
+}`},
+	}
+	testPkg(t, false, files)
+}
+
 type testStmt struct {
 	name  string
 	decls []string
