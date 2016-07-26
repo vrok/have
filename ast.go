@@ -882,6 +882,8 @@ type StructType struct {
 	Name    string
 	// Names of generic type paramaters. Nil for standard functions.
 	GenericParams []string
+
+	selfType *CustomType
 }
 
 func (t *StructType) GetTypeN(n int) Type {

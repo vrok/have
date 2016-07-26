@@ -223,6 +223,52 @@ func main() {
 	testPkg(t, false, files)
 }
 
+func TestCompilePackageGenericStruct(t *testing.T) {
+	files := []struct {
+		name, file, gocode string
+	}{
+		{
+			"hello.hav",
+			`package main
+struct bla[T]:
+	t T
+	func meh(a T) T:
+		return a + self.t
+func main():
+	var x bla[int], y bla[string]
+	x.meh(7)
+	y.meh("ble")
+`,
+			`package main
+
+// Generic instantiation
+type bla_int struct {
+	t int
+}
+
+func (self bla_int) meh(a int) (int) {
+	return (a + self.t)
+}
+
+// Generic instantiation
+type bla_string struct {
+	t string
+}
+
+func (self bla_string) meh(a string) (string) {
+	return (a + self.t)
+}
+
+func main() {
+	var x = (bla_int)(struct {t int}{})
+	var y = (bla_string)(struct {t string}{})
+	x.meh(7)
+	y.meh("ble")
+}`},
+	}
+	testPkg(t, false, files)
+}
+
 type testStmt struct {
 	name  string
 	decls []string

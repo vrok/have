@@ -134,6 +134,11 @@ func (cc *CodeChunk) AddChprintf(tc *TypesContext, format string, a ...interface
 
 			i++
 		default:
+			if genericType, ok := v.(*GenericType); ok {
+				// We can't use GenericType.String(), it would return a valid Go type name.
+				// TODO: This could be refactored to avoid such special treatment.
+				v = genericType.Struct.Name
+			}
 			nonGenerables = append(nonGenerables, v)
 		}
 	}
@@ -312,8 +317,11 @@ func (vs *VarStmt) Generate(tc *TypesContext, current *CodeChunk) {
 		vs.Vars[0].Inits[0].(Generable).Generate(tc, current)
 		return
 	}
-	for _, vd := range vs.Vars {
+	for i, vd := range vs.Vars {
 		current.AddChprintf(tc, "var %C\n", vd)
+		if i+1 < len(vs.Vars) {
+			current.AddChprintf(tc, "%C", ForcedIndent)
+		}
 	}
 }
 
@@ -591,27 +599,31 @@ func (ls *LabelStmt) Generate(tc *TypesContext, current *CodeChunk) {
 	current.AddChprintf(tc, "%s:\n", ls.Name())
 }
 
-func (ss *StructStmt) Generate(tc *TypesContext, current *CodeChunk) {
-	current.AddChprintf(tc, "type %s struct {\n", ss.Struct.Name)
+func generateStruct(tc *TypesContext, current *CodeChunk, st *StructType) {
+	current.AddChprintf(tc, "type %s struct {\n", st.Name)
 
 	ch := current.NewBlockChunk()
-	for _, name := range ss.Struct.Keys {
-		if _, ok := ss.Struct.Members[name]; !ok {
+	for _, name := range st.Keys {
+		if _, ok := st.Members[name]; !ok {
 			// Not a plain member, but a method
 			continue
 		}
-		ch.AddChprintf(tc, "%s %s\n", name, ss.Struct.Members[name])
+		ch.AddChprintf(tc, "%s %s\n", name, st.Members[name])
 	}
 
 	current.AddChprintf(tc, "%C}\n\n", ForcedIndent)
 
-	for _, name := range ss.Struct.Keys {
-		if _, ok := ss.Struct.Methods[name]; !ok {
+	for _, name := range st.Keys {
+		if _, ok := st.Methods[name]; !ok {
 			// Not a method, a plain member
 			continue
 		}
-		current.AddChprintf(tc, "%C\n", ss.Struct.Methods[name])
+		current.AddChprintf(tc, "%C\n", st.Methods[name])
 	}
+}
+
+func (ss *StructStmt) Generate(tc *TypesContext, current *CodeChunk) {
+	generateStruct(tc, current, ss.Struct)
 }
 
 func (is *IfaceStmt) Generate(tc *TypesContext, current *CodeChunk) {
@@ -641,6 +653,22 @@ func (gf *GenericFunc) Generate(tc *TypesContext, current *CodeChunk) {
 		} else {
 			panic("todo")
 		}
+	}
+}
+
+func (gs *GenericStruct) Generate(tc *TypesContext, current *CodeChunk) {
+	var insts instList
+	for _, inst := range tc.instantiations {
+		if inst.Generic == gs {
+			insts = append(insts, inst)
+		}
+	}
+
+	sort.Sort(insts)
+
+	for _, inst := range insts {
+		current.AddChprintf(tc, "// Generic instantiation\n")
+		generateStruct(tc, current, inst.Object.(*TypeDecl).AliasedType.(*StructType))
 	}
 }
 

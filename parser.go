@@ -1014,9 +1014,9 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl, genericPossible bool) (
 		return nil, err
 	}
 
-	result := &StructType{Name: name, Members: map[string]Type{}, Keys: []string{}, Methods: map[string]*FuncDecl{}, GenericParams: genericParams}
-
 	selfType := &CustomType{Name: name, Decl: receiverTypeDecl}
+	result := &StructType{Name: name, Members: map[string]Type{}, Keys: []string{}, Methods: map[string]*FuncDecl{}, GenericParams: genericParams, selfType: selfType}
+
 	self, selfp := &Variable{name: "self", Type: selfType}, &Variable{name: "self", Type: &PointerType{To: selfType}}
 
 	for {

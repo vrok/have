@@ -419,6 +419,7 @@ func (r *Instantiation) ParseAndCheck() []error {
 		return errors
 	}
 
+	// TODO: Refactor this ugliness
 	switch s := tlStmt.Stmt.(type) {
 	case *VarStmt:
 		// Generic func
@@ -427,6 +428,9 @@ func (r *Instantiation) ParseAndCheck() []error {
 		r.Init.(*FuncDecl).name = r.getGoName()
 	case *StructStmt:
 		r.Object = s.Decl
+		s.Decl.name = r.getGoName()
+		s.Decl.AliasedType.(*StructType).Name = r.getGoName()
+		s.Decl.AliasedType.(*StructType).selfType.Name = r.getGoName()
 	default:
 		panic("Internal error")
 	}
