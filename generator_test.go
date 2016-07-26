@@ -61,12 +61,12 @@ if (1 == 2) {
 	print(1)
 }`,
 		},
-		{source: "if t = 1; t == 2:\n print(1)", reference: `
+		{source: "if var t = 1; t == 2:\n print(1)", reference: `
 if t := (int)(1); (t == 2) {
 	print(1)
 }`,
 		},
-		{source: "if t = 1, k = \"aaa\"; t == 2 && k == \"bbb\":\n print(1)", reference: `
+		{source: "if var t = 1, k = \"aaa\"; t == 2 && k == \"bbb\":\n print(1)", reference: `
 if t, k := (int)(1), (string)("aaa"); ((t == 2) && (k == "bbb")) {
 	print(1)
 } `,

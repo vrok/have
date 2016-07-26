@@ -493,8 +493,8 @@ func (es *ExprStmt) InlineGenerate(tc *TypesContext, current *CodeChunk, noParen
 func (fs *IfStmt) Generate(tc *TypesContext, current *CodeChunk) {
 	current = current.NewChunk()
 
-	if fs.Branches[0].ScopedVarDecl != nil {
-		current.AddChprintf(tc, "if %iC; %C {\n", fs.Branches[0].ScopedVarDecl, fs.Branches[0].Condition)
+	if fs.Branches[0].ScopedVar != nil {
+		current.AddChprintf(tc, "if %iC; %C {\n", fs.Branches[0].ScopedVar, fs.Branches[0].Condition)
 	} else {
 		current.AddChprintf(tc, "if %C {\n", fs.Branches[0].Condition)
 	}

@@ -285,9 +285,9 @@ type PassStmt struct {
 // implements Stmt
 type IfBranch struct {
 	stmt
-	ScopedVarDecl *VarStmt
-	Condition     Expr
-	Code          *CodeBlock
+	ScopedVar Stmt
+	Condition Expr
+	Code      *CodeBlock
 }
 
 // implements Stmt

@@ -259,29 +259,31 @@ func TestIfStmt(t *testing.T) {
 		code       string
 		shouldPass bool
 	}{
-		{`if x = 0; x == 1:
+		{`if var x = 0; x == 1:
 	var y = 3`, true},
-		{`if x = 100; x > 10:
+		{`if var x int = 0; x == 1:
+	var y = 3`, true},
+		{`if var x = 100; x > 10:
   if true:
     var y = 3`, true},
-		{`if x int; false:
+		{`if var x = 1; false:
   var y = 3`, true},
-		{`if x int; false:
+		{`if var x = 1; false:
   var y = 3
 else:
   var x = 3`, true},
-		{`if x int; false:
+		{`if var x = 1; false:
   var y = 3
   else:
     var x = 3`, false},
 		{`if x int; false:
   var y = 3
 else:`, false},
-		{`if x int; false:
+		{`if x = 1; false:
   var y = 3
 else:
 var x = 3`, false},
-		{`if x int; false:
+		{`if x = 1; false:
   var y = 3
 else
   var x = 3`, false},
@@ -453,21 +455,26 @@ func TestIdentSearch(t *testing.T) {
 		  var x = z
 		`, false},
 		{`func abc(x int, y int) int:
+	if var z = 1; z == x:
+		var b = x * y * z
+`, true},
+		{`func abc(x int, y int) int:
+	var z = 2
 	if z = 1; z == x:
 		var b = x * y * z
 `, true},
 		{`func abc(x int, y int) int:
-	if z = 1; z == x:
+	if var z = 1; z == x:
 		var b = x * y * z
 	var a = x * y * z
 `, false},
 		{`func abc(x int, y int) int:
-	if Z = 1; z == x:
+	if var Z = 1; z == x:
 		var b = x * y * z
 `, false},
 		{`func abc(x int) int:
-	if y = 1; y == x:
-		if z = 1; z == y:
+	if var y = 1; y == x:
+		if var z = 1; z == y:
 			var b = x * y * z
 `, true},
 	}

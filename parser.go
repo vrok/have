@@ -493,14 +493,14 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 
 	var (
 		err           error
-		scopedVarDecl *VarStmt = nil
+		scopedVarStmt Stmt
 	)
 
 	if scopedVar {
 		p.identStack.pushScope()
 		defer p.identStack.popScope()
 
-		scopedVarDecl, err = p.parseVarStmt(false)
+		scopedVarStmt, err = p.parseInitOrAssign()
 		if err != nil {
 			return nil, err
 		}
@@ -532,7 +532,7 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 	branches := []*IfBranch{
 		&IfBranch{
 			stmt{expr: expr{ident.Offset}},
-			scopedVarDecl,
+			scopedVarStmt,
 			condition,
 			block,
 		}}

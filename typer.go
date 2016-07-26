@@ -345,13 +345,29 @@ func CheckCondition(tc *TypesContext, expr TypedExpr) error {
 	return nil
 }
 
+func negotiateScopedVar(tc *TypesContext, scopedVar Stmt) error {
+	if scopedVar == nil {
+		return nil
+	}
+
+	switch scoped := scopedVar.(type) {
+	case *VarStmt:
+	// ok
+	case *AssignStmt:
+		if scoped.Token.Type != TOKEN_ASSIGN {
+			return fmt.Errorf("Only `=` assignment allowed in scoped declarations")
+		}
+	default:
+		return fmt.Errorf("Not a var declaration or assignment")
+	}
+
+	return scopedVar.(ExprToProcess).NegotiateTypes(tc)
+}
+
 func (is *IfStmt) NegotiateTypes(tc *TypesContext) error {
 	for _, b := range is.Branches {
-		if b.ScopedVarDecl != nil {
-			err := b.ScopedVarDecl.NegotiateTypes(tc)
-			if err != nil {
-				return err
-			}
+		if err := negotiateScopedVar(tc, b.ScopedVar); err != nil {
+			return err
 		}
 
 		if b.Condition != nil {
@@ -368,22 +384,8 @@ func (is *IfStmt) NegotiateTypes(tc *TypesContext) error {
 }
 
 func (ss *SwitchStmt) NegotiateTypes(tc *TypesContext) error {
-	if ss.ScopedVar != nil {
-		switch scoped := ss.ScopedVar.(type) {
-		case *VarStmt:
-		// ok
-		case *AssignStmt:
-			if scoped.Token.Type != TOKEN_ASSIGN {
-				return fmt.Errorf("Only `=` assignment allowed in scoped declarations")
-			}
-		default:
-			return fmt.Errorf("Not a var declaration or assignment")
-		}
-
-		err := ss.ScopedVar.(ExprToProcess).NegotiateTypes(tc)
-		if err != nil {
-			return err
-		}
+	if err := negotiateScopedVar(tc, ss.ScopedVar); err != nil {
+		return err
 	}
 
 	var valType Type = &SimpleType{SIMPLE_TYPE_BOOL}
