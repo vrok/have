@@ -555,7 +555,7 @@ func (fs *ForStmt) Generate(tc *TypesContext, current *CodeChunk) {
 	current = current.NewChunk()
 
 	// TODO: Handle `for` variants other than 3-way
-	current.AddChprintf(tc, "for %iC; %C; %iC {\n%C%C}\n", fs.ScopedVarDecl, fs.Condition, fs.RepeatStmt, fs.Code, ForcedIndent)
+	current.AddChprintf(tc, "for %iC; %C; %iC {\n%C%C}\n", fs.ScopedVar, fs.Condition, fs.RepeatStmt, fs.Code, ForcedIndent)
 }
 
 func (f *File) Generate(tc *TypesContext, current *CodeChunk) {

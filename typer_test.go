@@ -275,8 +275,15 @@ var a int = f()`,
 			false,
 			"",
 		},
-		{`func f() int:
+		{`func f(x int) int:
 	for x = 0; x < 100; print("a"):
+		var y = 2
+var a int = f(100)`,
+			true,
+			"int",
+		},
+		{`func f() int:
+	for var x = 0; x < 100; print("a"):
 		var y = 2
 var a int = f()`,
 			true,
@@ -285,7 +292,7 @@ var a int = f()`,
 		{`func x(s string):
 	pass
 func f() int:
-	for x = 0; x < 100; x(1):
+	for var x = 0; x < 100; x(1):
 		pass
 var a int = f()`,
 			false,

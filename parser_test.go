@@ -227,15 +227,15 @@ func TestForStmt(t *testing.T) {
 		code       string
 		shouldPass bool
 	}{
-		{`for i = 0; i < 10; i+1:
+		{`for var i = 0; i < 10; i+1:
 	var y = 3`, true},
-		{`for i = 0; j < 10; i+1:
+		{`for var i = 0; j < 10; i+1:
 	var y = 3`, false},
-		{`for i = 0; i < 10; j+1:
+		{`for var i = 0; i < 10; j+1:
 	var y = 3`, false},
-		{`for i = 0; ; i+1:
+		{`for var i = 0; ; i+1:
 	var y = 3`, true},
-		{`for i = 0; i < 10; :
+		{`for var i = 0; i < 10; :
 	var y = 3`, true},
 		{`for ;;:
 	var y = 3`, true},

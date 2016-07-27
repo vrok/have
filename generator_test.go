@@ -85,11 +85,11 @@ if (1 == 2) {
 } else {
 	print(2)
 }`},
-		{source: `for x = 0; x < 100; print("a"):
+		{source: `for var x = 0; x < 100; print("a"):
 	print("b")`, reference: `for x := (int)(0); (x < 100); print("a") {
 	print("b")
 }`},
-		{source: `for x = 0; x < 100; print("a"):
+		{source: `for var x = 0; x < 100; print("a"):
 	break`, reference: `for x := (int)(0); (x < 100); print("a") {
 	break
 }`},

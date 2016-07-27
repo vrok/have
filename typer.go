@@ -487,11 +487,8 @@ func (p *PassStmt) NegotiateTypes(tc *TypesContext) error {
 }
 
 func (fs *ForStmt) NegotiateTypes(tc *TypesContext) error {
-	if fs.ScopedVarDecl != nil {
-		err := fs.ScopedVarDecl.NegotiateTypes(tc)
-		if err != nil {
-			return err
-		}
+	if err := negotiateScopedVar(tc, fs.ScopedVar); err != nil {
+		return err
 	}
 
 	if fs.Condition != nil {

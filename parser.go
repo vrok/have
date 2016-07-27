@@ -395,7 +395,7 @@ func (p *Parser) parse3ClauseForStmt() (*ForStmt, error) {
 		p.identStack.pushScope()
 		defer p.identStack.popScope()
 
-		result.ScopedVarDecl, err = p.parseVarStmt(false)
+		result.ScopedVar, err = p.parseInitOrAssign()
 		if err != nil {
 			return nil, err
 		}

@@ -332,10 +332,10 @@ type ForStmt struct {
 	stmt
 
 	// TODO: foreach-like loops can't be handled by this
-	ScopedVarDecl *VarStmt
-	Condition     Expr
-	RepeatStmt    SimpleStmt
-	Code          *CodeBlock
+	ScopedVar  Stmt
+	Condition  Expr
+	RepeatStmt SimpleStmt
+	Code       *CodeBlock
 }
 
 // implements Stmt
