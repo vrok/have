@@ -105,6 +105,7 @@ const (
 	TOKEN_INTERFACE              // the "interface" keyword
 	TOKEN_NIL                    // the "nil" keyword
 	TOKEN_CHAN                   // the "chan" keyword
+	TOKEN_RANGE                  // the "range" keyword
 	TOKEN_MUL                    // *
 	TOKEN_DIV                    // /
 	TOKEN_MUL_ASSIGN             // *=
@@ -395,6 +396,8 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.retNewToken(TOKEN_NIL, nil)
 		case "chan":
 			return l.retNewToken(TOKEN_CHAN, nil)
+		case "range":
+			return l.retNewToken(TOKEN_RANGE, nil)
 		default:
 			return l.retNewToken(TOKEN_WORD, s)
 		}

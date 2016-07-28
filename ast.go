@@ -338,6 +338,16 @@ type ForStmt struct {
 	Code       *CodeBlock
 }
 
+type ForRangeStmt struct {
+	stmt
+
+	// Either ScopedVars or OutsideVars is nil
+	ScopedVars  *VarDecl
+	OutsideVars []Expr
+	Series      Expr
+	Code        *CodeBlock
+}
+
 // implements Stmt
 // Statement wrapper for expressions.
 type ExprStmt struct {

@@ -438,7 +438,73 @@ func (p *Parser) parse3ClauseForStmt() (*ForStmt, error) {
 	return &result, nil
 }
 
-func (p *Parser) parseForStmt(lbl *LabelStmt) (stmt *ForStmt, err error) {
+// Expects the keyword "for" to be already consumed.
+func (p *Parser) parseRangeForStmt() (*ForRangeStmt, error) {
+	var err error
+	result := ForRangeStmt{}
+
+	p.identStack.pushScope()
+	defer p.identStack.popScope()
+
+	if p.peek().Type == TOKEN_VAR {
+		p.nextToken()
+
+		result.ScopedVars = &VarDecl{}
+
+	loop:
+		for {
+			t := p.nextToken()
+			switch t.Type {
+			case TOKEN_RANGE:
+				p.putBack(t)
+				break loop
+			case TOKEN_WORD:
+				v := &Variable{name: t.Value.(string)}
+				p.identStack.addObject(v)
+				result.ScopedVars.Vars = append(result.ScopedVars.Vars, v)
+
+				switch p.peek().Type {
+				case TOKEN_COMMA:
+					p.nextToken()
+				case TOKEN_RANGE:
+				default:
+					return nil, fmt.Errorf("Unexpected token, rangle loop vars types must be inferred")
+				}
+			default:
+				return nil, fmt.Errorf("Unexpected token on range loop vars list")
+			}
+		}
+	} else {
+		result.OutsideVars, err = p.parseExprList()
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if t := p.expect(TOKEN_RANGE); t == nil {
+		return nil, fmt.Errorf("Expected `range`")
+	}
+
+	result.Series, err = p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+
+	// Consume the colon
+	if t := p.expect(TOKEN_COLON); t == nil {
+		return nil, fmt.Errorf("Expected `:` at the end of `for` statement")
+	}
+
+	result.Code, err = p.parseCodeBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+func (p *Parser) parseForStmt(lbl *LabelStmt) (stmt Stmt, err error) {
 	ident := p.expect(TOKEN_FOR)
 	if ident == nil {
 		return nil, fmt.Errorf("Impossible happened")
@@ -462,6 +528,8 @@ func (p *Parser) parseForStmt(lbl *LabelStmt) (stmt *ForStmt, err error) {
 		if err != nil {
 			return
 		}
+	} else if p.scanForToken(TOKEN_RANGE, []TokenType{TOKEN_COLON}) {
+		return p.parseRangeForStmt()
 	} else {
 		panic("todo")
 	}

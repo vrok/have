@@ -239,6 +239,12 @@ func TestForStmt(t *testing.T) {
 	var y = 3`, true},
 		{`for ;;:
 	var y = 3`, true},
+		{`for var i range {1, 2, 3}:
+	var y = 3`, true},
+		{`for var i, j range {1, 2, 3}:
+	var y = 3`, true},
+		{`for var i int range {1, 2, 3}:
+	var y = 3`, false},
 	}
 
 	for _, c := range cases {
