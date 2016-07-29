@@ -322,6 +322,83 @@ var a int = f()`,
 	testVarTypes(t, cases)
 }
 
+func TestTypesForRange(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+for var x range {1, 2, 3}:
+	var a int = x
+var placeholder = 1`,
+			true,
+			"int",
+		},
+		{`
+for var x, y range {"1", "2", "3"}:
+	var a int = x, b string = y
+var placeholder = 1`,
+			true,
+			"int",
+		},
+		{`
+for var x, y, y range {1, 2, 3}: # Too many vars
+	pass
+var placeholder = 1`,
+			false,
+			"",
+		},
+		{`
+for var x range {1, 2, 3}:
+	var a int = "a" # Fail to make sure the code block is typechecked
+var placeholder = 1`,
+			false,
+			"",
+		},
+		{`
+for var x, y range []string{"1", "2", "3"}:
+	var a int = x, b string = y
+var placeholder = 1`,
+			true,
+			"int",
+		},
+		{`
+for var x, y range [3]string{"1", "2", "3"}:
+	var a int = x, b string = y
+var placeholder = 1`,
+			true,
+			"int",
+		},
+		{`
+for var x, y range map[float32]string{1: "1", 2: "2", 3: "3"}:
+	var a float32 = x, b string = y
+var placeholder = 1`,
+			true,
+			"int",
+		},
+		{`
+for var x, y range map[float32]string{1: "1", 2: "2", 3: "3"}:
+	var a float32 = x, b int = y # int and string aren't assignable
+var placeholder = 1`,
+			false,
+			"",
+		},
+		{`
+var x float32, y string
+for x, y range map[float32]string{1: "1", 2: "2", 3: "3"}:
+	var a float32 = x, b string = y
+var placeholder = x`,
+			true,
+			"float32",
+		},
+		{`
+var x float32, y string
+for x, z range map[float32]string{1: "1", 2: "2", 3: "3"}: # z is unknown
+	pass
+var placeholder = x`,
+			false,
+			"",
+		},
+	})
+}
+
 func TestCustomStructTypes(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`type point struct:

@@ -486,6 +486,86 @@ func (p *PassStmt) NegotiateTypes(tc *TypesContext) error {
 	return nil
 }
 
+// For convenience, always returns TupleType, even for one type (chans).
+func iteratorType(containerType Type) (*TupleType, error) {
+	ct := RootType(containerType)
+
+	switch ct.Kind() {
+	case KIND_ARRAY:
+		return &TupleType{[]Type{&SimpleType{SIMPLE_TYPE_INT}, ct.(*ArrayType).Of}}, nil
+	case KIND_SLICE:
+		return &TupleType{[]Type{&SimpleType{SIMPLE_TYPE_INT}, ct.(*SliceType).Of}}, nil
+	case KIND_MAP:
+		mapType := ct.(*MapType)
+		return &TupleType{[]Type{mapType.By, mapType.Of}}, nil
+	case KIND_CHAN:
+		chanType := ct.(*ChanType)
+		if chanType.Dir == CHAN_DIR_SEND {
+			return nil, fmt.Errorf("Can't read from %s (%s)", containerType, ct)
+		}
+		return &TupleType{[]Type{chanType.Of}}, nil
+	default:
+		return nil, fmt.Errorf("Type %s is not iterable", containerType)
+	}
+}
+
+func (fs *ForRangeStmt) NegotiateTypes(tc *TypesContext) error {
+	seriesTyp, err := fs.Series.(TypedExpr).Type(tc)
+	if err != nil {
+		return err
+	}
+
+	if !seriesTyp.Known() {
+		var ok bool
+		ok, seriesTyp = fs.Series.(TypedExpr).GuessType(tc)
+		if !ok || !seriesTyp.Known() {
+			return fmt.Errorf("Couldn't determine the type")
+		}
+	}
+
+	iterType, err := iteratorType(seriesTyp)
+	if err != nil {
+		return err
+	}
+
+	if fs.ScopedVars != nil {
+		if len(iterType.Members) < len(fs.ScopedVars.Vars) {
+			return fmt.Errorf("Wrong number of iterator vars, max %d", len(iterType.Members))
+		}
+
+		// All vars are new, just assign them their types.
+		for i, v := range fs.ScopedVars.Vars {
+			v.Type = iterType.Members[i]
+		}
+	} else if fs.OutsideVars != nil {
+		if len(iterType.Members) < len(fs.OutsideVars) {
+			return fmt.Errorf("Wrong number of iterator vars, max %d", len(iterType.Members))
+		}
+
+		// TODO: Check if fs.OutsideVars are addressable
+
+		for i, v := range fs.OutsideVars {
+			varType, err := v.(TypedExpr).Type(tc)
+			if err != nil {
+				return err
+			}
+
+			if !IsAssignable(varType, iterType.Members[i]) {
+				return fmt.Errorf("Can't use %s for iteration, it's not assignable to %s",
+					varType, iterType.Members[i])
+			}
+		}
+	} else {
+		panic("niemożliwe")
+	}
+
+	if err := fs.Code.CheckTypes(tc); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (fs *ForStmt) NegotiateTypes(tc *TypesContext) error {
 	if err := negotiateScopedVar(tc, fs.ScopedVar); err != nil {
 		return err

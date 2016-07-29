@@ -81,7 +81,7 @@ func (s *TopLevelStmt) Decls() []string {
 		result = append(result, stmt.Name())
 	case *GenericStruct:
 		result = append(result, stmt.Name())
-	case *ImportStmt, *AssignStmt, *SendStmt, *SwitchStmt, *ExprStmt, *IfStmt, *ForStmt, *BranchStmt, *LabelStmt:
+	case *ImportStmt, *AssignStmt, *SendStmt, *SwitchStmt, *ExprStmt, *IfStmt, *ForStmt, *ForRangeStmt, *BranchStmt, *LabelStmt:
 	case declStmt:
 		// TODO: Tests are leaking, add an interface to prevent this
 		result = stmt.Decls()
