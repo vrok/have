@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 )
 
 // CodeChunk can either be a string of smaller CodeChunks
@@ -556,6 +557,35 @@ func (fs *ForStmt) Generate(tc *TypesContext, current *CodeChunk) {
 
 	// TODO: Handle `for` variants other than 3-way
 	current.AddChprintf(tc, "for %iC; %C; %iC {\n%C%C}\n", fs.ScopedVar, fs.Condition, fs.RepeatStmt, fs.Code, ForcedIndent)
+}
+
+func (fs *ForRangeStmt) Generate(tc *TypesContext, current *CodeChunk) {
+	current = current.NewChunk()
+	current.AddChprintf(tc, "for ")
+
+	if fs.ScopedVars != nil {
+		var namesList []string
+		fs.ScopedVars.eachPair(func(v *Variable, init Expr) {
+			namesList = append(namesList, v.Name())
+		})
+
+		names := strings.Join(namesList, ", ")
+		current.AddChprintf(tc, "%s := range %iC {\n%C\t%s := %s // Added by compiler\n%C%C}\n",
+			names, fs.Series, ForcedIndent, names, names, fs.Code, ForcedIndent)
+	} else if fs.OutsideVars != nil {
+		i := 0
+		for _, expr := range fs.OutsideVars {
+			if i+1 < len(fs.OutsideVars) {
+				current.AddChprintf(tc, "%iC, ", expr)
+			} else {
+				current.AddChprintf(tc, "%iC", expr)
+			}
+			i++
+		}
+		current.AddChprintf(tc, " = range %iC {\n%C%C}\n", fs.Series, fs.Code, ForcedIndent)
+	} else {
+		panic("Internal error")
+	}
 }
 
 func (f *File) Generate(tc *TypesContext, current *CodeChunk) {

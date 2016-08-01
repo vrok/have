@@ -453,3 +453,60 @@ func a():
 	}
 	testCases(t, cases)
 }
+
+func TestGenerateRangeFor(t *testing.T) {
+	cases := []generatorTestCase{
+		{source: `
+for var x range {1, 2, 3}:
+	print(x)
+`,
+			reference: `
+for x := range []int{
+	1,
+	2,
+	3,
+} {
+	x := x // Added by compiler
+	print(x)
+}`},
+		{source: `
+var x int
+for x range {1, 2, 3}:
+	print(x)
+`,
+			reference: `
+var x = (int)(0)
+for x = range []int{
+	1,
+	2,
+	3,
+} {
+	print(x)
+}`},
+		{source: `
+for var x, y range {1, 2, 3}:
+	print(x)
+`,
+			reference: `
+for x, y := range []int{
+	1,
+	2,
+	3,
+} {
+	x, y := x, y // Added by compiler
+	print(x)
+}`},
+		{source: `
+var ch chan int
+for var x range ch:
+	print(x)
+`,
+			reference: `
+var ch = (chan int)(nil)
+for x := range ch {
+	x := x // Added by compiler
+	print(x)
+}`},
+	}
+	testCases(t, cases)
+}

@@ -523,6 +523,11 @@ func (fs *ForRangeStmt) NegotiateTypes(tc *TypesContext) error {
 		}
 	}
 
+	err = fs.Series.(TypedExpr).ApplyType(tc, seriesTyp)
+	if err != nil {
+		return err
+	}
+
 	iterType, err := iteratorType(seriesTyp)
 	if err != nil {
 		return err
