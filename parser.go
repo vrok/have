@@ -438,6 +438,28 @@ func (p *Parser) parse3ClauseForStmt() (*ForStmt, error) {
 	return &result, nil
 }
 
+func (p *Parser) parseWhileLikeFor() (*ForStmt, error) {
+	var err error
+	result := ForStmt{}
+
+	result.Condition, err = p.parseExpr()
+	if err != nil {
+		return nil, err
+	}
+
+	// Consume the colon
+	if t := p.expect(TOKEN_COLON); t == nil {
+		return nil, fmt.Errorf("Expected `:` at the end of `for` statement")
+	}
+
+	result.Code, err = p.parseCodeBlock()
+	if err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
 // Expects the keyword "for" to be already consumed.
 func (p *Parser) parseRangeForStmt() (*ForRangeStmt, error) {
 	var err error
@@ -531,7 +553,10 @@ func (p *Parser) parseForStmt(lbl *LabelStmt) (stmt Stmt, err error) {
 	} else if p.scanForToken(TOKEN_RANGE, []TokenType{TOKEN_COLON}) {
 		return p.parseRangeForStmt()
 	} else {
-		panic("todo")
+		stmt, err = p.parseWhileLikeFor()
+		if err != nil {
+			return
+		}
 	}
 
 	p.branchTreesStack.top().MatchBranchableStmt(stmt, "", TOKEN_BREAK, TOKEN_CONTINUE)

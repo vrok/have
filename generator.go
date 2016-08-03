@@ -555,8 +555,11 @@ func (ss *SwitchStmt) Generate(tc *TypesContext, current *CodeChunk) {
 func (fs *ForStmt) Generate(tc *TypesContext, current *CodeChunk) {
 	current = current.NewChunk()
 
-	// TODO: Handle `for` variants other than 3-way
-	current.AddChprintf(tc, "for %iC; %C; %iC {\n%C%C}\n", fs.ScopedVar, fs.Condition, fs.RepeatStmt, fs.Code, ForcedIndent)
+	if fs.ScopedVar == nil && fs.RepeatStmt == nil {
+		current.AddChprintf(tc, "for %C {\n%C%C}\n", fs.Condition, fs.Code, ForcedIndent)
+	} else {
+		current.AddChprintf(tc, "for %iC; %C; %iC {\n%C%C}\n", fs.ScopedVar, fs.Condition, fs.RepeatStmt, fs.Code, ForcedIndent)
+	}
 }
 
 func (fs *ForRangeStmt) Generate(tc *TypesContext, current *CodeChunk) {

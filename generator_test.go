@@ -85,6 +85,11 @@ if (1 == 2) {
 } else {
 	print(2)
 }`},
+		{source: `for true:
+	print("b")`, reference: `
+for true {
+	print("b")
+}`},
 		{source: `for var x = 0; x < 100; print("a"):
 	print("b")`, reference: `for x := (int)(0); (x < 100); print("a") {
 	print("b")
