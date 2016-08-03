@@ -195,6 +195,11 @@ func IsPackage(e TypedExpr) bool {
 	return isIdent && ident.object.ObjectType() == OBJECT_PACKAGE
 }
 
+func IsBlank(e TypedExpr) bool {
+	ident, isIdent := e.(*Ident)
+	return isIdent && ident.name == Blank
+}
+
 func (vs *VarStmt) NegotiateTypes(tc *TypesContext) error {
 	for _, v := range vs.Vars {
 		err := v.NegotiateTypes(tc)
@@ -550,6 +555,9 @@ func (fs *ForRangeStmt) NegotiateTypes(tc *TypesContext) error {
 		// TODO: Check if fs.OutsideVars are addressable
 
 		for i, v := range fs.OutsideVars {
+			if IsBlank(v.(TypedExpr)) {
+				continue
+			}
 			varType, err := v.(TypedExpr).Type(tc)
 			if err != nil {
 				return err
@@ -680,9 +688,16 @@ func (as *AssignStmt) NegotiateTypes(tc *TypesContext) error {
 
 			types := make([]*Type, len(as.Lhs))
 			for i, v := range as.Lhs {
-				typ, err := v.(TypedExpr).Type(tc)
-				if err != nil {
-					return err
+				var typ Type
+				var err error
+
+				if IsBlank(v.(TypedExpr)) {
+					typ = &UnknownType{}
+				} else {
+					typ, err = v.(TypedExpr).Type(tc)
+					if err != nil {
+						return err
+					}
 				}
 				types[i] = &typ
 			}
@@ -694,9 +709,18 @@ func (as *AssignStmt) NegotiateTypes(tc *TypesContext) error {
 	}
 
 	for i := range as.Lhs {
-		leftType, err := as.Lhs[i].(TypedExpr).Type(tc)
-		if err != nil {
-			return err
+		leftExpr := as.Lhs[i].(TypedExpr)
+
+		var leftType Type
+		var err error
+
+		if IsBlank(leftExpr) {
+			leftType = &UnknownType{}
+		} else {
+			leftType, err = as.Lhs[i].(TypedExpr).Type(tc)
+			if err != nil {
+				return err
+			}
 		}
 		err = NegotiateExprType(tc, &leftType, as.Rhs[i].(TypedExpr))
 		if err != nil {

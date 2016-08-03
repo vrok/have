@@ -190,7 +190,7 @@ func (l *Lexer) skipFluff() {
 // Read an alphanumeric word from the buffer, advancing it.
 func (l *Lexer) scanWord() []rune {
 	i := 0
-	for i < len(l.buf) && (unicode.IsLetter(l.buf[i]) || unicode.IsNumber(l.buf[i])) {
+	for i < len(l.buf) && (unicode.IsLetter(l.buf[i]) || unicode.IsNumber(l.buf[i]) || l.buf[i] == '_') {
 		i++
 	}
 
@@ -341,7 +341,7 @@ func (l *Lexer) Next() (*Token, error) {
 	case unicode.IsSpace(ch):
 		l.skipWhiteChars()
 		return l.Next()
-	case unicode.IsLetter(ch):
+	case unicode.IsLetter(ch) || ch == '_':
 		word := l.scanWord()
 		switch s := string(word); s {
 		case "for":

@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-const NoName = "_"
+const Blank = "_"
 
 type Expr interface {
 	Pos() int

@@ -1189,6 +1189,98 @@ var a = 'a'
 	})
 }
 
+func TestTypesBlankIdent(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+var _ = 1
+`,
+			true,
+			"int",
+		},
+		{`
+var _ = 1
+_ = 2
+var _ = 3
+`,
+			true,
+			"int",
+		},
+		{`
+var _ = 1
+var a int = _
+`,
+			false,
+			"",
+		},
+		{`
+func a() (int, string):
+	return 1, "a"
+var _, _ = a()
+var placeholder = 1
+`,
+			true,
+			"int",
+		},
+		{`
+func a() (int, string):
+	return 1, "a"
+var s string
+_, s = a()
+var placeholder = 1
+`,
+			true,
+			"int",
+		},
+		{`
+var a int
+for _, a range {1, 2, 3}:
+	pass
+var placeholder = 1
+`,
+			true,
+			"int",
+		},
+		{`
+var a string
+for _, a range {1, 2, 3}:
+	pass
+var placeholder = 1
+`,
+			false,
+			"",
+		},
+		{`
+if true: # check in a block
+	_ = 1
+var placeholder = 1
+`,
+			true,
+			"int",
+		},
+		{`
+func a() (int, string):
+	return 1, "a"
+if var _, s = a(); s == "a":
+	pass
+var placeholder = 1
+`,
+			true,
+			"int",
+		},
+		{`
+func a() (int, string):
+	return 1, "a"
+var s string
+if _, s = a(); s == "a":
+	pass
+var placeholder = 1
+`,
+			true,
+			"int",
+		},
+	})
+}
+
 func TestTypesNumberLiterals(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`var b = 1e10`,

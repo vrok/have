@@ -24,6 +24,9 @@ func (is *IdentStack) empty() bool {
 }
 
 func (is *IdentStack) addObject(v Object) {
+	if v.Name() == Blank {
+		return
+	}
 	(*is)[len(*is)-1][v.Name()] = v
 }
 
