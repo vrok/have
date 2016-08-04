@@ -304,6 +304,20 @@ func tokenTypesEq(a, b []TokenType) bool {
 
 // Parse an indented block of code.
 func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
+	if p.peek().Type != TOKEN_INDENT {
+		stmt, err := p.parseStmt()
+		if err != nil {
+			return nil, err
+		}
+
+		if stmt == nil {
+			return nil, fmt.Errorf("Expected a statement in a block")
+		}
+
+		result := &CodeBlock{Labels: map[string]*LabelStmt{}, Statements: []Stmt{stmt}}
+		return result, nil
+	}
+
 	indent, err := p.expectNewIndent()
 	if err != nil {
 		return nil, err
@@ -1102,41 +1116,28 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl, genericPossible bool) (
 		}
 	}
 
-	_, err = p.expectNewIndent()
-	if err != nil {
-		return nil, err
-	}
-
 	selfType := &CustomType{Name: name, Decl: receiverTypeDecl}
 	result := &StructType{Name: name, Members: map[string]Type{}, Keys: []string{}, Methods: map[string]*FuncDecl{}, GenericParams: genericParams, selfType: selfType}
 
 	self, selfp := &Variable{name: "self", Type: selfType}, &Variable{name: "self", Type: &PointerType{To: selfType}}
 
-	for {
+	parseMember := func() *Token {
 		token := p.nextToken()
 
 		switch token.Type {
 		case TOKEN_WORD:
 			name := token.Value.(string)
-			typ, err := p.parseType()
+			var typ Type
+			typ, err = p.parseType()
 			if err != nil {
-				return nil, err
+				return nil
 			}
 			result.Members[name] = typ
 			result.Keys = append(result.Keys, name)
-		case TOKEN_INDENT:
-			p.putBack(token)
-			end, err := p.handleIndentEndOrNoToken(TOKEN_WORD, TOKEN_FUNC)
-			if err != nil {
-				return nil, err
-			}
-			if end {
-				return result, nil
-			}
-			// Struct continues.
 		case TOKEN_FUNC:
 			if receiverTypeDecl == nil {
-				return nil, fmt.Errorf("Cannot declare methods in inline struct declarations")
+				err = fmt.Errorf("Cannot declare methods in inline struct declarations")
+				return nil
 			}
 
 			p.identStack.pushScope()
@@ -1149,9 +1150,10 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl, genericPossible bool) (
 			p.identStack.addObject(receiver)
 
 			p.putBack(token)
-			fun, _, err := p.parseFunc(false)
+			var fun *FuncDecl
+			fun, _, err = p.parseFunc(false)
 			if err != nil {
-				return nil, err
+				return nil
 			}
 			fun.Receiver, fun.PtrReceiver = receiver, ptrReceiver
 			result.Methods[fun.name] = fun
@@ -1159,9 +1161,48 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl, genericPossible bool) (
 			p.identStack.popScope()
 		case TOKEN_PASS:
 		default:
-			p.putBack(token)
-			p.forceIndentEnd()
-			return result, nil
+			return token
+		}
+		return nil
+	}
+
+	if p.peek().Type != TOKEN_INDENT {
+		// Could be a one-line inline declaration
+		token := parseMember()
+		if err != nil {
+			return nil, err
+		}
+		if token != nil {
+			return nil, fmt.Errorf("Use `pass` for empty interface")
+		}
+		return result, nil
+	}
+
+	_, err = p.expectNewIndent()
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		token := parseMember()
+
+		if token != nil {
+			switch token.Type {
+			case TOKEN_INDENT:
+				p.putBack(token)
+				end, err := p.handleIndentEndOrNoToken(TOKEN_WORD, TOKEN_FUNC)
+				if err != nil {
+					return nil, err
+				}
+				if end {
+					return result, nil
+				}
+				// Struct continues.
+			default:
+				p.putBack(token)
+				p.forceIndentEnd()
+				return result, nil
+			}
 		}
 	}
 }
@@ -1184,45 +1225,74 @@ func (p *Parser) parseInterface(named bool) (*IfaceType, error) {
 		}
 	}
 
-	_, err := p.expectNewIndent()
-	if err != nil {
-		return nil, err
-	}
-
 	result := &IfaceType{name: name, Keys: []string{}, Methods: map[string]*FuncDecl{}}
 
-	for {
+	var err error
+
+	parseMember := func() *Token {
 		token := p.nextToken()
 
 		switch token.Type {
 		case TOKEN_INDENT:
-			p.putBack(token)
-			end, err := p.handleIndentEndOrNoToken(TOKEN_FUNC)
-			if err != nil {
-				return nil, err
-			}
-			if end {
-				return result, nil
-			}
-			// Interface continues.
+			return token
 		case TOKEN_FUNC:
 			ptrReceiver := false
 			if p.peek().Type == TOKEN_MUL {
 				ptrReceiver = true
 			}
 			p.putBack(token)
-			fun, err := p.parseFuncHeader(false)
+			var fun *FuncDecl
+			fun, err = p.parseFuncHeader(false)
 			if err != nil {
-				return nil, err
+				return nil
 			}
 			fun.PtrReceiver = ptrReceiver
 			result.Methods[fun.name] = fun
 			result.Keys = append(result.Keys, fun.name)
 		case TOKEN_PASS:
 		default:
-			p.putBack(token)
-			p.forceIndentEnd()
-			return result, nil
+			return token
+		}
+		return nil
+	}
+
+	if p.peek().Type != TOKEN_INDENT {
+		// Could be a one-line inline declaration
+		token := parseMember()
+		if err != nil {
+			return nil, err
+		}
+		if token != nil {
+			return nil, fmt.Errorf("Use `pass` for empty interface")
+		}
+		return result, nil
+	}
+
+	_, err = p.expectNewIndent()
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		token := parseMember()
+
+		if token != nil {
+			switch token.Type {
+			case TOKEN_INDENT:
+				p.putBack(token)
+				end, err := p.handleIndentEndOrNoToken(TOKEN_FUNC)
+				if err != nil {
+					return nil, err
+				}
+				if end {
+					return result, nil
+				}
+				// Interface continues.
+			default:
+				p.putBack(token)
+				p.forceIndentEnd()
+				return result, nil
+			}
 		}
 	}
 }

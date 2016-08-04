@@ -249,6 +249,7 @@ func TestForStmt(t *testing.T) {
 	var y = 3`, false},
 		{`for true:
 	pass`, true},
+		{`for true: pass`, true},
 		{`for var x = 0:
 	pass`, false},
 	}
@@ -278,6 +279,12 @@ func TestIfStmt(t *testing.T) {
 		{`if var x = 100; x > 10:
   if true:
     var y = 3`, true},
+		{`if var x = 100; x > 10: if true: var y = 3`, true},
+		{`if var x = 100; x > 10:
+	if true: var y = 3`, true},
+		{`if var x = 100; x > 10: if true:
+	var y = 3`, true},
+		{`if var x = 100; x > 10: if true:`, false},
 		{`if var x = 1; false:
   var y = 3`, true},
 		{`if var x = 1; false:
@@ -360,6 +367,8 @@ func TestParseInlineStruct(t *testing.T) {
   yb string
 
 `,
+		`struct: x int`,
+		`struct: pass`,
 		`struct:
   x int
   kreff struct:
@@ -386,6 +395,9 @@ func TestParseStructStmt(t *testing.T) {
   yb string
 
 `,
+		`struct A: x int`,
+		`struct A: pass`,
+		`struct A: func a(): pass`,
 		`struct A:
   x int
   kreff struct:
@@ -658,6 +670,19 @@ type Ble interface:
 	x int
 	func x()
 `, false},
+		{`
+type Ble interface: func x()
+`, true},
+		{`
+type Ble interface: func x()
+	func y()
+`, false},
+		{`
+type Ble interface: pass
+`, true},
+		{`
+type Ble interface:
+`, false},
 	}
 	validityTest(t, cases)
 }
@@ -796,6 +821,7 @@ func TestParseGenericStruct(t *testing.T) {
 	cases := []validityTestCase{
 		{`struct A[T]:
 	pass`, true},
+		{`struct A[T]: pass`, true},
 		{`struct A[T, K]:
 	pass`, true},
 		{`struct A[T, K]:
