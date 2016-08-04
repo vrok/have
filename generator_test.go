@@ -229,6 +229,40 @@ a, ok = x["ech"]
 	testCases(t, cases)
 }
 
+func TestGenerateBlank(t *testing.T) {
+	cases := []generatorTestCase{
+		{source: `var _ = 1`,
+			reference: `var _ = (int)(1)`},
+		{source: `_ = 1`,
+			reference: `_ = 1`},
+		{source: `
+func a() (int, string):
+	return 1, "a"
+var _, x = a()
+`,
+			reference: `
+func a() (int, string) {
+	return 1, "a"
+}
+var _, x = a()
+`},
+		{source: `
+func a() (int, string):
+	return 1, "a"
+var x string
+_, x = a()
+`,
+			reference: `
+func a() (int, string) {
+	return 1, "a"
+}
+var x = (string)("")
+_, x = a()
+`},
+	}
+	testCases(t, cases)
+}
+
 func TestGenerateChannels(t *testing.T) {
 	cases := []generatorTestCase{
 		{source: `var x chan int`,
