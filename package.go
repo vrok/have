@@ -3,6 +3,8 @@ package have
 import (
 	"fmt"
 	"strings"
+
+	gotoken "go/token"
 )
 
 type Package struct {
@@ -11,19 +13,35 @@ type Package struct {
 	objects map[string]Object
 	manager *PkgManager
 	tc      *TypesContext
+	fset    *gotoken.FileSet
 }
 
 func NewPackage(path string, files ...*File) *Package {
+	files = append(files, builtinsFile(path))
 	pkg := &Package{
 		path:    path,
 		files:   files,
 		objects: make(map[string]Object),
 		tc:      NewTypesContext(),
+		fset:    gotoken.NewFileSet(),
 	}
 	for _, f := range files {
 		f.tc = pkg.tc
+		f.tfile = pkg.fset.AddFile(f.name, pkg.fset.Base(), f.size)
 	}
 	return pkg
+}
+
+func builtinsFile(pkgName string) *File {
+	code := "package " + pkgName + `
+func print(s interface: pass) bool: return false
+func read() string: pass`
+	return &File{
+		name: "_builtin.go",
+		code: code,
+		size: len(code),
+		pkg:  pkgName,
+	}
 }
 
 // Create a package using files from a PkgLocator.
@@ -33,12 +51,19 @@ func newPackageWithManager(path string, manager *PkgManager) (*Package, error) {
 		return nil, err
 	}
 
+	fs := gotoken.NewFileSet()
+
+	for _, f := range files {
+		f.tfile = fs.AddFile(path, fs.Base(), f.size)
+	}
+
 	pkg := &Package{
 		path:    path,
 		files:   files,
 		objects: make(map[string]Object),
 		manager: manager,
 		tc:      NewTypesContext(),
+		fset:    fs,
 	}
 	for _, f := range files {
 		f.tc = pkg.tc
@@ -387,7 +412,8 @@ func (r *Instantiation) getGoName() string {
 }
 
 func (r *Instantiation) ParseAndCheck() []error {
-	r.parser = NewParser(NewLexer(r.Generic.Code()))
+	tfile, offset := r.Generic.Location()
+	r.parser = NewParser(NewLexer(r.Generic.Code(), tfile, offset))
 	// Parser sees the instantiation as a separate file, so we need to plug in imports from
 	// the original file.
 	r.parser.imports = r.Generic.Imports()

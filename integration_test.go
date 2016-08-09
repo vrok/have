@@ -5,18 +5,16 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os/exec"
+	"strings"
 	"testing"
 )
 
 func transpile(code string, outputFile string) error {
-	ctx := NewTypesContext()
-	f := NewFile("file.hav", code, ctx, nil)
-	errs := f.ParseAndCheck()
+	pkg, _, errs := processFileAsPkg(strings.TrimSpace(code))
 	if len(errs) > 0 {
 		return errs[0]
 	}
-
-	output := f.GenerateCode()
+	output := pkg.files[0].GenerateCode()
 	return ioutil.WriteFile(outputFile, []byte(output), 0644)
 }
 
@@ -34,7 +32,12 @@ func TestGenerate(t *testing.T) {
 
 		model, sample := fmt.Sprintf("samples/%s.go", c), fmt.Sprintf("tmp/case_%d.go", i)
 
-		fmt.Printf("Compiling case %d: %s", i, transpile(string(code), sample))
+		err = transpile(string(code), sample)
+		if err != nil {
+			fmt.Printf("Failed compilation of case %d: %s", i, err)
+			t.Fail()
+			return
+		}
 
 		modelOutput, err := exec.Command("go", "run", model).CombinedOutput()
 		if err != nil {

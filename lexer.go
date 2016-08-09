@@ -15,6 +15,7 @@ type Token struct {
 	Type   TokenType
 	Offset int
 	Value  interface{}
+	Pos    gotoken.Pos
 }
 
 // Tells if a token is any of the comparison operators.
@@ -138,10 +139,14 @@ type Lexer struct {
 	skipped int
 	// Offset of currently processed token.
 	curTokenPos int
+
+	offset int
+
+	tfile *gotoken.File
 }
 
-func NewLexer(buf []rune) *Lexer {
-	return &Lexer{all: buf, buf: buf, indentsStack: []int{}}
+func NewLexer(buf []rune, tfile *gotoken.File, offset int) *Lexer {
+	return &Lexer{all: buf, buf: buf, indentsStack: []int{}, tfile: tfile, offset: offset}
 }
 
 func countWhiteChars(buf []rune) int {
@@ -256,7 +261,7 @@ func (l *Lexer) loadEscapedString() (string, error) {
 }
 
 func (l *Lexer) newToken(typ TokenType, val interface{}) *Token {
-	return &Token{Type: typ, Offset: l.curTokenPos, Value: val}
+	return &Token{Type: typ, Offset: l.curTokenPos, Value: val, Pos: l.tfile.Pos(l.curTokenPos + l.offset)}
 }
 
 // A convenience wrapper for newToken, handy in situations when a token
@@ -333,6 +338,7 @@ func (l *Lexer) Next() (*Token, error) {
 
 	switch {
 	case ch == '\n':
+		l.tfile.AddLine(l.curTokenPos)
 		l.skip()
 		indent := string(l.skipWhiteChars())
 		l.skipInlineComment()

@@ -3,6 +3,8 @@ package have
 import (
 	"bytes"
 	"fmt"
+
+	gotoken "go/token"
 )
 
 const Blank = "_"
@@ -180,12 +182,6 @@ func initVarDecls() {
 			AliasedType: nil, // Simple types aren't aliases
 		}
 	}
-}
-
-var builtinFuncs = []string{
-	// These should be changed once we have varags etc.
-	"func print(s interface:\n\t) bool:\n pass",
-	"func read() string:\n pass",
 }
 
 func GetBuiltinType(name string) (*TypeDecl, bool) {
@@ -378,10 +374,16 @@ type ReturnStmt struct {
 type Generic interface {
 	Object
 
+	// Name of the generic + names of the params.
 	Signature() (name string, params []string)
 	Instantiate(tc *TypesContext, params ...Type) (Object, string, []error)
 	Code() []rune
+	// Imports that should be used when parsing instantiation of the generic.
+	// Usually they are inherited from the source file where the generic was declared.
 	Imports() Imports
+	// Token file containing the definition of the generic and offset where
+	// the definition starts in the file.
+	Location() (tfile *gotoken.File, offset int)
 }
 
 // Implements Stmt and Type.
@@ -394,6 +396,9 @@ type GenericStruct struct {
 	// TODO: Use token.Pos
 	code    []rune
 	imports Imports
+
+	tfile  *gotoken.File
+	offset int
 }
 
 func (gs *GenericStruct) Name() string                  { return gs.struc.Name }
@@ -420,8 +425,9 @@ func (gs *GenericStruct) Instantiate(tc *TypesContext, params ...Type) (Object, 
 	}
 	return r.Object, "sliwka", nil
 }
-func (gs *GenericStruct) Code() []rune     { return gs.code }
-func (gs *GenericStruct) Imports() Imports { return gs.imports }
+func (gs *GenericStruct) Code() []rune                   { return gs.code }
+func (gs *GenericStruct) Imports() Imports               { return gs.imports }
+func (gs *GenericStruct) Location() (*gotoken.File, int) { return gs.tfile, gs.offset }
 
 // Implements Stmt, Object
 type GenericFunc struct {
@@ -432,6 +438,9 @@ type GenericFunc struct {
 	// TODO: Use token.Pos
 	code    []rune
 	imports Imports
+
+	tfile  *gotoken.File
+	offset int
 }
 
 func (gf *GenericFunc) Name() string                  { return gf.Func.name }
@@ -458,8 +467,9 @@ func (gf *GenericFunc) Instantiate(tc *TypesContext, params ...Type) (Object, st
 	}
 	return r.Object, r.getGoName(), nil
 }
-func (gf *GenericFunc) Code() []rune     { return gf.code }
-func (gf *GenericFunc) Imports() Imports { return gf.imports }
+func (gf *GenericFunc) Code() []rune                   { return gf.code }
+func (gf *GenericFunc) Imports() Imports               { return gf.imports }
+func (gf *GenericFunc) Location() (*gotoken.File, int) { return gf.tfile, gf.offset }
 
 // Implements Type
 type GenericParamType struct {

@@ -15,7 +15,11 @@ type typeTestCase struct {
 // Helper for tests. Takes a scrap of code, parses & typechecks it as if it
 // was a package.
 func processFileAsPkg(code string) (*Package, []*TopLevelStmt, []error) {
-	f := NewFile("main.go", "package main\n"+code, nil, nil)
+	if !strings.HasPrefix(code, "package ") {
+		code = "package main\n" + code
+	}
+
+	f := NewFile("main.go", code, nil, nil)
 
 	pkg := NewPackage("main", f)
 	errs := pkg.ParseAndCheck()
@@ -1866,7 +1870,7 @@ func TestTypesSimple(t *testing.T) {
 		if *justCase >= 0 && i != *justCase {
 			continue
 		}
-		parser := NewParser(NewLexer([]rune(c.code)))
+		parser := newTestParser(c.code)
 		result, err := parser.parseVarStmt(true)
 		if err != nil {
 			t.Fail()

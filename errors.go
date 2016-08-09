@@ -2,11 +2,13 @@ package have
 
 import "fmt"
 
-type needsDepErr struct {
-	depName   string
-	unchecked []ExprToProcess
+type CompileError struct {
+	Message, File string
+	Line, Column  int
 }
 
-func (e *needsDepErr) Error() string {
-	return fmt.Sprintf("Object not typechecked yet: %s", e.depName)
+//func NewCompileError(t *Token Message,
+
+func (ce *CompileError) Error() string {
+	return fmt.Sprintf("%s:%d: %s", ce.File, ce.Line, ce.Message)
 }

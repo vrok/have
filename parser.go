@@ -63,7 +63,7 @@ func (p *Parser) peek() *Token {
 
 func NewParser(lex *Lexer) *Parser {
 	parser := NewParserWithoutBuiltins(lex)
-	parser.loadBuiltinFuncs()
+	//parser.loadBuiltinFuncs()
 	// Push a scope so that builtins are stored in a separate scope.
 	parser.identStack.pushScope()
 	return parser
@@ -76,7 +76,8 @@ func NewParserWithoutBuiltins(lex *Lexer) *Parser {
 		unboundTypes:     make(map[string][]DeclaredType),
 		unboundIdents:    make(map[string][]*Ident),
 		topLevelDecls:    make(map[string]Object),
-		imports:          make(map[string]*ImportStmt)}
+		imports:          make(map[string]*ImportStmt),
+	}
 }
 
 // Put back a token.
@@ -803,6 +804,7 @@ loop:
 	}, nil
 }
 
+/*
 func (p *Parser) loadBuiltinFuncs() {
 	for _, code := range builtinFuncs {
 		parser := NewParserWithoutBuiltins(NewLexer([]rune(code)))
@@ -815,6 +817,7 @@ func (p *Parser) loadBuiltinFuncs() {
 		p.identStack.addObject(decl)
 	}
 }
+*/
 
 func (p *Parser) parseFuncStmt() (Stmt, error) {
 	ident := p.expect(TOKEN_FUNC)
@@ -2121,7 +2124,12 @@ func (p *Parser) parseFunc(genericPossible bool) (*FuncDecl, Object, error) {
 
 	if len(fd.GenericParams) > 0 {
 		gf = &GenericFunc{stmt: stmt{expr: fd.expr},
-			params: fd.GenericParams, Func: fd, imports: p.imports}
+			params:  fd.GenericParams,
+			Func:    fd,
+			imports: p.imports,
+			tfile:   p.lex.tfile,
+			offset:  p.lex.offset,
+		}
 		obj = gf
 	} else {
 		obj = &Variable{name: fd.name, Type: fd.typ}
@@ -2381,6 +2389,8 @@ func (p *Parser) parseStructStmt() (Stmt, error) {
 			struc:   structDecl,
 			code:    p.lex.Slice(firstTok, p.peek()),
 			imports: p.imports,
+			tfile:   p.lex.tfile,
+			offset:  p.lex.offset,
 		}
 		p.identStack.addObject(gs)
 		return gs, nil

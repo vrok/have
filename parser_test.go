@@ -8,6 +8,7 @@ import (
 
 	spew "github.com/davecgh/go-spew/spew"
 	"github.com/kr/pretty"
+	gotoken "go/token"
 )
 
 func compareExpr(a, b Expr) (equal bool, msg string) {
@@ -38,9 +39,15 @@ func compareExpr(a, b Expr) (equal bool, msg string) {
 	return true, ""
 }
 
-func testPrimaryExpr(t *testing.T, code string, expected Expr) {
+func newTestParser(code string) *Parser {
 	in := []rune(code)
-	parser := NewParser(NewLexer(in))
+	fs := gotoken.NewFileSet()
+	l := NewLexer(in, fs.AddFile("a.go", fs.Base(), len(in)), 0)
+	return NewParser(l)
+}
+
+func testPrimaryExpr(t *testing.T, code string, expected Expr) {
+	parser := newTestParser(code)
 	parser.dontLookup = true
 	result, err := parser.parsePrimaryExpr()
 	if err != nil {
@@ -65,13 +72,13 @@ func TestPrimaryExpr(t *testing.T) {
 				expr:  expr{4},
 				Left:  &Ident{expr{0}, "test", nil, false},
 				Right: &Ident{expr{5}, "tere", nil, false}},
-			Index: []Expr{&BasicLit{expr{10}, &Token{TOKEN_INT, 10, 123}}}})
+			Index: []Expr{&BasicLit{expr{10}, &Token{TOKEN_INT, 10, 123, 0}}}})
 	testPrimaryExpr(t, "dywan[1:5]", &ArrayExpr{
 		expr: expr{5},
 		Left: &Ident{expr{0}, "dywan", nil, false},
 		Index: []Expr{&SliceExpr{expr: expr{6},
-			From: &BasicLit{expr{6}, &Token{TOKEN_INT, 6, 1}},
-			To:   &BasicLit{expr{8}, &Token{TOKEN_INT, 8, 5}},
+			From: &BasicLit{expr{6}, &Token{TOKEN_INT, 6, 1, 0}},
+			To:   &BasicLit{expr{8}, &Token{TOKEN_INT, 8, 5, 0}},
 		}},
 	})
 	testPrimaryExpr(t, "{1,2}", &CompoundLit{})
@@ -97,8 +104,7 @@ func TestPrimaryExpr(t *testing.T) {
 }
 
 func testExpr(t *testing.T, code string, expected Expr) {
-	in := []rune(code)
-	parser := NewParser(NewLexer(in))
+	parser := newTestParser(code)
 	parser.dontLookup = true
 	result, err := parser.parseExpr()
 	if eq, msg := compareExpr(result, expected); !eq || err != nil {
@@ -142,8 +148,7 @@ func TestParseExpr(t *testing.T) {
 }
 
 func testTypes(t *testing.T, code string, expected Type) {
-	in := []rune(code)
-	parser := NewParser(NewLexer(in))
+	parser := newTestParser(code)
 	parser.dontLookup = true
 	result, err := parser.parseType()
 	if err != nil {
@@ -167,8 +172,7 @@ func TestParseType(t *testing.T) {
 }
 
 func testArgs(t *testing.T, code string, expected []Expr) {
-	in := []rune(code)
-	parser := NewParser(NewLexer(in))
+	parser := newTestParser(code)
 	parser.dontLookup = true
 	result, err := parser.parseArgs(0)
 	if err != nil {
@@ -191,9 +195,9 @@ func testArgs(t *testing.T, code string, expected []Expr) {
 func TestArgs(t *testing.T) {
 	testArgs(t, "", []Expr{})
 	testArgs(t, ")", []Expr{})
-	testArgs(t, "1,bla", []Expr{&BasicLit{expr{0}, &Token{TOKEN_INT, 0, "1"}},
+	testArgs(t, "1,bla", []Expr{&BasicLit{expr{0}, &Token{TOKEN_INT, 0, "1", 0}},
 		&Ident{expr{2}, "bla", nil, false}})
-	testArgs(t, "1,bla)", []Expr{&BasicLit{expr{0}, &Token{TOKEN_INT, 0, "1"}},
+	testArgs(t, "1,bla)", []Expr{&BasicLit{expr{0}, &Token{TOKEN_INT, 0, "1", 0}},
 		&Ident{expr{2}, "bla", nil, false}})
 }
 
@@ -210,7 +214,7 @@ func TestCodeBlock(t *testing.T) {
 var y = 2`, 1},
 	}
 	for _, c := range cases {
-		parser := NewParser(NewLexer([]rune(c.code)))
+		parser := newTestParser(c.code)
 		//parser.nextToken()
 		result, err := parser.parseCodeBlock()
 
@@ -255,7 +259,7 @@ func TestForStmt(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		parser := NewParser(NewLexer([]rune(c.code)))
+		parser := newTestParser(c.code)
 		result, err := parser.parseForStmt(nil)
 
 		passed := (err == nil && len(parser.unboundIdents) == 0)
@@ -308,7 +312,7 @@ else
   var x = 3`, false},
 	}
 	for _, c := range cases {
-		parser := NewParser(NewLexer([]rune(c.code)))
+		parser := newTestParser(c.code)
 		result, err := parser.parseIf()
 
 		passed := (err == nil && len(parser.unboundIdents) == 0)
@@ -376,7 +380,7 @@ func TestParseInlineStruct(t *testing.T) {
   yb string`,
 	}
 	for _, c := range cases {
-		parser := NewParser(NewLexer([]rune(c)))
+		parser := newTestParser(c)
 		result, err := parser.parseStruct(nil, false)
 
 		// TODO: better assertions, more test cases.
@@ -418,7 +422,7 @@ struct Abc:
 	z int`,
 	}
 	for _, c := range cases {
-		parser := NewParser(NewLexer([]rune(strings.TrimSpace(c))))
+		parser := newTestParser(strings.TrimSpace(c))
 		result, err := parser.parseStructStmt()
 
 		// TODO: better assertions, more test cases.
@@ -450,7 +454,7 @@ func TestParseCompoundLiterals(t *testing.T) {
 		{`{1}`, true, COMPOUND_LISTLIKE},
 	}
 	for _, c := range cases {
-		parser := NewParser(NewLexer([]rune(c.code)))
+		parser := newTestParser(c.code)
 		parser.dontLookup = true
 		result, err := parser.parseCompoundLit()
 
@@ -503,7 +507,7 @@ func TestIdentSearch(t *testing.T) {
 `, true},
 	}
 	for _, c := range cases {
-		parser := NewParser(NewLexer([]rune(c.code)))
+		parser := newTestParser(c.code)
 		result, _, err := parser.parseFunc(false)
 
 		passed := (err == nil && len(parser.unboundIdents) == 0)
@@ -530,7 +534,7 @@ func validityTest(t *testing.T, cases []validityTestCase) {
 		if *justCase >= 0 && i != *justCase {
 			continue
 		}
-		parser := NewParser(NewLexer([]rune("\n" + c.code)))
+		parser := newTestParser("\n" + c.code)
 
 		block, err := parser.parseUnindentedBlock()
 
@@ -589,7 +593,7 @@ func TestFuncDecl(t *testing.T) {
 `, true},
 	}
 	for _, c := range cases {
-		parser := NewParser(NewLexer([]rune(c.code)))
+		parser := newTestParser(c.code)
 		result, _, err := parser.parseFunc(false)
 
 		// TODO: better assertions, more test cases.
@@ -873,13 +877,13 @@ func TestVarDecl(t *testing.T) {
 							expr: expr{pos: 14},
 							Left: &BasicLit{
 								expr:  expr{pos: 12},
-								token: &Token{Type: TOKEN_INT, Offset: 12, Value: "1"},
+								token: &Token{Type: TOKEN_INT, Offset: 12, Value: "1", Pos: 13},
 							},
 							Right: &BasicLit{
 								expr:  expr{pos: 16},
-								token: &Token{Type: TOKEN_INT, Offset: 16, Value: "2"},
+								token: &Token{Type: TOKEN_INT, Offset: 16, Value: "2", Pos: 17},
 							},
-							op: &Token{Type: TOKEN_PLUS, Offset: 14, Value: "+"},
+							op: &Token{Type: TOKEN_PLUS, Offset: 14, Value: "+", Pos: 15},
 						},
 					},
 				},
@@ -904,11 +908,11 @@ func TestVarDecl(t *testing.T) {
 					Inits: []Expr{
 						&BasicLit{
 							expr:  expr{pos: 14},
-							token: &Token{Type: TOKEN_INT, Offset: 14, Value: "1"},
+							token: &Token{Type: TOKEN_INT, Offset: 14, Value: "1", Pos: 15},
 						},
 						&BasicLit{
 							expr:  expr{pos: 17},
-							token: &Token{Type: TOKEN_INT, Offset: 17, Value: "2"},
+							token: &Token{Type: TOKEN_INT, Offset: 17, Value: "2", Pos: 18},
 						},
 					},
 				}},
@@ -938,6 +942,7 @@ func TestVarDecl(t *testing.T) {
 									Type:   13,
 									Offset: 15,
 									Value:  "1",
+									Pos:    16,
 								},
 							},
 							&BasicLit{
@@ -946,6 +951,7 @@ func TestVarDecl(t *testing.T) {
 									Type:   13,
 									Offset: 18,
 									Value:  "2",
+									Pos:    19,
 								},
 							},
 						},
@@ -964,6 +970,7 @@ func TestVarDecl(t *testing.T) {
 									Type:   13,
 									Offset: 26,
 									Value:  "3",
+									Pos:    27,
 								},
 							},
 						},
@@ -993,6 +1000,7 @@ func TestVarDecl(t *testing.T) {
 								Type:   TOKEN_INT,
 								Offset: 15,
 								Value:  "1",
+								Pos:    16,
 							},
 						},
 						&BasicLit{
@@ -1001,6 +1009,7 @@ func TestVarDecl(t *testing.T) {
 								Type:   TOKEN_INT,
 								Offset: 19,
 								Value:  "2",
+								Pos:    20,
 							},
 						},
 					},
@@ -1037,6 +1046,7 @@ func TestVarDecl(t *testing.T) {
 									Type:   13,
 									Offset: 15,
 									Value:  "1",
+									Pos:    16,
 								},
 							},
 						},
@@ -1048,8 +1058,7 @@ func TestVarDecl(t *testing.T) {
 	}
 
 	for i, test := range cases {
-		in := []rune(test.code)
-		parser := NewParser(NewLexer(in))
+		parser := newTestParser(test.code)
 		result, err := parser.parseVarStmt(true)
 		if err != nil {
 			fmt.Printf("Case #%d error: %s\n", i+1, err)

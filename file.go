@@ -1,6 +1,6 @@
 package have
 
-import "go/token"
+import gotoken "go/token"
 
 type PkgLocator interface {
 	Locate(pkgPath string) ([]*File, error)
@@ -8,24 +8,26 @@ type PkgLocator interface {
 
 type File struct {
 	name, code, pkg string
+	size            int
 
 	statements []*TopLevelStmt
 	objects    map[string]Object
-	tfile      *token.File
+	tfile      *gotoken.File
 	parser     *Parser
 	tc         *TypesContext
 }
 
-func NewFile(name, code string, tc *TypesContext, tfile *token.File) *File {
+func NewFile(name, code string, tc *TypesContext, tfile *gotoken.File) *File {
 	return &File{name: name,
 		code:    code,
 		tc:      tc,
 		tfile:   tfile,
+		size:    len(code),
 		objects: make(map[string]Object)}
 }
 
 func (f *File) Parse() []error {
-	f.parser = NewParser(NewLexer([]rune(f.code)))
+	f.parser = NewParser(NewLexer([]rune(f.code), f.tfile, 0))
 	err := f.parser.ParseFile(f)
 	if err != nil {
 		return []error{err}
