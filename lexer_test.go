@@ -12,11 +12,7 @@ func testTokens(t *testing.T, input []rune, output []*Token) {
 	fs := gotoken.NewFileSet()
 	l := NewLexer(input, fs.AddFile("a.go", fs.Base(), len(input)), 0)
 	for _, expected := range output {
-		token, err := l.Next()
-		if err != nil {
-			fmt.Printf("Non-nil error %v\n", err)
-			t.Fail()
-		}
+		token := l.Next()
 		if !reflect.DeepEqual(token.Value, expected.Value) ||
 			token.Type != expected.Type || token.Offset != expected.Offset {
 			fmt.Printf("Received %v instead of %v\n", token, expected)

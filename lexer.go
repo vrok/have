@@ -123,6 +123,7 @@ const (
 	TOKEN_AND                    // &&
 	TOKEN_OR                     // ||
 	TOKEN_SHARP                  // #
+	TOKEN_UNEXP_CHAR             // For error reporting
 )
 
 type Lexer struct {
@@ -266,8 +267,8 @@ func (l *Lexer) newToken(typ TokenType, val interface{}) *Token {
 
 // A convenience wrapper for newToken, handy in situations when a token
 // is created just to be immediately returned with a nil error.
-func (l *Lexer) retNewToken(typ TokenType, val interface{}) (*Token, error) {
-	return l.newToken(typ, val), nil
+func (l *Lexer) retNewToken(typ TokenType, val interface{}) *Token {
+	return l.newToken(typ, val)
 }
 
 func (l *Lexer) scanGoToken() (token gotoken.Token, lit string, err error) {
@@ -298,7 +299,7 @@ func (l *Lexer) scanGoToken() (token gotoken.Token, lit string, err error) {
 	return tok, lit, err
 }
 
-func (l *Lexer) fromGoToken(token gotoken.Token, lit string) (*Token, error) {
+func (l *Lexer) fromGoToken(token gotoken.Token, lit string) *Token {
 	switch token {
 	case gotoken.INT:
 		return l.retNewToken(TOKEN_INT, lit)
@@ -311,7 +312,7 @@ func (l *Lexer) fromGoToken(token gotoken.Token, lit string) (*Token, error) {
 	case gotoken.CHAR:
 		return l.retNewToken(TOKEN_RUNE, lit)
 	}
-	return nil, fmt.Errorf("Unexpected Go token: %s", token)
+	return l.newToken(TOKEN_UNEXP_CHAR, lit)
 }
 
 // Returns fragment of code [start, end)
@@ -319,14 +320,14 @@ func (l *Lexer) Slice(start, end *Token) []rune {
 	return l.all[start.Offset:end.Offset]
 }
 
-func (l *Lexer) Next() (*Token, error) {
+func (l *Lexer) Next() *Token {
 	l.curTokenPos = l.skipped
 
 	if l.isEnd() || l.buf[0] != '\n' {
 		if l.tokenIndent != nil {
 			t := l.tokenIndent
 			l.tokenIndent = nil
-			return t, nil
+			return t
 		}
 	}
 
@@ -468,7 +469,7 @@ func (l *Lexer) Next() (*Token, error) {
 	case unicode.IsNumber(ch) || ch == '"' || ch == '`' || ch == '\'':
 		gotok, lit, err := l.scanGoToken()
 		if err != nil {
-			return nil, err
+			return nil
 		}
 		return l.fromGoToken(gotok, lit)
 	case ch == '(':
@@ -540,8 +541,7 @@ func (l *Lexer) Next() (*Token, error) {
 			return l.retNewToken(TOKEN_PIPE, alt)
 		}
 	}
-
-	return nil, fmt.Errorf("Don't know what to do, '%c'", ch)
+	return l.newToken(TOKEN_UNEXP_CHAR, ch)
 }
 
 // Can be used to mark a fragment of code in the file and then extract it.

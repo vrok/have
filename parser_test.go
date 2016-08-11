@@ -61,46 +61,46 @@ func testPrimaryExpr(t *testing.T, code string, expected Expr) {
 }
 
 func TestPrimaryExpr(t *testing.T) {
-	testPrimaryExpr(t, "test", &Ident{expr{0}, "test", nil, false})
-	testPrimaryExpr(t, "te_st", &Ident{expr{0}, "te_st", nil, false})
-	testPrimaryExpr(t, "_test", &Ident{expr{0}, "_test", nil, false})
-	testPrimaryExpr(t, "test(arg)", &FuncCallExpr{expr: expr{4}, Left: &Ident{expr{0}, "test", nil, false}, Args: nil}) // TODO: fill args
+	testPrimaryExpr(t, "test", &Ident{expr{1}, "test", nil, false})
+	testPrimaryExpr(t, "te_st", &Ident{expr{1}, "te_st", nil, false})
+	testPrimaryExpr(t, "_test", &Ident{expr{1}, "_test", nil, false})
+	testPrimaryExpr(t, "test(arg)", &FuncCallExpr{expr: expr{5}, Left: &Ident{expr{1}, "test", nil, false}, Args: nil}) // TODO: fill args
 	testPrimaryExpr(t, "test.tere[123]",
 		&ArrayExpr{
-			expr: expr{9},
+			expr: expr{10},
 			Left: &DotSelector{
-				expr:  expr{4},
-				Left:  &Ident{expr{0}, "test", nil, false},
-				Right: &Ident{expr{5}, "tere", nil, false}},
-			Index: []Expr{&BasicLit{expr{10}, &Token{TOKEN_INT, 10, 123, 0}}}})
+				expr:  expr{5},
+				Left:  &Ident{expr{1}, "test", nil, false},
+				Right: &Ident{expr{6}, "tere", nil, false}},
+			Index: []Expr{&BasicLit{expr{10}, &Token{TOKEN_INT, 10, 123, 1}}}})
 	testPrimaryExpr(t, "dywan[1:5]", &ArrayExpr{
-		expr: expr{5},
-		Left: &Ident{expr{0}, "dywan", nil, false},
-		Index: []Expr{&SliceExpr{expr: expr{6},
-			From: &BasicLit{expr{6}, &Token{TOKEN_INT, 6, 1, 0}},
-			To:   &BasicLit{expr{8}, &Token{TOKEN_INT, 8, 5, 0}},
+		expr: expr{6},
+		Left: &Ident{expr{1}, "dywan", nil, false},
+		Index: []Expr{&SliceExpr{expr: expr{7},
+			From: &BasicLit{expr{6}, &Token{TOKEN_INT, 6, 1, 1}},
+			To:   &BasicLit{expr{8}, &Token{TOKEN_INT, 8, 5, 1}},
 		}},
 	})
-	testPrimaryExpr(t, "{1,2}", &CompoundLit{})
-	testPrimaryExpr(t, "{1:2}.bla", &DotSelector{expr: expr{5},
-		Left:  &CompoundLit{expr: expr{0}},
-		Right: &Ident{expr{6}, "bla", nil, false}})
-	testPrimaryExpr(t, "map[int]int{1:2}", &CompoundLit{Left: &TypeExpr{}})
-	testPrimaryExpr(t, "[]int{1,2}", &CompoundLit{Left: &TypeExpr{}})
-	testPrimaryExpr(t, "dywan{1}", &CompoundLit{Left: &TypeExpr{}})
+	testPrimaryExpr(t, "{1,2}", &CompoundLit{expr: expr{1}})
+	testPrimaryExpr(t, "{1:2}.bla", &DotSelector{expr: expr{6},
+		Left:  &CompoundLit{expr: expr{1}},
+		Right: &Ident{expr{7}, "bla", nil, false}})
+	testPrimaryExpr(t, "map[int]int{1:2}", &CompoundLit{expr: expr{1}, Left: &TypeExpr{expr: expr{1}}})
+	testPrimaryExpr(t, "[]int{1,2}", &CompoundLit{expr: expr{1}, Left: &TypeExpr{expr: expr{1}}})
+	testPrimaryExpr(t, "dywan{1}", &CompoundLit{expr: expr{1}, Left: &TypeExpr{expr: expr{1}}})
 	//testPrimaryExpr(t, "dy.wan{1}", &CompoundLit{})
 	testPrimaryExpr(t, `struct:
     x int
-	{x: 1}`, &CompoundLit{Left: &TypeExpr{}})
+	{x: 1}`, &CompoundLit{expr: expr{1}, Left: &TypeExpr{expr: expr{1}}})
 	testPrimaryExpr(t, `struct:
     x int
-  {x: 1}`, &CompoundLit{Left: &TypeExpr{}})
+  {x: 1}`, &CompoundLit{expr: expr{1}, Left: &TypeExpr{expr: expr{1}}})
 	testPrimaryExpr(t, `struct:
     x int
-	  {x: 1}`, &CompoundLit{Left: &TypeExpr{}})
+	  {x: 1}`, &CompoundLit{expr: expr{1}, Left: &TypeExpr{expr: expr{1}}})
 	testPrimaryExpr(t, `struct:
 	x int
-{x: 1}`, &CompoundLit{Left: &TypeExpr{}})
+{x: 1}`, &CompoundLit{expr: expr{1}, Left: &TypeExpr{expr: expr{1}}})
 }
 
 func testExpr(t *testing.T, code string, expected Expr) {
@@ -115,34 +115,34 @@ func testExpr(t *testing.T, code string, expected Expr) {
 
 func TestParseExpr(t *testing.T) {
 	testExpr(t, "test+pies", &BinaryOp{
-		expr:  expr{4},
-		Left:  &Ident{expr{0}, "test", nil, false},
-		Right: &Ident{expr{5}, "pies", nil, false},
+		expr:  expr{5},
+		Left:  &Ident{expr{1}, "test", nil, false},
+		Right: &Ident{expr{6}, "pies", nil, false},
 	})
 	testExpr(t, "1*2+3*4", &BinaryOp{
-		expr: expr{3},
-		Left: &BinaryOp{
-			expr:  expr{1},
-			Left:  &BasicLit{expr: expr{0}}, // TODO: put num value
-			Right: &BasicLit{expr: expr{2}}, // TODO: put num value
-		},
-		Right: &BinaryOp{
-			expr:  expr{5},
-			Left:  &BasicLit{expr: expr{4}}, // TODO: put num value
-			Right: &BasicLit{expr: expr{6}}, // TODO: put num value
-		},
-	})
-	testExpr(t, "(1+2)*(3+4)", &BinaryOp{
-		expr: expr{5},
+		expr: expr{4},
 		Left: &BinaryOp{
 			expr:  expr{2},
 			Left:  &BasicLit{expr: expr{1}}, // TODO: put num value
 			Right: &BasicLit{expr: expr{3}}, // TODO: put num value
 		},
 		Right: &BinaryOp{
-			expr:  expr{8},
-			Left:  &BasicLit{expr: expr{7}}, // TODO: put num value
-			Right: &BasicLit{expr: expr{9}}, // TODO: put num value
+			expr:  expr{6},
+			Left:  &BasicLit{expr: expr{5}}, // TODO: put num value
+			Right: &BasicLit{expr: expr{7}}, // TODO: put num value
+		},
+	})
+	testExpr(t, "(1+2)*(3+4)", &BinaryOp{
+		expr: expr{6},
+		Left: &BinaryOp{
+			expr:  expr{3},
+			Left:  &BasicLit{expr: expr{2}}, // TODO: put num value
+			Right: &BasicLit{expr: expr{4}}, // TODO: put num value
+		},
+		Right: &BinaryOp{
+			expr:  expr{9},
+			Left:  &BasicLit{expr: expr{8}},  // TODO: put num value
+			Right: &BasicLit{expr: expr{10}}, // TODO: put num value
 		},
 	})
 }
@@ -195,10 +195,10 @@ func testArgs(t *testing.T, code string, expected []Expr) {
 func TestArgs(t *testing.T) {
 	testArgs(t, "", []Expr{})
 	testArgs(t, ")", []Expr{})
-	testArgs(t, "1,bla", []Expr{&BasicLit{expr{0}, &Token{TOKEN_INT, 0, "1", 0}},
-		&Ident{expr{2}, "bla", nil, false}})
-	testArgs(t, "1,bla)", []Expr{&BasicLit{expr{0}, &Token{TOKEN_INT, 0, "1", 0}},
-		&Ident{expr{2}, "bla", nil, false}})
+	testArgs(t, "1,bla", []Expr{&BasicLit{expr{1}, &Token{TOKEN_INT, 0, "1", 1}},
+		&Ident{expr{3}, "bla", nil, false}})
+	testArgs(t, "1,bla)", []Expr{&BasicLit{expr{1}, &Token{TOKEN_INT, 0, "1", 1}},
+		&Ident{expr{3}, "bla", nil, false}})
 }
 
 func TestCodeBlock(t *testing.T) {
@@ -851,7 +851,7 @@ func TestVarDecl(t *testing.T) {
 		expected *VarStmt
 	}{
 		{"var x int\n", &VarStmt{
-			stmt: stmt{expr: expr{}},
+			stmt: stmt{expr: expr{1}},
 			Vars: DeclChain{&VarDecl{
 				Vars: []*Variable{
 					&Variable{
@@ -865,7 +865,7 @@ func TestVarDecl(t *testing.T) {
 		{
 			"var x int = 1 + 2\n",
 			&VarStmt{
-				stmt: stmt{expr: expr{}},
+				stmt: stmt{expr: expr{1}},
 				Vars: DeclChain{&VarDecl{Vars: []*Variable{
 					&Variable{
 						name: "x",
@@ -874,13 +874,13 @@ func TestVarDecl(t *testing.T) {
 				},
 					Inits: []Expr{
 						&BinaryOp{
-							expr: expr{pos: 14},
+							expr: expr{pos: 15},
 							Left: &BasicLit{
-								expr:  expr{pos: 12},
+								expr:  expr{pos: 13},
 								token: &Token{Type: TOKEN_INT, Offset: 12, Value: "1", Pos: 13},
 							},
 							Right: &BasicLit{
-								expr:  expr{pos: 16},
+								expr:  expr{pos: 17},
 								token: &Token{Type: TOKEN_INT, Offset: 16, Value: "2", Pos: 17},
 							},
 							op: &Token{Type: TOKEN_PLUS, Offset: 14, Value: "+", Pos: 15},
@@ -894,7 +894,7 @@ func TestVarDecl(t *testing.T) {
 		{
 			"var x,y int = 1, 2\n",
 			&VarStmt{
-				stmt: stmt{expr: expr{pos: 0}},
+				stmt: stmt{expr: expr{pos: 1}},
 				Vars: DeclChain{&VarDecl{Vars: []*Variable{
 					&Variable{
 						name: "x",
@@ -907,11 +907,11 @@ func TestVarDecl(t *testing.T) {
 				},
 					Inits: []Expr{
 						&BasicLit{
-							expr:  expr{pos: 14},
+							expr:  expr{pos: 15},
 							token: &Token{Type: TOKEN_INT, Offset: 14, Value: "1", Pos: 15},
 						},
 						&BasicLit{
-							expr:  expr{pos: 17},
+							expr:  expr{pos: 18},
 							token: &Token{Type: TOKEN_INT, Offset: 17, Value: "2", Pos: 18},
 						},
 					},
@@ -922,7 +922,7 @@ func TestVarDecl(t *testing.T) {
 			"var x,y int = (1, 2), z = 3\n",
 
 			&VarStmt{
-				stmt: stmt{},
+				stmt: stmt{expr: expr{1}},
 				Vars: []*VarDecl{
 					&VarDecl{
 						Vars: []*Variable{
@@ -937,7 +937,7 @@ func TestVarDecl(t *testing.T) {
 						},
 						Inits: []Expr{
 							&BasicLit{
-								expr: expr{pos: 15},
+								expr: expr{pos: 16},
 								token: &Token{
 									Type:   13,
 									Offset: 15,
@@ -946,7 +946,7 @@ func TestVarDecl(t *testing.T) {
 								},
 							},
 							&BasicLit{
-								expr: expr{pos: 18},
+								expr: expr{pos: 19},
 								token: &Token{
 									Type:   13,
 									Offset: 18,
@@ -965,7 +965,7 @@ func TestVarDecl(t *testing.T) {
 						},
 						Inits: []Expr{
 							&BasicLit{
-								expr: expr{pos: 26},
+								expr: expr{pos: 27},
 								token: &Token{
 									Type:   13,
 									Offset: 26,
@@ -982,7 +982,7 @@ func TestVarDecl(t *testing.T) {
 		{
 			"var x,y int = (1), 2\n",
 			&VarStmt{
-				stmt: stmt{expr: expr{}},
+				stmt: stmt{expr: expr{1}},
 				Vars: DeclChain{&VarDecl{Vars: []*Variable{
 					&Variable{
 						name: "x",
@@ -995,7 +995,7 @@ func TestVarDecl(t *testing.T) {
 				},
 					Inits: []Expr{
 						&BasicLit{
-							expr: expr{pos: 15},
+							expr: expr{pos: 16},
 							token: &Token{
 								Type:   TOKEN_INT,
 								Offset: 15,
@@ -1004,7 +1004,7 @@ func TestVarDecl(t *testing.T) {
 							},
 						},
 						&BasicLit{
-							expr: expr{pos: 19},
+							expr: expr{pos: 20},
 							token: &Token{
 								Type:   TOKEN_INT,
 								Offset: 19,
@@ -1021,7 +1021,7 @@ func TestVarDecl(t *testing.T) {
 			"var x int, y = 1\n",
 
 			&VarStmt{
-				stmt: stmt{},
+				stmt: stmt{expr: expr{1}},
 				Vars: []*VarDecl{
 					&VarDecl{
 						Vars: []*Variable{
@@ -1041,7 +1041,7 @@ func TestVarDecl(t *testing.T) {
 						},
 						Inits: []Expr{
 							&BasicLit{
-								expr: expr{pos: 15},
+								expr: expr{pos: 16},
 								token: &Token{
 									Type:   13,
 									Offset: 15,

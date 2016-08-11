@@ -47,11 +47,7 @@ func (p *Parser) nextToken() *Token {
 		p.tokensBuf = p.tokensBuf[1:]
 		return result
 	}
-	tok, err := p.lex.Next()
-	if err != nil {
-		panic(err) // TODO: not panic, return error
-	}
-	return tok
+	return p.lex.Next()
 }
 
 // See the next token without changing the parser state.
@@ -639,7 +635,7 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 
 	branches := []*IfBranch{
 		&IfBranch{
-			stmt{expr: expr{ident.Offset}},
+			stmt{expr: expr{ident.Pos}},
 			scopedVarStmt,
 			condition,
 			block,
@@ -659,7 +655,7 @@ loop:
 				return nil, err
 			}
 			branches = append(branches, &IfBranch{
-				stmt{expr: expr{t.Offset}},
+				stmt{expr: expr{t.Pos}},
 				nil,
 				condition,
 				block,
@@ -670,7 +666,7 @@ loop:
 				return nil, err
 			}
 			branches = append(branches, &IfBranch{
-				stmt{expr: expr{t.Offset}},
+				stmt{expr: expr{t.Pos}},
 				nil,
 				nil,
 				block,
@@ -685,7 +681,7 @@ loop:
 	// TODO: else, elsif statements
 
 	return &IfStmt{
-		stmt{expr: expr{ident.Offset}},
+		stmt{expr: expr{ident.Pos}},
 		branches,
 	}, nil
 }
@@ -775,7 +771,7 @@ loop:
 			}
 
 			branches = append(branches, &SwitchBranch{
-				stmt:          stmt{expr: expr{t.Offset}},
+				stmt:          stmt{expr: expr{t.Pos}},
 				Values:        val,
 				Code:          block,
 				TypeSwitchVar: typeSwitchVarCopy,
@@ -787,7 +783,7 @@ loop:
 			}
 
 			branches = append(branches, &SwitchBranch{
-				stmt: stmt{expr: expr{t.Offset}},
+				stmt: stmt{expr: expr{t.Pos}},
 				Code: block,
 			})
 		default:
@@ -797,7 +793,7 @@ loop:
 	}
 
 	return &SwitchStmt{
-		stmt{expr: expr{ident.Offset}},
+		stmt{expr: expr{ident.Pos}},
 		scopedVarStmt,
 		mainStmt,
 		branches,
@@ -846,7 +842,7 @@ func (p *Parser) parseFuncStmt() (Stmt, error) {
 
 	// TODO: mark as final/not changeable
 	p.identStack.addObject(funcVar)
-	return &VarStmt{stmt{expr: expr{ident.Offset}}, []*VarDecl{decl}, true}, nil
+	return &VarStmt{stmt{expr: expr{ident.Pos}}, []*VarDecl{decl}, true}, nil
 }
 
 // varKeyword controls whether the `var` keyword should be expected
@@ -867,7 +863,7 @@ func (p *Parser) parseVarStmt(varKeyword bool) (*VarStmt, error) {
 		return nil, err
 	}
 
-	stmt := &VarStmt{stmt{expr: expr{firstTok.Offset}}, vars, false}
+	stmt := &VarStmt{stmt{expr: expr{firstTok.Pos}}, vars, false}
 
 	stmt.Vars.eachPair(func(v *Variable, init Expr) {
 		p.identStack.addObject(v)
@@ -1018,7 +1014,7 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 	p.skipWhiteSpace()
 
 	if t := p.nextToken(); t.Type == TOKEN_RBRACE {
-		return &CompoundLit{expr: expr{startTok.Offset}, typ: &UnknownType{}, kind: COMPOUND_EMPTY, elems: nil, contentPos: startTok.Offset}, nil
+		return &CompoundLit{expr: expr{startTok.Pos}, typ: &UnknownType{}, kind: COMPOUND_EMPTY, elems: nil, contentPos: startTok.Pos}, nil
 	} else {
 		p.putBack(t)
 	}
@@ -1058,7 +1054,7 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 				} else if kind == COMPOUND_UNKNOWN {
 					kind = COMPOUND_LISTLIKE
 				}
-				return &CompoundLit{expr{startTok.Offset}, nil, &UnknownType{}, kind, elems, startTok.Offset}, nil
+				return &CompoundLit{expr{startTok.Pos}, nil, &UnknownType{}, kind, elems, startTok.Pos}, nil
 			default:
 				return nil, fmt.Errorf("Unexpected token in a compound literal")
 			}
@@ -1066,7 +1062,7 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 			switch t := p.nextToken(); t.Type {
 			case TOKEN_COMMA:
 			case TOKEN_RBRACE:
-				return &CompoundLit{expr{startTok.Offset}, nil, &UnknownType{}, kind, elems, startTok.Offset}, nil
+				return &CompoundLit{expr{startTok.Pos}, nil, &UnknownType{}, kind, elems, startTok.Pos}, nil
 			default:
 				return nil, fmt.Errorf("Unexpected token in a compound literal")
 			}
@@ -1544,7 +1540,7 @@ func (p *Parser) attemptTypeParse(justTry bool) (Type, error) {
 
 func (p *Parser) parseTypeExpr() (*TypeExpr, error) {
 	token := p.nextToken()
-	loc := token.Offset
+	loc := token.Pos
 	p.putBack(token)
 
 	typ, err := p.parseType()
@@ -1559,7 +1555,7 @@ func (p *Parser) parseTypeExpr() (*TypeExpr, error) {
 // begin similarily and can both be used in primary expressions.
 // Returns either TypeExpr with function type or FuncDecl.
 func (p *Parser) parseFuncTypeOrLit() (Expr, error) {
-	loc := p.peek().Offset
+	loc := p.peek().Pos
 	fd, err := p.parseFuncHeader(false)
 	if err != nil {
 		return nil, err
@@ -1578,7 +1574,7 @@ func (p *Parser) wordToExpr(word *Token) PrimaryExpr {
 		panic("wordToExpr: token is not a word")
 	}
 	name := word.Value.(string)
-	ident := &Ident{expr: expr{word.Offset}, name: name}
+	ident := &Ident{expr: expr{word.Pos}, name: name}
 	var result PrimaryExpr = ident
 
 	if p.parsingGenericInstantiation() && p.genericParams[name] != nil {
@@ -1586,7 +1582,7 @@ func (p *Parser) wordToExpr(word *Token) PrimaryExpr {
 		if !ok {
 			panic("Internal error")
 		}
-		result = &TypeExpr{expr: expr{word.Offset}, typ: typ}
+		result = &TypeExpr{expr: expr{word.Pos}, typ: typ}
 	} else if !p.dontLookup {
 		if v := p.identStack.findObject(name); v == nil && !p.ignoreUnknowns {
 			if pkg := p.imports[name]; pkg == nil {
@@ -1624,9 +1620,9 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 	case TOKEN_WORD:
 		left = p.wordToExpr(token)
 	case TOKEN_STR:
-		left = &BasicLit{expr{token.Offset}, token}
+		left = &BasicLit{expr{token.Pos}, token}
 	case TOKEN_INT, TOKEN_FLOAT, TOKEN_IMAG, TOKEN_TRUE, TOKEN_FALSE, TOKEN_RUNE:
-		return &BasicLit{expr{token.Offset}, token}, nil
+		return &BasicLit{expr{token.Pos}, token}, nil
 	case TOKEN_NIL:
 		return &NilExpr{}, nil
 	case TOKEN_FUNC:
@@ -1650,7 +1646,7 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 			return nil, err
 		}
 	default:
-		return nil, fmt.Errorf("Unexpected token (expected a primary expression): %s", token.Type)
+		return nil, CompileErrorf(token, "Unexpected token (expected a primary expression): %s", token.Type)
 	}
 
 loop:
@@ -1673,9 +1669,9 @@ loop:
 				if p.expect(TOKEN_RPARENTH) == nil {
 					return nil, fmt.Errorf("Expected `)`")
 				}
-				return &TypeAssertion{expr{token.Offset}, te == nil, left, te}, nil
+				return &TypeAssertion{expr{token.Pos}, te == nil, left, te}, nil
 			case TOKEN_WORD:
-				left = &DotSelector{expr{token.Offset}, left, &Ident{expr{t.Offset}, t.Value.(string), nil, false}}
+				left = &DotSelector{expr{token.Pos}, left, &Ident{expr{t.Pos}, t.Value.(string), nil, false}}
 			default:
 				return nil, fmt.Errorf("Unexpected token after `.`")
 			}
@@ -1687,7 +1683,7 @@ loop:
 			if p.expect(TOKEN_RPARENTH) == nil {
 				return nil, fmt.Errorf("Expected `)`")
 			}
-			left = &FuncCallExpr{expr{token.Offset}, left, args}
+			left = &FuncCallExpr{expr{token.Pos}, left, args}
 		case TOKEN_LBRACKET:
 			var index []Expr
 			exp, err := p.parseExpr()
@@ -1724,7 +1720,7 @@ loop:
 			if p.expect(TOKEN_RBRACKET) == nil {
 				return nil, fmt.Errorf("Expected `]`")
 			}
-			left = &ArrayExpr{expr{token.Offset}, left, index}
+			left = &ArrayExpr{expr{token.Pos}, left, index}
 		case TOKEN_LBRACE:
 			p.putBack(token)
 			literal, err := p.parseCompoundLit()
@@ -1803,7 +1799,7 @@ func (p *Parser) parseExpr() (Expr, error) {
 	reduce := func() {
 		op := opStack[len(opStack)-1]
 		reduced := &BinaryOp{
-			expr:  expr{op.Offset},
+			expr:  expr{op.Pos},
 			Left:  exprStack[len(exprStack)-2],
 			Right: exprStack[len(exprStack)-1],
 			op:    op}
@@ -2004,7 +2000,7 @@ loop:
 			genericTypes = append(genericTypes, name)
 
 			p.identStack.addObject(&GenericParamTypeDecl{
-				stmt: stmt{expr: expr{typeName.Offset}},
+				stmt: stmt{expr: expr{typeName.Pos}},
 				name: name},
 			)
 		}
@@ -2099,7 +2095,7 @@ func (p *Parser) parseFuncHeader(genericPossible bool) (*FuncDecl, error) {
 	}
 
 	return &FuncDecl{
-		expr:    expr{startTok.Offset},
+		expr:    expr{startTok.Pos},
 		name:    funcName,
 		Args:    args,
 		Results: results,
@@ -2209,7 +2205,7 @@ func (p *Parser) parseTypeDecl() (*TypeDecl, error) {
 	}
 
 	result := &TypeDecl{
-		stmt:        stmt{expr: expr{startTok.Offset}},
+		stmt:        stmt{expr: expr{startTok.Pos}},
 		name:        name.Value.(string),
 		AliasedType: realType,
 	}
@@ -2224,11 +2220,11 @@ func (p *Parser) parseBranchStmt() (*BranchStmt, error) {
 	if p.peek().Type == TOKEN_WORD {
 		word := p.nextToken()
 
-		id = &Ident{expr{word.Offset}, word.Value.(string), nil, false}
+		id = &Ident{expr{word.Pos}, word.Value.(string), nil, false}
 		// TODO: lookup ident (when label parsing is implemented)
 	}
 
-	r := &BranchStmt{stmt{expr: expr{tok.Offset}}, tok, id, nil, nil}
+	r := &BranchStmt{stmt{expr: expr{tok.Pos}}, tok, id, nil, nil}
 	p.branchTreesStack.top().Members.Add(r)
 
 	return r, nil
@@ -2244,7 +2240,7 @@ func (p *Parser) parseReturnStmt() (*ReturnStmt, error) {
 		return nil, fmt.Errorf("Return statement used outside a function")
 	}
 
-	s := &ReturnStmt{stmt: stmt{expr: expr{tok.Offset}}, Func: p.funcStack[len(p.funcStack)-1]}
+	s := &ReturnStmt{stmt: stmt{expr: expr{tok.Pos}}, Func: p.funcStack[len(p.funcStack)-1]}
 
 	switch p.peek().Type {
 	case TOKEN_INDENT, TOKEN_EOF:
@@ -2315,7 +2311,7 @@ func (p *Parser) parseSimpleStmt(labelPossible bool) (SimpleStmt, error) {
 	if labelPossible {
 		if tokens, ok := p.expectSeries(TOKEN_WORD, TOKEN_COLON); ok {
 			name := tokens[0].Value.(string)
-			return &LabelStmt{stmt: stmt{expr: expr{tokens[0].Offset}}, name: name}, nil
+			return &LabelStmt{stmt: stmt{expr: expr{tokens[0].Pos}}, name: name}, nil
 		}
 	}
 
@@ -2338,7 +2334,7 @@ func (p *Parser) parseSimpleStmt(labelPossible bool) (SimpleStmt, error) {
 			return nil, err
 		}
 
-		return &SendStmt{stmt{expr: expr{firstTok.Offset}}, lhs[0], rhs}, nil
+		return &SendStmt{stmt{expr: expr{firstTok.Pos}}, lhs[0], rhs}, nil
 	case TOKEN_PLUS_ASSIGN, TOKEN_MINUS_ASSIGN: // TODO: add other ops
 		if len(lhs) > 1 {
 			return nil, fmt.Errorf("More than one expression on the left side of assignment")
@@ -2353,7 +2349,7 @@ func (p *Parser) parseSimpleStmt(labelPossible bool) (SimpleStmt, error) {
 		if len(lhs) != len(rhs) && len(rhs) != 1 {
 			return nil, fmt.Errorf("Different number of values in assignment (%d and %d)", len(lhs), len(rhs))
 		}
-		return &AssignStmt{stmt{expr: expr{firstTok.Offset}}, lhs, rhs, firstTok}, nil
+		return &AssignStmt{stmt{expr: expr{firstTok.Pos}}, lhs, rhs, firstTok}, nil
 	}
 
 	if len(lhs) > 1 {
@@ -2367,7 +2363,7 @@ func (p *Parser) parseSimpleStmt(labelPossible bool) (SimpleStmt, error) {
 	switch p.peek().Type {
 	// TODO: parse sending to channels, increment/decrement statements, maybe short var declarations, etc
 	default:
-		return &ExprStmt{stmt{expr: expr{firstTok.Offset}}, lhs[0]}, nil
+		return &ExprStmt{stmt{expr: expr{firstTok.Pos}}, lhs[0]}, nil
 	}
 }
 
@@ -2375,7 +2371,7 @@ func (p *Parser) parseStructStmt() (Stmt, error) {
 	firstTok := p.peek()
 
 	typeDecl := &TypeDecl{
-		stmt: stmt{expr: expr{firstTok.Offset}},
+		stmt: stmt{expr: expr{firstTok.Pos}},
 	}
 
 	structDecl, err := p.parseStruct(typeDecl, true)
@@ -2402,14 +2398,14 @@ func (p *Parser) parseStructStmt() (Stmt, error) {
 
 	p.identStack.addObject(typeDecl)
 
-	return &StructStmt{stmt{expr: expr{firstTok.Offset}}, structDecl, typeDecl}, nil
+	return &StructStmt{stmt{expr: expr{firstTok.Pos}}, structDecl, typeDecl}, nil
 }
 
 func (p *Parser) parseIfaceStmt() (*IfaceStmt, error) {
 	firstTok := p.peek()
 
 	typeDecl := &TypeDecl{
-		stmt: stmt{expr: expr{firstTok.Offset}},
+		stmt: stmt{expr: expr{firstTok.Pos}},
 	}
 
 	ifaceDecl, err := p.parseInterface(true)
@@ -2423,7 +2419,7 @@ func (p *Parser) parseIfaceStmt() (*IfaceStmt, error) {
 
 	p.identStack.addObject(typeDecl)
 
-	return &IfaceStmt{stmt{expr: expr{firstTok.Offset}}, ifaceDecl}, nil
+	return &IfaceStmt{stmt{expr: expr{firstTok.Pos}}, ifaceDecl}, nil
 }
 
 func (p *Parser) parseImportStmt() (*ImportStmt, error) {
@@ -2494,7 +2490,7 @@ func (p *Parser) parseStmt() (Stmt, error) {
 				return nil, fmt.Errorf("Unexpected indent, '%s'", token.Value.(string))
 			}
 		case TOKEN_PASS:
-			return &PassStmt{stmt{expr: expr{token.Offset}}}, nil
+			return &PassStmt{stmt{expr: expr{token.Pos}}}, nil
 		case TOKEN_GOTO, TOKEN_BREAK, TOKEN_CONTINUE, TOKEN_FALLTHROUGH:
 			p.putBack(token)
 			return p.parseBranchStmt()

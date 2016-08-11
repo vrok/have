@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+	gotoken "go/token"
 )
 
 func testPkg(t *testing.T, shouldFail bool, files []struct {
@@ -274,9 +275,9 @@ type testStmt struct {
 	decls []string
 }
 
-func (t testStmt) Pos() int        { return 0 }
-func (t testStmt) Label() *Object  { return nil }
-func (t testStmt) Decls() []string { return t.decls }
+func (t testStmt) Pos() gotoken.Pos { return 0 }
+func (t testStmt) Label() *Object   { return nil }
+func (t testStmt) Decls() []string  { return t.decls }
 
 func TestStmtsSort(t *testing.T) {
 	type node struct {

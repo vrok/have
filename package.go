@@ -51,10 +51,8 @@ func newPackageWithManager(path string, manager *PkgManager) (*Package, error) {
 		return nil, err
 	}
 
-	fs := gotoken.NewFileSet()
-
 	for _, f := range files {
-		f.tfile = fs.AddFile(path, fs.Base(), f.size)
+		f.tfile = manager.fset.AddFile(f.name, manager.fset.Base(), f.size)
 	}
 
 	pkg := &Package{
@@ -63,7 +61,7 @@ func newPackageWithManager(path string, manager *PkgManager) (*Package, error) {
 		objects: make(map[string]Object),
 		manager: manager,
 		tc:      NewTypesContext(),
-		fset:    fs,
+		fset:    manager.fset,
 	}
 	for _, f := range files {
 		f.tc = pkg.tc
@@ -349,6 +347,8 @@ type PkgManager struct {
 	// Ordered version of greyNodes, used to report errors.
 	greyStack []string
 	locator   PkgLocator
+
+	fset *gotoken.FileSet
 }
 
 func NewPkgManager(locator PkgLocator) *PkgManager {
@@ -356,6 +356,7 @@ func NewPkgManager(locator PkgLocator) *PkgManager {
 		pkgs:      make(map[string]*Package),
 		greyNodes: make(map[string]bool),
 		locator:   locator,
+		fset:      gotoken.NewFileSet(),
 	}
 }
 

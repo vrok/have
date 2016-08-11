@@ -2,13 +2,25 @@ package have
 
 import "fmt"
 
+import gotoken "go/token"
+
 type CompileError struct {
-	Message, File string
-	Line, Column  int
+	Message string
+	Token   *Token
 }
 
-//func NewCompileError(t *Token Message,
+func CompileErrorf(token *Token, message string, args ...interface{}) *CompileError {
+	return &CompileError{
+		Message: fmt.Sprintf(message, args...),
+		Token:   token,
+	}
+}
 
 func (ce *CompileError) Error() string {
-	return fmt.Sprintf("%s:%d: %s", ce.File, ce.Line, ce.Message)
+	return ce.Message
+}
+
+func (ce *CompileError) PrettyString(fset *gotoken.FileSet) string {
+	position := fset.Position(ce.Token.Pos)
+	return fmt.Sprintf("%s:%d: %s", position.Filename, position.Line, ce.Message)
 }

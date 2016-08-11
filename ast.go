@@ -10,11 +10,11 @@ import (
 const Blank = "_"
 
 type Expr interface {
-	Pos() int
+	Pos() gotoken.Pos
 }
 
 type expr struct {
-	pos int
+	pos gotoken.Pos
 }
 
 type Stmt interface {
@@ -1022,7 +1022,7 @@ type TypeExpr struct {
 	typ Type
 }
 
-func (e *expr) Pos() int {
+func (e *expr) Pos() gotoken.Pos {
 	return e.pos
 }
 
@@ -1066,7 +1066,7 @@ type CompoundLit struct {
 	typ        Type
 	kind       CompoundLitKind
 	elems      []Expr
-	contentPos int
+	contentPos gotoken.Pos
 }
 
 func (cl *CompoundLit) updatePosWithType(typ Expr) {
