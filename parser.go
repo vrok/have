@@ -91,14 +91,14 @@ func (p *Parser) putBackStack(tokenStack []*Token) {
 		p.putBack(tokenStack[i])
 	}
 }
-func (p *Parser) expect(typ TokenType) *Token {
+func (p *Parser) expect(typ TokenType) (*Token, bool) {
 	token := p.nextToken()
 	if token.Type != typ {
 		// TODO: error msg here maybe?
 		p.putBack(token)
-		return nil
+		return token, false
 	}
-	return token
+	return token, true
 }
 
 // The stack is not changed when the result is false, and if it is true,
@@ -111,7 +111,7 @@ func (p *Parser) expectSeries(types ...TokenType) ([]*Token, bool) {
 
 		if t.Type != typ {
 			p.putBackStack(stack)
-			return nil, false
+			return stack, false
 		}
 	}
 	return stack, true
@@ -134,7 +134,7 @@ func (p *Parser) expectNewIndent() (*Token, error) {
 	//indent := p.expect(TOKEN_INDENT)
 	indent := p.nextToken()
 	if indent.Type != TOKEN_INDENT {
-		return nil, fmt.Errorf("New indent expected, got %#v", indent)
+		return nil, CompileErrorf(indent, "New indent expected, got %#v", indent)
 	}
 
 	prevIndent := ""
@@ -144,7 +144,7 @@ func (p *Parser) expectNewIndent() (*Token, error) {
 	newIndent := indent.Value.(string)
 
 	if !strings.HasPrefix(newIndent, prevIndent) || len(newIndent) == len(prevIndent) {
-		return nil, fmt.Errorf("Code block is not indented")
+		return nil, CompileErrorf(indent, "Code block is not indented")
 	}
 
 	p.indentStack = append(p.indentStack, newIndent)
@@ -158,7 +158,7 @@ func (p *Parser) isIndentEnd() (end bool, err error) {
 	token := p.nextToken()
 	defer p.putBack(token)
 	if token.Type != TOKEN_INDENT {
-		return false, fmt.Errorf("Indent expected")
+		return false, CompileErrorf(token, "Indent expected")
 	}
 
 	ident := token.Value.(string)
@@ -168,7 +168,7 @@ func (p *Parser) isIndentEnd() (end bool, err error) {
 	}
 	if curIdent != ident {
 		if len(ident) >= len(curIdent) {
-			return false, fmt.Errorf("Unexpected indent")
+			return false, CompileErrorf(token, "Unexpected indent")
 		}
 		return true, nil
 	}
@@ -301,14 +301,14 @@ func tokenTypesEq(a, b []TokenType) bool {
 
 // Parse an indented block of code.
 func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
-	if p.peek().Type != TOKEN_INDENT {
+	if t := p.peek(); t.Type != TOKEN_INDENT {
 		stmt, err := p.parseStmt()
 		if err != nil {
 			return nil, err
 		}
 
 		if stmt == nil {
-			return nil, fmt.Errorf("Expected a statement in a block")
+			return nil, CompileErrorf(t, "Expected a statement in a block")
 		}
 
 		result := &CodeBlock{Labels: map[string]*LabelStmt{}, Statements: []Stmt{stmt}}
@@ -413,8 +413,8 @@ func (p *Parser) parse3ClauseForStmt() (*ForStmt, error) {
 	}
 
 	// Consume first semicolon
-	if t := p.expect(TOKEN_SEMICOLON); t == nil {
-		return nil, fmt.Errorf("Expected semicolon")
+	if t, ok := p.expect(TOKEN_SEMICOLON); !ok {
+		return nil, CompileErrorf(t, "Expected semicolon")
 	}
 
 	if p.peek().Type != TOKEN_SEMICOLON {
@@ -425,8 +425,8 @@ func (p *Parser) parse3ClauseForStmt() (*ForStmt, error) {
 	}
 
 	// Consume second semicolon
-	if t := p.expect(TOKEN_SEMICOLON); t == nil {
-		return nil, fmt.Errorf("Expected semicolon")
+	if t, ok := p.expect(TOKEN_SEMICOLON); !ok {
+		return nil, CompileErrorf(t, "Expected semicolon")
 	}
 
 	if p.peek().Type != TOKEN_COLON {
@@ -437,8 +437,8 @@ func (p *Parser) parse3ClauseForStmt() (*ForStmt, error) {
 	}
 
 	// Consume the colon
-	if t := p.expect(TOKEN_COLON); t == nil {
-		return nil, fmt.Errorf("Expected `:` at the end of `for` statement")
+	if t, ok := p.expect(TOKEN_COLON); !ok {
+		return nil, CompileErrorf(t, "Expected `:` at the end of `for` statement")
 	}
 
 	result.Code, err = p.parseCodeBlock()
@@ -459,8 +459,8 @@ func (p *Parser) parseWhileLikeFor() (*ForStmt, error) {
 	}
 
 	// Consume the colon
-	if t := p.expect(TOKEN_COLON); t == nil {
-		return nil, fmt.Errorf("Expected `:` at the end of `for` statement")
+	if t, ok := p.expect(TOKEN_COLON); !ok {
+		return nil, CompileErrorf(t, "Expected `:` at the end of `for` statement")
 	}
 
 	result.Code, err = p.parseCodeBlock()
@@ -501,10 +501,10 @@ func (p *Parser) parseRangeForStmt() (*ForRangeStmt, error) {
 					p.nextToken()
 				case TOKEN_RANGE:
 				default:
-					return nil, fmt.Errorf("Unexpected token, rangle loop vars types must be inferred")
+					return nil, CompileErrorf(p.peek(), "Unexpected token, rangle loop vars types must be inferred")
 				}
 			default:
-				return nil, fmt.Errorf("Unexpected token on range loop vars list")
+				return nil, CompileErrorf(t, "Unexpected token on range loop vars list")
 			}
 		}
 	} else {
@@ -515,8 +515,8 @@ func (p *Parser) parseRangeForStmt() (*ForRangeStmt, error) {
 		return nil, err
 	}
 
-	if t := p.expect(TOKEN_RANGE); t == nil {
-		return nil, fmt.Errorf("Expected `range`")
+	if t, ok := p.expect(TOKEN_RANGE); !ok {
+		return nil, CompileErrorf(t, "Expected `range`")
 	}
 
 	result.Series, err = p.parseExpr()
@@ -525,8 +525,8 @@ func (p *Parser) parseRangeForStmt() (*ForRangeStmt, error) {
 	}
 
 	// Consume the colon
-	if t := p.expect(TOKEN_COLON); t == nil {
-		return nil, fmt.Errorf("Expected `:` at the end of `for` statement")
+	if t, ok := p.expect(TOKEN_COLON); !ok {
+		return nil, CompileErrorf(t, "Expected `:` at the end of `for` statement")
 	}
 
 	result.Code, err = p.parseCodeBlock()
@@ -538,9 +538,9 @@ func (p *Parser) parseRangeForStmt() (*ForRangeStmt, error) {
 }
 
 func (p *Parser) parseForStmt(lbl *LabelStmt) (stmt Stmt, err error) {
-	ident := p.expect(TOKEN_FOR)
-	if ident == nil {
-		return nil, fmt.Errorf("Impossible happened")
+	ident, ok := p.expect(TOKEN_FOR)
+	if !ok {
+		return nil, CompileErrorf(ident, "Impossible happened")
 	}
 
 	// We push another BranchStmtsTree so that code like below fails:
@@ -579,18 +579,18 @@ func (p *Parser) parseForStmt(lbl *LabelStmt) (stmt Stmt, err error) {
 }
 
 func (p *Parser) parseColonWithCodeBlock() (*CodeBlock, error) {
-	colon := p.expect(TOKEN_COLON)
-	if colon == nil {
-		return nil, fmt.Errorf("Expected `:` at the end of `if` condition")
+	colon, ok := p.expect(TOKEN_COLON)
+	if !ok {
+		return nil, CompileErrorf(colon, "Expected `:` at the end of `if` condition")
 	}
 
 	return p.parseCodeBlock()
 }
 
 func (p *Parser) parseIf() (*IfStmt, error) {
-	ident := p.expect(TOKEN_IF)
-	if ident == nil {
-		return nil, fmt.Errorf("Impossible happened")
+	ident, ok := p.expect(TOKEN_IF)
+	if !ok {
+		return nil, CompileErrorf(ident, "Impossible happened")
 	}
 
 	scopedVar := p.scanForSemicolon()
@@ -609,16 +609,17 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 			return nil, err
 		}
 
-		scolon := p.expect(TOKEN_SEMICOLON)
-		if scolon == nil {
-			return nil, fmt.Errorf("`;` expected")
+		scolon, ok := p.expect(TOKEN_SEMICOLON)
+		if !ok {
+			return nil, CompileErrorf(scolon, "`;` expected")
 		}
 	}
 
 	getCondAndBlock := func() (condition Expr, block *CodeBlock, err error) {
+		t := p.peek()
 		condition, err = p.parseExpr()
 		if err != nil {
-			return nil, nil, fmt.Errorf("Couldn't parse the condition expression: %s", err)
+			return nil, nil, CompileErrorf(t, "Couldn't parse the condition expression: %s", err)
 		}
 
 		block, err = p.parseColonWithCodeBlock()
@@ -687,9 +688,9 @@ loop:
 }
 
 func (p *Parser) parseSwitchStmt() (*SwitchStmt, error) {
-	ident := p.expect(TOKEN_SWITCH)
-	if ident == nil {
-		return nil, fmt.Errorf("Impossible happened")
+	ident, ok := p.expect(TOKEN_SWITCH)
+	if !ok {
+		return nil, CompileErrorf(ident, "Impossible happened")
 	}
 
 	//scopedVar := p.scanForSemicolon()
@@ -710,9 +711,9 @@ func (p *Parser) parseSwitchStmt() (*SwitchStmt, error) {
 			return nil, err
 		}
 
-		scolon := p.expect(TOKEN_SEMICOLON)
-		if scolon == nil {
-			return nil, fmt.Errorf("`;` expected")
+		scolon, ok := p.expect(TOKEN_SEMICOLON)
+		if !ok {
+			return nil, CompileErrorf(scolon, "`;` expected")
 		}
 	}
 
@@ -726,10 +727,11 @@ func (p *Parser) parseSwitchStmt() (*SwitchStmt, error) {
 		// Push and pop scope so that this variable isn't available for binding,
 		// we use its copies instead (type switches are a bit odd).
 		p.identStack.pushScope()
+		t := p.peek()
 		varStmt, err = p.parseVarStmt(true)
 		p.identStack.popScope()
 		if len(varStmt.Vars) != 1 || len(varStmt.Vars[0].Vars) != 1 {
-			return nil, fmt.Errorf("Invalid variable declaration in switch header")
+			return nil, CompileErrorf(t, "Invalid variable declaration in switch header")
 		}
 		typeSwitchVar = varStmt.Vars[0].Vars[0]
 		mainStmt = varStmt
@@ -816,13 +818,13 @@ func (p *Parser) loadBuiltinFuncs() {
 */
 
 func (p *Parser) parseFuncStmt() (Stmt, error) {
-	ident := p.expect(TOKEN_FUNC)
-	if ident == nil {
-		return nil, fmt.Errorf("Impossible happened")
+	ident, ok := p.expect(TOKEN_FUNC)
+	if !ok {
+		return nil, CompileErrorf(ident, "Impossible happened")
 	}
 
 	if p.peek().Type == TOKEN_MUL {
-		return nil, fmt.Errorf("Declared a non-method function as having a pointer receiver")
+		return nil, CompileErrorf(p.peek(), "Declared a non-method function as having a pointer receiver")
 	}
 
 	p.putBack(ident)
@@ -851,7 +853,7 @@ func (p *Parser) parseVarStmt(varKeyword bool) (*VarStmt, error) {
 	firstTok := p.nextToken()
 	if varKeyword {
 		if firstTok.Type != TOKEN_VAR {
-			return nil, fmt.Errorf("Impossible happened")
+			return nil, CompileErrorf(firstTok, "Impossible happened")
 		}
 	} else {
 		// We've just consumed part of the declaration, put it back.
@@ -885,6 +887,7 @@ groupsLoop:
 	for {
 		// Parse left side of "="
 		vars := []*Variable{}
+		t := p.peek()
 	loop:
 		for {
 			decl := &Variable{Type: unknownType}
@@ -896,7 +899,7 @@ groupsLoop:
 			case TOKEN_ASSIGN:
 				break loop
 			default:
-				return nil, fmt.Errorf("Unexpected token %s\n", token.Type)
+				return nil, CompileErrorf(token, "Unexpected token %s\n", token.Type)
 			}
 
 			vars = append(vars, decl)
@@ -921,15 +924,16 @@ groupsLoop:
 			case TOKEN_COMMA:
 			case TOKEN_ASSIGN:
 				p.putBack(token)
+				t = p.peek()
 				break loop
 			default:
-				return nil, fmt.Errorf("Unexpected token %s", token.Type)
+				return nil, CompileErrorf(token, "Unexpected token %s", token.Type)
 			}
 		}
 
 		// Right side of "="
 		if len(vars) == 0 {
-			return nil, fmt.Errorf("No vars declared on the left side of \"=\"")
+			return nil, CompileErrorf(t, "No vars declared on the left side of \"=\"")
 		}
 
 		switch t := p.nextToken(); t.Type {
@@ -947,7 +951,7 @@ groupsLoop:
 			varDecls = append(varDecls, &VarDecl{Vars: vars})
 			break groupsLoop
 		default:
-			return nil, fmt.Errorf("Unexpected token after new vars list: %s", t.Type)
+			return nil, CompileErrorf(t, "Unexpected token after new vars list: %s", t.Type)
 		}
 
 		var inits []Expr
@@ -962,14 +966,14 @@ groupsLoop:
 
 			if len(inits) == len(vars) {
 				// Cool, it really was a list of initializers in parentheses.
-				if t := p.expect(TOKEN_RPARENTH); t == nil {
-					return nil, fmt.Errorf("Expected `)`")
+				if t, ok := p.expect(TOKEN_RPARENTH); !ok {
+					return nil, CompileErrorf(t, "Expected `)`")
 				}
 			} else if len(inits) == 1 {
 				// Whoops, someone just put an expression in parentheses and we
 				// treated it like a tuple. We need to fix this.
-				if t := p.expect(TOKEN_RPARENTH); t == nil {
-					return nil, fmt.Errorf("Expected `)`")
+				if t, ok := p.expect(TOKEN_RPARENTH); !ok {
+					return nil, CompileErrorf(t, "Expected `)`")
 				}
 				if t := p.nextToken(); t.Type == TOKEN_COMMA {
 					restInits, err := p.parseArgs(0)
@@ -981,7 +985,7 @@ groupsLoop:
 					p.putBack(t)
 				}
 			} else {
-				return nil, fmt.Errorf("Couldn't parse the list of initializers")
+				return nil, CompileErrorf(t, "Couldn't parse the list of initializers")
 			}
 		} else {
 			p.putBack(t)
@@ -992,7 +996,7 @@ groupsLoop:
 		}
 
 		if len(inits) != len(vars) && len(inits) != 1 {
-			return nil, fmt.Errorf("Different number of new vars and initializers\n")
+			return nil, CompileErrorf(t, "Different number of new vars and initializers\n")
 		}
 
 		varDecls[len(varDecls)-1].Inits = inits
@@ -1006,9 +1010,9 @@ groupsLoop:
 }
 
 func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
-	startTok := p.expect(TOKEN_LBRACE)
-	if startTok == nil {
-		return nil, fmt.Errorf("Compound literal has to start with `{`")
+	startTok, ok := p.expect(TOKEN_LBRACE)
+	if !ok {
+		return nil, CompileErrorf(startTok, "Compound literal has to start with `{`")
 	}
 
 	p.skipWhiteSpace()
@@ -1040,23 +1044,23 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 			switch t := p.nextToken(); t.Type {
 			case TOKEN_COLON:
 				if kind == COMPOUND_LISTLIKE {
-					return nil, fmt.Errorf("Mixture of value and key:value expressions in a literal")
+					return nil, CompileErrorf(t, "Mixture of value and key:value expressions in a literal")
 				}
 				kind = COMPOUND_MAPLIKE
 			case TOKEN_COMMA:
 				if kind == COMPOUND_MAPLIKE {
-					return nil, fmt.Errorf("Mixture of value and key:value expressions in a literal")
+					return nil, CompileErrorf(t, "Mixture of value and key:value expressions in a literal")
 				}
 				kind = COMPOUND_LISTLIKE
 			case TOKEN_RBRACE:
 				if kind == COMPOUND_MAPLIKE {
-					return nil, fmt.Errorf("Unexpected end of a map-like compound literal")
+					return nil, CompileErrorf(t, "Unexpected end of a map-like compound literal")
 				} else if kind == COMPOUND_UNKNOWN {
 					kind = COMPOUND_LISTLIKE
 				}
 				return &CompoundLit{expr{startTok.Pos}, nil, &UnknownType{}, kind, elems, startTok.Pos}, nil
 			default:
-				return nil, fmt.Errorf("Unexpected token in a compound literal")
+				return nil, CompileErrorf(t, "Unexpected token in a compound literal")
 			}
 		} else {
 			switch t := p.nextToken(); t.Type {
@@ -1064,11 +1068,11 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 			case TOKEN_RBRACE:
 				return &CompoundLit{expr{startTok.Pos}, nil, &UnknownType{}, kind, elems, startTok.Pos}, nil
 			default:
-				return nil, fmt.Errorf("Unexpected token in a compound literal")
+				return nil, CompileErrorf(t, "Unexpected token in a compound literal")
 			}
 		}
 	}
-	return nil, fmt.Errorf("Impossible happened")
+	return nil, CompileErrorf(startTok, "Impossible happened")
 }
 
 func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl, genericPossible bool) (*StructType, error) {
@@ -1084,14 +1088,14 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl, genericPossible bool) (
 
 		tokens, ok := p.expectSeries(TOKEN_STRUCT, TOKEN_WORD)
 		if !ok {
-			return nil, fmt.Errorf("Couldn't parse struct header")
+			return nil, CompileErrorf(tokens[0], "Couldn't parse struct header")
 		}
 		name = tokens[1].Value.(string)
 
 		switch t := p.peek(); t.Type {
 		case TOKEN_LBRACKET:
 			if !genericPossible {
-				return nil, fmt.Errorf("Generic types can only be declared top-level")
+				return nil, CompileErrorf(t, "Generic types can only be declared top-level")
 			}
 			// Scope for generic params
 			p.identStack.pushScope()
@@ -1101,17 +1105,17 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl, genericPossible bool) (
 				return nil, err
 			}
 
-			if p.expect(TOKEN_COLON) == nil {
-				return nil, fmt.Errorf("Expected `:` after `]`")
+			if t, ok := p.expect(TOKEN_COLON); !ok {
+				return nil, CompileErrorf(t, "Expected `:` after `]`")
 			}
 		case TOKEN_COLON:
 			p.nextToken()
 		default:
-			return nil, fmt.Errorf("Couldn't parse struct header")
+			return nil, CompileErrorf(t, "Couldn't parse struct header")
 		}
 	} else {
-		if _, ok := p.expectSeries(TOKEN_STRUCT, TOKEN_COLON); !ok {
-			return nil, fmt.Errorf("Couldn't parse struct declaration")
+		if tokens, ok := p.expectSeries(TOKEN_STRUCT, TOKEN_COLON); !ok {
+			return nil, CompileErrorf(tokens[0], "Couldn't parse struct declaration")
 		}
 	}
 
@@ -1135,7 +1139,7 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl, genericPossible bool) (
 			result.Keys = append(result.Keys, name)
 		case TOKEN_FUNC:
 			if receiverTypeDecl == nil {
-				err = fmt.Errorf("Cannot declare methods in inline struct declarations")
+				err = CompileErrorf(token, "Cannot declare methods in inline struct declarations")
 				return nil
 			}
 
@@ -1172,7 +1176,7 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl, genericPossible bool) (
 			return nil, err
 		}
 		if token != nil {
-			return nil, fmt.Errorf("Use `pass` for empty interface")
+			return nil, CompileErrorf(token, "Use `pass` for empty interface")
 		}
 		return result, nil
 	}
@@ -1215,12 +1219,12 @@ func (p *Parser) parseInterface(named bool) (*IfaceType, error) {
 
 		tokens, ok := p.expectSeries(TOKEN_INTERFACE, TOKEN_WORD, TOKEN_COLON)
 		if !ok {
-			return nil, fmt.Errorf("Couldn't parse struct header")
+			return nil, CompileErrorf(tokens[0], "Couldn't parse struct header")
 		}
 		name = tokens[1].Value.(string)
 	} else {
-		if _, ok := p.expectSeries(TOKEN_INTERFACE, TOKEN_COLON); !ok {
-			return nil, fmt.Errorf("Couldn't parse struct declaration")
+		if tokens, ok := p.expectSeries(TOKEN_INTERFACE, TOKEN_COLON); !ok {
+			return nil, CompileErrorf(tokens[0], "Couldn't parse struct declaration")
 		}
 	}
 
@@ -1262,7 +1266,7 @@ func (p *Parser) parseInterface(named bool) (*IfaceType, error) {
 			return nil, err
 		}
 		if token != nil {
-			return nil, fmt.Errorf("Use `pass` for empty interface")
+			return nil, CompileErrorf(token, "Use `pass` for empty interface")
 		}
 		return result, nil
 	}
@@ -1304,13 +1308,13 @@ func (p *Parser) parseChanType() (*ChanType, error) {
 		p.nextToken()
 	}
 
-	if t := p.expect(TOKEN_CHAN); t == nil {
-		return nil, fmt.Errorf("Expected `chan` after `<-`")
+	if t, ok := p.expect(TOKEN_CHAN); !ok {
+		return nil, CompileErrorf(t, "Expected `chan` after `<-`")
 	}
 
 	if p.peek().Type == TOKEN_SEND {
 		if dir != CHAN_DIR_BI {
-			return nil, fmt.Errorf("Invalid channel declaration")
+			return nil, CompileErrorf(p.peek(), "Invalid channel declaration")
 		}
 
 		dir = CHAN_DIR_SEND
@@ -1376,8 +1380,8 @@ func (p *Parser) typeFromWord(name string) Type {
 }
 
 func (p *Parser) parseGenericParamTypes() ([]Type, error) {
-	if p.expect(TOKEN_LBRACKET) == nil {
-		return nil, fmt.Errorf("Expected `[`")
+	if t, ok := p.expect(TOKEN_LBRACKET); !ok {
+		return nil, CompileErrorf(t, "Expected `[`")
 	}
 
 	var result []Type
@@ -1389,12 +1393,12 @@ func (p *Parser) parseGenericParamTypes() ([]Type, error) {
 
 		result = append(result, typ)
 
-		switch p.nextToken().Type {
+		switch t := p.nextToken(); t.Type {
 		case TOKEN_COMMA:
 		case TOKEN_RBRACKET:
 			return result, nil
 		default:
-			return nil, fmt.Errorf("Unexpected token")
+			return nil, CompileErrorf(t, "Unexpected token")
 		}
 	}
 }
@@ -1418,22 +1422,24 @@ func (p *Parser) attemptTypeParse(justTry bool) (Type, error) {
 		}
 		return &PointerType{ptrTo}, nil
 	case TOKEN_MAP:
-		if p.expect(TOKEN_LBRACKET) == nil {
-			return nil, fmt.Errorf("Expected `[` after `map`")
+		if t, ok := p.expect(TOKEN_LBRACKET); !ok {
+			return nil, CompileErrorf(t, "Expected `[` after `map`")
 		}
 
+		t := p.peek()
 		by, err := p.parseType()
 		if err != nil {
-			return nil, fmt.Errorf("Failed parsing map index type: %s", err)
+			return nil, CompileErrorf(t, "Failed parsing map index type: %s", err)
 		}
 
-		if p.expect(TOKEN_RBRACKET) == nil {
-			return nil, fmt.Errorf("Expected `]` after map's index type")
+		if t, ok := p.expect(TOKEN_RBRACKET); !ok {
+			return nil, CompileErrorf(t, "Expected `]` after map's index type")
 		}
 
+		t = p.peek()
 		of, err := p.parseType()
 		if err != nil {
-			return nil, fmt.Errorf("Failed parsing map value type: %s", err)
+			return nil, CompileErrorf(t, "Failed parsing map value type: %s", err)
 		}
 
 		return &MapType{by, of}, nil
@@ -1447,15 +1453,13 @@ func (p *Parser) attemptTypeParse(justTry bool) (Type, error) {
 			}
 			return &SliceType{sliceOf}, nil
 		case TOKEN_INT:
-			if p.expect(TOKEN_RBRACKET) == nil {
-				// TODO: add location info
-				return nil, fmt.Errorf("Expected ']'")
+			if t, ok := p.expect(TOKEN_RBRACKET); !ok {
+				return nil, CompileErrorf(t, "Expected ']'")
 			}
 
 			size, err := strconv.ParseInt(next.Value.(string), 10, 64)
 			if err != nil {
-				// TODO: add location info
-				return nil, fmt.Errorf("Couldn't parse array size")
+				return nil, CompileErrorf(next, "Couldn't parse array size")
 			}
 
 			arrayOf, err := p.parseType()
@@ -1465,8 +1469,7 @@ func (p *Parser) attemptTypeParse(justTry bool) (Type, error) {
 
 			return &ArrayType{Of: arrayOf, Size: int(size)}, nil
 		default:
-			// TODO: add location info
-			return nil, fmt.Errorf("Invalid type name, expected slice or array")
+			return nil, CompileErrorf(next, "Invalid type name, expected slice or array")
 
 			// TODO:
 			// case TOKEN_THREEDOTS
@@ -1479,13 +1482,13 @@ func (p *Parser) attemptTypeParse(justTry bool) (Type, error) {
 			p.nextToken()
 			membNameTok := p.nextToken()
 			if membNameTok.Type != TOKEN_WORD {
-				return nil, fmt.Errorf("Package member name expected after `.`")
+				return nil, CompileErrorf(membNameTok, "Package member name expected after `.`")
 			}
 			membName := membNameTok.Value.(string)
 
 			pkg, ok := p.imports[name]
 			if !ok {
-				return nil, fmt.Errorf("Package `%s` not imported", name)
+				return nil, CompileErrorf(token, "Package `%s` not imported", name)
 			}
 
 			fullName := name + "." + membName
@@ -1533,8 +1536,7 @@ func (p *Parser) attemptTypeParse(justTry bool) (Type, error) {
 			p.putBack(token)
 			return nil, doesntLookLikeTypeErr
 		}
-		// TODO add location info
-		return nil, fmt.Errorf("Expected type name, got %s", token.Type)
+		return nil, CompileErrorf(token, "Expected type name, got %s", token.Type)
 	}
 }
 
@@ -1614,8 +1616,8 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 		if err != nil {
 			return nil, err
 		}
-		if p.expect(TOKEN_RPARENTH) == nil {
-			return nil, fmt.Errorf("Expected closing `)`")
+		if t, ok := p.expect(TOKEN_RPARENTH); !ok {
+			return nil, CompileErrorf(t, "Expected closing `)`")
 		}
 	case TOKEN_WORD:
 		left = p.wordToExpr(token)
@@ -1666,22 +1668,22 @@ loop:
 						return nil, err
 					}
 				}
-				if p.expect(TOKEN_RPARENTH) == nil {
-					return nil, fmt.Errorf("Expected `)`")
+				if t, ok := p.expect(TOKEN_RPARENTH); !ok {
+					return nil, CompileErrorf(t, "Expected `)`")
 				}
 				return &TypeAssertion{expr{token.Pos}, te == nil, left, te}, nil
 			case TOKEN_WORD:
 				left = &DotSelector{expr{token.Pos}, left, &Ident{expr{t.Pos}, t.Value.(string), nil, false}}
 			default:
-				return nil, fmt.Errorf("Unexpected token after `.`")
+				return nil, CompileErrorf(t, "Unexpected token after `.`")
 			}
 		case TOKEN_LPARENTH:
 			args, err := p.parseArgs(0)
 			if err != nil {
 				return nil, err
 			}
-			if p.expect(TOKEN_RPARENTH) == nil {
-				return nil, fmt.Errorf("Expected `)`")
+			if t, ok := p.expect(TOKEN_RPARENTH); !ok {
+				return nil, CompileErrorf(t, "Expected `)`")
 			}
 			left = &FuncCallExpr{expr{token.Pos}, left, args}
 		case TOKEN_LBRACKET:
@@ -1717,8 +1719,8 @@ loop:
 				index = append(index, exp)
 			}
 
-			if p.expect(TOKEN_RBRACKET) == nil {
-				return nil, fmt.Errorf("Expected `]`")
+			if t, ok := p.expect(TOKEN_RBRACKET); !ok {
+				return nil, CompileErrorf(t, "Expected `]`")
 			}
 			left = &ArrayExpr{expr{token.Pos}, left, index}
 		case TOKEN_LBRACE:
@@ -1917,7 +1919,7 @@ loop:
 			types = append(types, t)
 		}
 
-		switch p.peek().Type {
+		switch t := p.peek(); t.Type {
 		case TOKEN_RPARENTH, TOKEN_COLON, TOKEN_INDENT:
 			switch state {
 			case undecided, anon:
@@ -1930,7 +1932,7 @@ loop:
 				names = nil
 				break loop
 			case named:
-				return nil, fmt.Errorf("Last parameter needs a type")
+				return nil, CompileErrorf(t, "Last parameter needs a type")
 			}
 		case TOKEN_COMMA:
 			p.nextToken()
@@ -1938,7 +1940,7 @@ loop:
 		default:
 			switch state {
 			case anon:
-				fmt.Errorf("Invalid arguments declaration: comma missing or a typo in argument name")
+				CompileErrorf(t, "Invalid arguments declaration: comma missing or a typo in argument name")
 			case undecided:
 				state = named
 				fallthrough
@@ -1959,7 +1961,7 @@ loop:
 			case TOKEN_COMMA:
 				p.nextToken()
 			default:
-				return nil, fmt.Errorf("Unexpected token: %s", p.peek().Type)
+				return nil, CompileErrorf(p.peek(), "Unexpected token: %s", p.peek().Type)
 			}
 		}
 	}
@@ -1978,17 +1980,17 @@ func typesFromVars(vd DeclChain) []Type {
 }
 
 func (p *Parser) parseGenericParams() ([]string, error) {
-	t := p.expect(TOKEN_LBRACKET)
-	if t == nil {
-		return nil, fmt.Errorf("Expected `[`")
+	t, ok := p.expect(TOKEN_LBRACKET)
+	if !ok {
+		return nil, CompileErrorf(t, "Expected `[`")
 	}
 	genericTypes := []string{}
 
 loop:
 	for {
-		typeName := p.expect(TOKEN_WORD)
-		if typeName == nil {
-			return nil, fmt.Errorf("Expected generic type name")
+		typeName, ok := p.expect(TOKEN_WORD)
+		if !ok {
+			return nil, CompileErrorf(typeName, "Expected generic type name")
 		}
 
 		name := typeName.Value.(string)
@@ -2010,7 +2012,7 @@ loop:
 		case TOKEN_RBRACKET:
 			break loop
 		default:
-			return nil, fmt.Errorf("Unexpected token %s", t)
+			return nil, CompileErrorf(t, "Unexpected token %s", t)
 		}
 	}
 
@@ -2021,9 +2023,9 @@ loop:
 // Returns a partially complete FuncDecl, that can be later filled with
 // function's body, etc.
 func (p *Parser) parseFuncHeader(genericPossible bool) (*FuncDecl, error) {
-	startTok := p.expect(TOKEN_FUNC)
-	if startTok == nil {
-		return nil, fmt.Errorf("Function declaration needs to start with 'func' keyword")
+	startTok, ok := p.expect(TOKEN_FUNC)
+	if !ok {
+		return nil, CompileErrorf(startTok, "Function declaration needs to start with 'func' keyword")
 	}
 
 	if p.peek().Type == TOKEN_MUL {
@@ -2042,7 +2044,7 @@ func (p *Parser) parseFuncHeader(genericPossible bool) (*FuncDecl, error) {
 
 		if p.peek().Type == TOKEN_LBRACKET {
 			if !genericPossible {
-				return nil, fmt.Errorf("Unexpected generic function")
+				return nil, CompileErrorf(p.peek(), "Unexpected generic function")
 			}
 			genericTypes, err = p.parseGenericParams()
 			if err != nil {
@@ -2053,11 +2055,11 @@ func (p *Parser) parseFuncHeader(genericPossible bool) (*FuncDecl, error) {
 		// anonymous function
 		p.putBack(t)
 	default:
-		return nil, fmt.Errorf("Unexpected token after `func`: %s", t.Type)
+		return nil, CompileErrorf(t, "Unexpected token after `func`: %s", t.Type)
 	}
 
-	if t := p.expect(TOKEN_LPARENTH); t == nil {
-		return nil, fmt.Errorf("Expected `(`")
+	if t, ok := p.expect(TOKEN_LPARENTH); !ok {
+		return nil, CompileErrorf(t, "Expected `(`")
 	}
 
 	args, err := p.parseArgsDecl()
@@ -2065,8 +2067,8 @@ func (p *Parser) parseFuncHeader(genericPossible bool) (*FuncDecl, error) {
 		return nil, err
 	}
 
-	if t := p.expect(TOKEN_RPARENTH); t == nil {
-		return nil, fmt.Errorf("Expected `)`")
+	if t, ok := p.expect(TOKEN_RPARENTH); !ok {
+		return nil, CompileErrorf(t, "Expected `)`")
 	}
 
 	results := DeclChain(nil)
@@ -2079,8 +2081,8 @@ func (p *Parser) parseFuncHeader(genericPossible bool) (*FuncDecl, error) {
 			return nil, err
 		}
 
-		if p.expect(TOKEN_RPARENTH) == nil {
-			return nil, fmt.Errorf("Expected `)`")
+		if t, ok := p.expect(TOKEN_RPARENTH); !ok {
+			return nil, CompileErrorf(t, "Expected `)`")
 		}
 	} else {
 		typ, err := p.attemptTypeParse(true)
@@ -2153,8 +2155,8 @@ func (p *Parser) parseFunc(genericPossible bool) (*FuncDecl, Object, error) {
 
 // Parse function body assuming that its header has been already parsed.
 func (p *Parser) parseFuncBody(fd *FuncDecl) (*FuncDecl, error) {
-	if t := p.expect(TOKEN_COLON); t == nil {
-		return nil, fmt.Errorf("Expected `:`")
+	if t, ok := p.expect(TOKEN_COLON); !ok {
+		return nil, CompileErrorf(t, "Expected `:`")
 	}
 
 	p.identStack.pushScope()
@@ -2189,14 +2191,14 @@ func (p *Parser) parseFuncBody(fd *FuncDecl) (*FuncDecl, error) {
 }
 
 func (p *Parser) parseTypeDecl() (*TypeDecl, error) {
-	startTok := p.expect(TOKEN_TYPE)
-	if startTok == nil {
-		return nil, fmt.Errorf("Type declaration needs to start with 'type' keyword")
+	startTok, ok := p.expect(TOKEN_TYPE)
+	if !ok {
+		return nil, CompileErrorf(startTok, "Type declaration needs to start with 'type' keyword")
 	}
 
-	name := p.expect(TOKEN_WORD)
-	if name == nil {
-		return nil, fmt.Errorf("Type name expected")
+	name, ok := p.expect(TOKEN_WORD)
+	if !ok {
+		return nil, CompileErrorf(startTok, "Type name expected")
 	}
 
 	realType, err := p.parseType()
@@ -2231,13 +2233,13 @@ func (p *Parser) parseBranchStmt() (*BranchStmt, error) {
 }
 
 func (p *Parser) parseReturnStmt() (*ReturnStmt, error) {
-	tok := p.expect(TOKEN_RETURN)
-	if tok == nil {
-		return nil, fmt.Errorf("Expected `return` keyword")
+	tok, ok := p.expect(TOKEN_RETURN)
+	if !ok {
+		return nil, CompileErrorf(tok, "Expected `return` keyword")
 	}
 
 	if len(p.funcStack) == 0 {
-		return nil, fmt.Errorf("Return statement used outside a function")
+		return nil, CompileErrorf(tok, "Return statement used outside a function")
 	}
 
 	s := &ReturnStmt{stmt: stmt{expr: expr{tok.Pos}}, Func: p.funcStack[len(p.funcStack)-1]}
@@ -2283,7 +2285,8 @@ func (p *Parser) parseExprList() ([]Expr, error) {
 
 // Parse either initialization or `=` assignment. Return error for other statements.
 func (p *Parser) parseInitOrAssign() (Stmt, error) {
-	if p.peek().Type == TOKEN_VAR {
+	t := p.peek()
+	if t.Type == TOKEN_VAR {
 		return p.parseVarStmt(true)
 	}
 
@@ -2294,11 +2297,11 @@ func (p *Parser) parseInitOrAssign() (Stmt, error) {
 
 	assign, ok := s.(*AssignStmt)
 	if !ok {
-		return nil, fmt.Errorf("Expected assignment")
+		return nil, CompileErrorf(t, "Expected assignment")
 	}
 
 	if assign.Token.Type != TOKEN_ASSIGN {
-		return nil, fmt.Errorf("Only `=` assignment allowed")
+		return nil, CompileErrorf(assign.Token, "Only `=` assignment allowed")
 	}
 
 	return s, nil
@@ -2325,7 +2328,7 @@ func (p *Parser) parseSimpleStmt(labelPossible bool) (SimpleStmt, error) {
 	switch firstTok.Type {
 	case TOKEN_SEND:
 		if len(lhs) > 1 {
-			return nil, fmt.Errorf("More than one expression on the left side of the send expression")
+			return nil, CompileErrorf(firstTok, "More than one expression on the left side of the send expression")
 		}
 
 		p.nextToken()
@@ -2337,23 +2340,23 @@ func (p *Parser) parseSimpleStmt(labelPossible bool) (SimpleStmt, error) {
 		return &SendStmt{stmt{expr: expr{firstTok.Pos}}, lhs[0], rhs}, nil
 	case TOKEN_PLUS_ASSIGN, TOKEN_MINUS_ASSIGN: // TODO: add other ops
 		if len(lhs) > 1 {
-			return nil, fmt.Errorf("More than one expression on the left side of assignment")
+			return nil, CompileErrorf(firstTok, "More than one expression on the left side of assignment")
 		}
 		fallthrough
 	case TOKEN_ASSIGN:
-		p.nextToken()
+		t := p.nextToken()
 		rhs, err := p.parseExprList()
 		if err != nil {
 			return nil, err
 		}
 		if len(lhs) != len(rhs) && len(rhs) != 1 {
-			return nil, fmt.Errorf("Different number of values in assignment (%d and %d)", len(lhs), len(rhs))
+			return nil, CompileErrorf(t, "Different number of values in assignment (%d and %d)", len(lhs), len(rhs))
 		}
 		return &AssignStmt{stmt{expr: expr{firstTok.Pos}}, lhs, rhs, firstTok}, nil
 	}
 
 	if len(lhs) > 1 {
-		return nil, fmt.Errorf("Unexpected list of expressions")
+		return nil, CompileErrorf(firstTok, "Unexpected list of expressions")
 	}
 
 	if len(lhs) == 0 {
@@ -2423,14 +2426,14 @@ func (p *Parser) parseIfaceStmt() (*IfaceStmt, error) {
 }
 
 func (p *Parser) parseImportStmt() (*ImportStmt, error) {
-	t := p.expect(TOKEN_IMPORT)
-	if t == nil {
-		return nil, fmt.Errorf("Expected `import`")
+	t, ok := p.expect(TOKEN_IMPORT)
+	if !ok {
+		return nil, CompileErrorf(t, "Expected `import`")
 	}
 
-	t = p.expect(TOKEN_STR)
-	if t == nil {
-		return nil, fmt.Errorf("Expected package path")
+	t, ok = p.expect(TOKEN_STR)
+	if !ok {
+		return nil, CompileErrorf(t, "Expected package path")
 	}
 
 	path := t.Value.(string)
@@ -2440,9 +2443,9 @@ func (p *Parser) parseImportStmt() (*ImportStmt, error) {
 
 	if p.peek().Type == TOKEN_AS {
 		p.nextToken()
-		word := p.expect(TOKEN_WORD)
-		if word == nil {
-			return nil, fmt.Errorf("Expected imported package name")
+		word, ok := p.expect(TOKEN_WORD)
+		if !ok {
+			return nil, CompileErrorf(word, "Expected imported package name")
 		}
 		name = word.Value.(string)
 	}
@@ -2453,7 +2456,7 @@ func (p *Parser) parseImportStmt() (*ImportStmt, error) {
 	}
 
 	if _, ok := p.imports[name]; ok {
-		return nil, fmt.Errorf("Package named `%s` imported more than once", name)
+		return nil, CompileErrorf(t, "Package named `%s` imported more than once", name)
 	}
 
 	p.imports[name] = result
@@ -2487,7 +2490,7 @@ func (p *Parser) parseStmt() (Stmt, error) {
 			return p.parseTypeDecl()
 		case TOKEN_INDENT:
 			if token.Value.(string) != "" {
-				return nil, fmt.Errorf("Unexpected indent, '%s'", token.Value.(string))
+				return nil, CompileErrorf(token, "Unexpected indent, '%s'", token.Value.(string))
 			}
 		case TOKEN_PASS:
 			return &PassStmt{stmt{expr: expr{token.Pos}}}, nil
@@ -2518,13 +2521,13 @@ func (p *Parser) parseStmt() (Stmt, error) {
 }
 
 func (p *Parser) ParseFile(f *File) error {
-	if p.expect(TOKEN_PACKAGE) == nil {
-		return fmt.Errorf("Expected keyword `package` at the beginning of a file")
+	if t, ok := p.expect(TOKEN_PACKAGE); !ok {
+		return CompileErrorf(t, "Expected keyword `package` at the beginning of a file")
 	}
 
 	pkg := ""
-	if t := p.expect(TOKEN_WORD); t == nil {
-		return fmt.Errorf("Expected package name after the `package` keyword")
+	if t, ok := p.expect(TOKEN_WORD); !ok {
+		return CompileErrorf(t, "Expected package name after the `package` keyword")
 	} else {
 		pkg = t.Value.(string)
 	}
