@@ -1862,19 +1862,6 @@ func (p *Parser) parseArgs(max int) ([]Expr, error) {
 	}
 }
 
-func (p *Parser) typesToVars(types []Type, varsType Type) ([]*Variable, error) {
-	var result []*Variable
-	for _, t := range types {
-		switch ct := t.(type) {
-		case *CustomType:
-			result = append(result, &Variable{name: ct.Name, Type: varsType})
-		default:
-			return nil, fmt.Errorf("Invalid type name: %s", t)
-		}
-	}
-	return result, nil
-}
-
 func (p *Parser) makeUnnamedVars(types []Type) []*Variable {
 	var result []*Variable
 	for _, t := range types {
@@ -2155,7 +2142,8 @@ func (p *Parser) parseFunc(genericPossible bool) (*FuncDecl, Object, error) {
 
 // Parse function body assuming that its header has been already parsed.
 func (p *Parser) parseFuncBody(fd *FuncDecl) (*FuncDecl, error) {
-	if t, ok := p.expect(TOKEN_COLON); !ok {
+	t, ok := p.expect(TOKEN_COLON)
+	if !ok {
 		return nil, CompileErrorf(t, "Expected `:`")
 	}
 
@@ -2182,7 +2170,7 @@ func (p *Parser) parseFuncBody(fd *FuncDecl) (*FuncDecl, error) {
 	}
 
 	if p.branchTreesStack.top().CountBranchStmts() > 0 {
-		return nil, fmt.Errorf("Unmatched branch statements: %#v", p.branchTreesStack.top())
+		return nil, CompileErrorf(t, "Unmatched branch statements in block: %#v", p.branchTreesStack.top())
 	}
 
 	fd.Code = block

@@ -41,7 +41,7 @@ func TestErrors(t *testing.T) {
 			[]fakeLocatorFile{fakeLocatorFile{"a", "a.hav", `package a
 func main():
 	var x int = "aaa"
-`}}, []string{"Can't use this literal for type int"},
+`}}, []string{"a.hav:3: Can't use this literal for type int"},
 		},
 
 		{

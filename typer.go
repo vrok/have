@@ -4,8 +4,6 @@ package have
 import (
 	"fmt"
 	"strings"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 // Generic instantiation key.
@@ -224,7 +222,7 @@ func (ls *GenericStruct) NegotiateTypes(tc *TypesContext) error { return nil }
 
 func (rs *ReturnStmt) NegotiateTypes(tc *TypesContext) error {
 	if rs.Func.Results.countVars() != len(rs.Values) {
-		return fmt.Errorf("Different number of return values")
+		return ExprErrorf(rs, "Different number of return values")
 	}
 
 	i, err := 0, error(nil)
@@ -252,15 +250,15 @@ func (ls *SendStmt) NegotiateTypes(tc *TypesContext) error {
 
 	lroot := RootType(ltyp)
 	if lroot.Kind() != KIND_CHAN {
-		return fmt.Errorf("Not a chan used for sending")
+		return ExprErrorf(ls.Lhs, "Not a chan used for sending")
 	}
 
 	channel := lroot.(*ChanType)
 	if channel.Dir == CHAN_DIR_RECEIVE {
-		return fmt.Errorf("Channel is receive-only")
+		return ExprErrorf(ls.Lhs, "Channel is receive-only")
 	}
 	if !IsAssignable(channel.Of, rtyp) {
-		return fmt.Errorf("Send value has to be assignable to channel's base type")
+		return ExprErrorf(ls.Rhs, "Send value has to be assignable to channel's base type")
 	}
 
 	return nil
@@ -296,7 +294,7 @@ func NegotiateExprType(tc *TypesContext, varType *Type, value TypedExpr) error {
 		// it would be "int" and "[]int").
 		ok, guessedType := value.GuessType(tc)
 		if !ok || !guessedType.Known() {
-			return fmt.Errorf("Too little information to infer types")
+			return ExprErrorf(value, "Too little information to infer types")
 		}
 
 		typ = guessedType
@@ -320,7 +318,7 @@ func NegotiateExprType(tc *TypesContext, varType *Type, value TypedExpr) error {
 			ok, guessedType := value.GuessType(tc)
 			if ok {
 				if !IsAssignable(typ, guessedType) {
-					return fmt.Errorf("Types %s and %s are not assignable", typ, guessedType)
+					return ExprErrorf(value, "Types %s and %s are not assignable", typ, guessedType)
 				}
 				return value.ApplyType(tc, guessedType)
 			}
@@ -328,7 +326,7 @@ func NegotiateExprType(tc *TypesContext, varType *Type, value TypedExpr) error {
 		return value.ApplyType(tc, typ)
 	} else {
 		if !IsAssignable(typ, valueTyp) {
-			return fmt.Errorf("Types %s and %s are not assignable", typ, valueTyp)
+			return ExprErrorf(value, "Types %s and %s are not assignable", typ, valueTyp)
 		}
 		// Run value.ApplyType with value's own type - seems unnecessary,
 		// but ApplyType might do some extra checks as side effects.
@@ -345,7 +343,7 @@ func CheckCondition(tc *TypesContext, expr TypedExpr) error {
 	}
 
 	if !IsBoolAssignable(boolTyp) {
-		return fmt.Errorf("Error while negotiating types")
+		return ExprErrorf(expr, "Error while negotiating types")
 	}
 	return nil
 }
@@ -360,10 +358,10 @@ func negotiateScopedVar(tc *TypesContext, scopedVar Stmt) error {
 	// ok
 	case *AssignStmt:
 		if scoped.Token.Type != TOKEN_ASSIGN {
-			return fmt.Errorf("Only `=` assignment allowed in scoped declarations")
+			return CompileErrorf(scoped.Token, "Only `=` assignment allowed in scoped declarations")
 		}
 	default:
-		return fmt.Errorf("Not a var declaration or assignment")
+		return ExprErrorf(scopedVar, "Not a var declaration or assignment")
 	}
 
 	return scopedVar.(ExprToProcess).NegotiateTypes(tc)
@@ -405,18 +403,15 @@ func (ss *SwitchStmt) NegotiateTypes(tc *TypesContext) error {
 			var ok bool
 			assertion, ok = init.(*TypeAssertion)
 			if !ok {
-				return fmt.Errorf("Variable not initialized with type assertion")
+				return ExprErrorf(ss.Value, "Variable not initialized with type assertion")
 			}
 			if !assertion.ForSwitch {
-				return fmt.Errorf("Type switch should use v.(type)")
+				return ExprErrorf(ss.Value, "Type switch should use v.(type)")
 			}
 		case *ExprStmt:
 			var ok bool
 			if assertion, ok = val.Expression.(*TypeAssertion); ok {
 				typeSwitch = true
-				//typeAssert.Left.Type(tc)
-
-				// HERE, use CheckTypeAssert too
 			} else {
 				err := val.NegotiateTypes(tc)
 				if err != nil {
@@ -436,11 +431,11 @@ func (ss *SwitchStmt) NegotiateTypes(tc *TypesContext) error {
 		if len(b.Values) > 0 {
 			if typeSwitch {
 				if len(b.Values) != 1 {
-					return fmt.Errorf("More than 1 value in a branch of type switch")
+					return ExprErrorf(b.Values[0], "More than 1 value in a branch of type switch")
 				}
 				typ, isTyp := ExprToTypeName(tc, b.Values[0])
 				if !isTyp {
-					return fmt.Errorf("Not a type name in type switch")
+					return ExprErrorf(b.Values[0], "Not a type name in type switch")
 				}
 
 				if b.TypeSwitchVar != nil {
@@ -452,13 +447,13 @@ func (ss *SwitchStmt) NegotiateTypes(tc *TypesContext) error {
 				}
 			} else {
 				if ss.Value == nil && len(b.Values) > 1 {
-					return fmt.Errorf("List of values in freeform switch")
+					return ExprErrorf(b.Values[0], "List of values in freeform switch")
 				}
 
 				for _, val := range b.Values {
 					err := NegotiateExprType(tc, &valType, val.(TypedExpr))
 					if err != nil {
-						return fmt.Errorf("Error with switch clause: %s", i+1, err)
+						return ExprErrorf(b.Values[0], "Error with switch clause: %s", i+1, err)
 					}
 
 					expType, err := val.(TypedExpr).Type(tc)
@@ -466,14 +461,14 @@ func (ss *SwitchStmt) NegotiateTypes(tc *TypesContext) error {
 						return err
 					}
 					if !AreComparable(valType, expType) {
-						return fmt.Errorf("Error with switch clause, %s is not comparable to %s",
+						return ExprErrorf(b.Values[0], "Error with switch clause, %s is not comparable to %s",
 							valType, expType)
 					}
 				}
 			}
 		} else {
 			if wasDefault {
-				return fmt.Errorf("Error - more than one `default` clause")
+				return ExprErrorf(b, "Error - more than one `default` clause")
 			}
 			wasDefault = true
 		}
@@ -524,7 +519,7 @@ func (fs *ForRangeStmt) NegotiateTypes(tc *TypesContext) error {
 		var ok bool
 		ok, seriesTyp = fs.Series.(TypedExpr).GuessType(tc)
 		if !ok || !seriesTyp.Known() {
-			return fmt.Errorf("Couldn't determine the type")
+			return ExprErrorf(fs.Series, "Couldn't determine the type")
 		}
 	}
 
@@ -535,12 +530,12 @@ func (fs *ForRangeStmt) NegotiateTypes(tc *TypesContext) error {
 
 	iterType, err := iteratorType(seriesTyp)
 	if err != nil {
-		return err
+		return ExprErrorf(fs.Series, err.Error())
 	}
 
 	if fs.ScopedVars != nil {
 		if len(iterType.Members) < len(fs.ScopedVars.Vars) {
-			return fmt.Errorf("Wrong number of iterator vars, max %d", len(iterType.Members))
+			return ExprErrorf(fs.Series, "Wrong number of iterator vars, max %d", len(iterType.Members))
 		}
 
 		// All vars are new, just assign them their types.
@@ -549,11 +544,10 @@ func (fs *ForRangeStmt) NegotiateTypes(tc *TypesContext) error {
 		}
 	} else if fs.OutsideVars != nil {
 		if len(iterType.Members) < len(fs.OutsideVars) {
-			return fmt.Errorf("Wrong number of iterator vars, max %d", len(iterType.Members))
+			return ExprErrorf(fs.OutsideVars[0], "Wrong number of iterator vars, max %d", len(iterType.Members))
 		}
 
 		// TODO: Check if fs.OutsideVars are addressable
-
 		for i, v := range fs.OutsideVars {
 			if IsBlank(v.(TypedExpr)) {
 				continue
@@ -564,7 +558,7 @@ func (fs *ForRangeStmt) NegotiateTypes(tc *TypesContext) error {
 			}
 
 			if !IsAssignable(varType, iterType.Members[i]) {
-				return fmt.Errorf("Can't use %s for iteration, it's not assignable to %s",
+				return ExprErrorf(v, "Can't use %s for iteration, it's not assignable to %s",
 					varType, iterType.Members[i])
 			}
 		}
@@ -627,7 +621,7 @@ func NegotiateTupleUnpackAssign(tc *TypesContext, onlyFuncCalls bool, lhsTypes [
 			return err
 		}
 		if rhsType.Kind() != KIND_TUPLE {
-			return fmt.Errorf("Too few values on the right side (function call returns only 1 result)")
+			return ExprErrorf(rhs, "Too few values on the right side (function call returns only 1 result)")
 		}
 		tuple = rhsType.(*TupleType)
 	default:
@@ -635,7 +629,7 @@ func NegotiateTupleUnpackAssign(tc *TypesContext, onlyFuncCalls bool, lhsTypes [
 		// boolean is returned only if two variables are in the lhs expression.
 		if onlyFuncCalls {
 			// Tuples cannot be stored explicitly at the moment.
-			return fmt.Errorf("Too few values")
+			return ExprErrorf(rhs, "Too few values")
 		}
 
 		leftTyp, err := rhs.Type(tc)
@@ -649,7 +643,7 @@ func NegotiateTupleUnpackAssign(tc *TypesContext, onlyFuncCalls bool, lhsTypes [
 		}
 
 		if !ok || !leftTyp.Known() {
-			return fmt.Errorf("Couldn't determine type of the right side of the assignment")
+			return ExprErrorf(rhs, "Couldn't determine type of the right side of the assignment")
 		}
 
 		tuple = &TupleType{Members: []Type{
@@ -665,17 +659,17 @@ func NegotiateTupleUnpackAssign(tc *TypesContext, onlyFuncCalls bool, lhsTypes [
 	for i, t := range lhsTypes {
 		typ := firstKnown(*t, tuple.Members[i])
 		if typ == nil {
-			return fmt.Errorf("Too little information to infer types")
+			return ExprErrorf(rhs, "Too little information to infer types")
 		}
 
 		if !tuple.Members[i].Known() {
-			return fmt.Errorf("Unknown type in a tuple")
+			return ExprErrorf(rhs, "Unknown type in a tuple")
 		}
 
 		if (*t).Kind() == KIND_UNKNOWN {
 			*t = typ
 		} else if !IsAssignable(*t, tuple.Members[i]) {
-			return fmt.Errorf("Types %s and %s aren't assignable", *t, tuple.Members[i])
+			return ExprErrorf(rhs, "Types %s and %s aren't assignable", *t, tuple.Members[i])
 		}
 	}
 	return nil
@@ -704,7 +698,7 @@ func (as *AssignStmt) NegotiateTypes(tc *TypesContext) error {
 
 			return NegotiateTupleUnpackAssign(tc, false, types, as.Rhs[0].(TypedExpr))
 		} else {
-			return fmt.Errorf("Different number of items on the left and right hand side")
+			return ExprErrorf(as, "Different number of items on the left and right hand side")
 		}
 	}
 
@@ -830,7 +824,7 @@ func (es *ExprStmt) NegotiateTypes(tc *TypesContext) error {
 		if ok && fc.IsNullResult(tc) {
 			return nil
 		}
-		return fmt.Errorf("Couldn't infer types")
+		return ExprErrorf(es, "Couldn't infer types")
 	}
 
 	return es.Expression.(TypedExpr).ApplyType(tc, typ)
@@ -933,7 +927,7 @@ func (ex *FuncCallExpr) inferGeneric(tc *TypesContext) (*Variable, string, error
 	_, params := generic.Signature()
 	genericFn, isFn := generic.(*GenericFunc)
 	if !isFn {
-		return nil, "", fmt.Errorf("Expression is not a function")
+		return nil, "", ExprErrorf(ex.Left, "Expression is not a function")
 	}
 
 	var argTypes []Type
@@ -943,7 +937,7 @@ func (ex *FuncCallExpr) inferGeneric(tc *TypesContext) (*Variable, string, error
 
 	gnParams, err := deduceGenericParams(tc, params, argTypes, ex.Args)
 	if err != nil {
-		return nil, "", err
+		return nil, "", ExprErrorf(ex, err.Error())
 	}
 
 	obj, goName, errors := generic.Instantiate(tc, gnParams...)
@@ -953,7 +947,7 @@ func (ex *FuncCallExpr) inferGeneric(tc *TypesContext) (*Variable, string, error
 	}
 
 	if obj.ObjectType() != OBJECT_VAR {
-		return nil, "", fmt.Errorf("Result of a generic is not a value")
+		return nil, "", ExprErrorf(ex, "Result of a generic is not a value")
 	}
 
 	//t := obj.(*Variable).Type
@@ -987,7 +981,7 @@ func (ex *FuncCallExpr) Type(tc *TypesContext) (Type, error) {
 
 	if castType, isCast := ExprToTypeName(tc, ex.Left); isCast {
 		if len(ex.Args) != 1 {
-			return nil, fmt.Errorf("Type casts take only 1 argument")
+			return nil, ExprErrorf(ex, "Type casts take only 1 argument")
 		}
 		if IsConvertable(tc, ex.Args[0].(TypedExpr), castType) {
 			return castType, nil
@@ -1016,16 +1010,16 @@ func (ex *FuncCallExpr) Type(tc *TypesContext) (Type, error) {
 func (ex *FuncCallExpr) ApplyType(tc *TypesContext, typ Type) error {
 	if castType, isCast := ExprToTypeName(tc, ex.Left); isCast {
 		if len(ex.Args) != 1 {
-			return fmt.Errorf("Type conversion takes exactly one argument")
+			return ExprErrorf(ex, "Type conversion takes exactly one argument")
 		}
 		// Just try applying, ignore error - even if it fails if might still be convertible.
 		ex.Args[0].(TypedExpr).ApplyType(tc, castType)
 		if !IsConvertable(tc, ex.Args[0].(TypedExpr), castType) {
 			typ, _ := ex.Args[0].(TypedExpr).Type(tc)
-			return fmt.Errorf("Impossible conversion from %s to %s", typ, castType)
+			return ExprErrorf(ex, "Impossible conversion from %s to %s", typ, castType)
 		}
 		if !IsAssignable(typ, castType) {
-			return fmt.Errorf("Cannot assign `%s` to `%s`", castType, typ)
+			return ExprErrorf(ex, "Cannot assign `%s` to `%s`", castType, typ)
 		}
 		tc.SetType(ex, typ)
 		return nil
@@ -1035,7 +1029,7 @@ func (ex *FuncCallExpr) ApplyType(tc *TypesContext, typ Type) error {
 			return err
 		}
 		if calleeType.Kind() != KIND_FUNC {
-			return fmt.Errorf("Only functions can be called, not %s", calleeType)
+			return ExprErrorf(ex, "Only functions can be called, not %s", calleeType)
 		}
 
 		if typ.Kind() == KIND_TUPLE {
@@ -1045,13 +1039,13 @@ func (ex *FuncCallExpr) ApplyType(tc *TypesContext, typ Type) error {
 		asFunc := calleeType.(*FuncType)
 		switch {
 		case len(asFunc.Results) == 0:
-			return fmt.Errorf("Function `%s` doesn't return anything", asFunc)
+			return ExprErrorf(ex, "Function `%s` doesn't return anything", asFunc)
 		case len(asFunc.Results) == 1:
 			if !IsAssignable(asFunc.Results[0], typ) {
-				return fmt.Errorf("Can't assign `%s` to `%s`", asFunc.Results[0], typ)
+				return ExprErrorf(ex, "Can't assign `%s` to `%s`", asFunc.Results[0], typ)
 			}
 		default:
-			return fmt.Errorf("Function `%s` returns more than one result", asFunc)
+			return ExprErrorf(ex, "Function `%s` returns more than one result", asFunc)
 		}
 
 		if len(asFunc.Args) != len(ex.Args) {
@@ -1065,7 +1059,7 @@ func (ex *FuncCallExpr) ApplyType(tc *TypesContext, typ Type) error {
 
 				return NegotiateTupleUnpackAssign(tc, true, types, ex.Args[0].(TypedExpr))
 			}
-			return fmt.Errorf("Wrong number of arguments: %d instead of %d", len(ex.Args), len(asFunc.Args))
+			return ExprErrorf(ex, "Wrong number of arguments: %d instead of %d", len(ex.Args), len(asFunc.Args))
 		} else {
 			for i, arg := range asFunc.Args {
 				if err := NegotiateExprType(tc, &arg, ex.Args[i].(TypedExpr)); err != nil {
@@ -1111,7 +1105,7 @@ func (ex *FuncDecl) Type(tc *TypesContext) (Type, error) {
 }
 func (ex *FuncDecl) ApplyType(tc *TypesContext, typ Type) error {
 	if !IsAssignable(typ, ex.typ) {
-		return fmt.Errorf("Cannot assign `%s` to `%s`", ex.typ, typ)
+		return ExprErrorf(ex, "Cannot assign `%s` to `%s`", ex.typ, typ)
 	}
 	return ex.Code.CheckTypes(tc)
 }
@@ -1129,7 +1123,7 @@ func (cb *CodeBlock) CheckTypes(tc *TypesContext) error {
 		if es, ok := stmt.(*ExprStmt); ok {
 			_, ok := es.Expression.(*FuncCallExpr)
 			if !ok {
-				return fmt.Errorf("Expression evaluated but not used")
+				return ExprErrorf(es, "Expression evaluated but not used")
 			}
 		}
 	}
@@ -1139,7 +1133,7 @@ func (cb *CodeBlock) CheckTypes(tc *TypesContext) error {
 func (ex *TypeExpr) Type(tc *TypesContext) (Type, error) { return ex.typ, nil }
 func (ex *TypeExpr) ApplyType(tc *TypesContext, typ Type) error {
 	if ex.typ.String() != typ.String() {
-		return fmt.Errorf("Different types, %s and %s", ex.typ.String(), typ.String())
+		return ExprErrorf(ex, "Different types, %s and %s", ex.typ.String(), typ.String())
 	}
 	return nil
 }
@@ -1156,17 +1150,17 @@ func (ex *TypeAssertion) Type(tc *TypesContext) (Type, error) {
 }
 func (ex *TypeAssertion) ApplyType(tc *TypesContext, typ Type) error {
 	if ex.ForSwitch {
-		return fmt.Errorf("This is only allowed in switch statements")
+		return ExprErrorf(ex, "This is only allowed in switch statements")
 	}
 
 	if typ.Kind() == KIND_TUPLE {
 		tuple := typ.(*TupleType)
 		if len(tuple.Members) != 2 {
-			fmt.Errorf("Wrong number of elements on left of type assertion (max. 2)")
+			ExprErrorf(ex, "Wrong number of elements on left of type assertion (max. 2)")
 		}
 
 		if !IsBoolAssignable(tuple.Members[1]) {
-			fmt.Errorf("Second value returned from type assertion is bool, bools aren't assignable to %s", tuple.Members[1])
+			ExprErrorf(ex, "Second value returned from type assertion is bool, bools aren't assignable to %s", tuple.Members[1])
 		}
 
 		tc.SetType(ex, typ)
@@ -1174,7 +1168,7 @@ func (ex *TypeAssertion) ApplyType(tc *TypesContext, typ Type) error {
 	}
 
 	if ex.Right.typ.String() != typ.String() {
-		return fmt.Errorf("Different types: %s and %s", typ, ex.Right.typ)
+		return ExprErrorf(ex, "Different types: %s and %s", typ, ex.Right.typ)
 	}
 
 	te := ex.Left.(TypedExpr)
@@ -1211,12 +1205,12 @@ func CheckTypeAssert(tc *TypesContext, src TypedExpr, target Type) error {
 	}
 
 	if !IsInterface(srcType) {
-		return fmt.Errorf("Invalid type assertion, non-interface `%s` used as a source", srcType)
+		return ExprErrorf(src, "Invalid type assertion, non-interface `%s` used as a source", srcType)
 	}
 
 	if !IsInterface(target) {
 		if !Implements(srcType, target) {
-			return fmt.Errorf("Impossible type assertion: `%s` doesn't implement `%s`",
+			return ExprErrorf(src, "Impossible type assertion: `%s` doesn't implement `%s`",
 				target, srcType)
 		}
 	}
@@ -1228,9 +1222,13 @@ func (ex *DotSelector) typeFromPkg() (Type, error) {
 
 	member := importStmt.pkg.GetObject(ex.Right.name)
 	if member == nil {
-		return nil, fmt.Errorf("Package %s doesn't have member %s", importStmt.name, ex.Right.name)
+		return nil, ExprErrorf(ex.Right, "Package %s doesn't have member %s", importStmt.name, ex.Right.name)
 	}
-	return typeOfObject(member, importStmt.name)
+	typ, err := typeOfObject(member, importStmt.name)
+	if err != nil {
+		return typ, ExprErrorf(ex, err.Error())
+	}
+	return typ, err
 }
 
 func (ex *DotSelector) Type(tc *TypesContext) (Type, error) {
@@ -1257,7 +1255,7 @@ func (ex *DotSelector) Type(tc *TypesContext) (Type, error) {
 		if !ok {
 			method, ok := asStruct.Methods[ex.Right.name]
 			if !ok {
-				return nil, fmt.Errorf("No such member: %s", ex.Right.name)
+				return nil, ExprErrorf(ex.Right, "No such member: %s", ex.Right.name)
 			}
 
 			member, err = method.Type(tc)
@@ -1270,7 +1268,7 @@ func (ex *DotSelector) Type(tc *TypesContext) (Type, error) {
 		asIface := leftType.(*IfaceType)
 		method, ok := asIface.Methods[ex.Right.name]
 		if !ok {
-			return nil, fmt.Errorf("No such member: %s", ex.Right.name)
+			return nil, ExprErrorf(ex.Right, "No such member: %s", ex.Right.name)
 		}
 
 		return method.Type(tc)
@@ -1278,7 +1276,7 @@ func (ex *DotSelector) Type(tc *TypesContext) (Type, error) {
 		panic("todo")
 	default:
 		if leftType.Known() {
-			return nil, fmt.Errorf("Dot selector used for type %s", spew.Sdump(leftType))
+			return nil, ExprErrorf(ex.Left, "Dot selector used for type %s", leftType)
 		}
 		return &UnknownType{}, nil
 	}
@@ -1289,9 +1287,13 @@ func (ex *DotSelector) applyTypeForPkgMemb(typ Type) error {
 
 	member, ok := importStmt.pkg.objects[ex.Right.name]
 	if !ok {
-		return fmt.Errorf("Package %s doesn't have member %s", importStmt.name, ex.Right.name)
+		return ExprErrorf(ex.Right, "Package %s doesn't have member %s", importStmt.name, ex.Right.name)
 	}
-	return applyTypeToObject(member, importStmt.name, typ)
+	err := applyTypeToObject(member, importStmt.name, typ)
+	if err != nil {
+		return ExprErrorf(ex, err.Error())
+	}
+	return nil
 }
 
 func (ex *DotSelector) ApplyType(tc *TypesContext, typ Type) error {
@@ -1306,7 +1308,7 @@ func (ex *DotSelector) ApplyType(tc *TypesContext, typ Type) error {
 	}
 	if exType.String() != typ.String() {
 		t, _ := ex.Left.(TypedExpr).Type(tc)
-		return fmt.Errorf("Type %s has no member named %s", t, ex.Right.name)
+		return ExprErrorf(ex.Right, "Type %s has no member named %s", t, ex.Right.name)
 	}
 	return nil
 }
@@ -1354,7 +1356,7 @@ func (ex *ArrayExpr) Type(tc *TypesContext) (Type, error) {
 		for i, arg := range ex.Index {
 			typ, ok := ExprToTypeName(tc, arg)
 			if !ok {
-				return nil, fmt.Errorf("Generic parameter #%d is not a type", i)
+				return nil, ExprErrorf(arg, "Generic parameter #%d is not a type", i)
 			}
 			types = append(types, typ)
 		}
@@ -1365,7 +1367,7 @@ func (ex *ArrayExpr) Type(tc *TypesContext) (Type, error) {
 		}
 
 		if obj.ObjectType() != OBJECT_VAR {
-			return nil, fmt.Errorf("Result of a generic is not a value")
+			return nil, ExprErrorf(ex, "Result of a generic is not a value")
 		}
 
 		t := obj.(*Variable).Type
@@ -1380,7 +1382,7 @@ func (ex *ArrayExpr) Type(tc *TypesContext) (Type, error) {
 	}
 
 	if len(ex.Index) != 1 {
-		return nil, fmt.Errorf("Index operator takes exactly 1 argument, not %d", len(ex.Index))
+		return nil, ExprErrorf(ex, "Index operator takes exactly 1 argument, not %d", len(ex.Index))
 	}
 
 	leftType, err := ex.Left.(TypedExpr).Type(tc)
@@ -1400,7 +1402,7 @@ func (ex *ArrayExpr) Type(tc *TypesContext) (Type, error) {
 
 func (ex *ArrayExpr) applyTypeSliceExpr(tc *TypesContext, typ Type) error {
 	if len(ex.Index) != 1 {
-		return fmt.Errorf("Index operator takes exactly 1 argument, not %d", len(ex.Index))
+		return ExprErrorf(ex, "Index operator takes exactly 1 argument, not %d", len(ex.Index))
 	}
 
 	sliceExpr := ex.Index[0].(*SliceExpr)
@@ -1412,12 +1414,12 @@ func (ex *ArrayExpr) applyTypeSliceExpr(tc *TypesContext, typ Type) error {
 	ok, keyType, valueType := ex.baseTypesOfContainer(leftType)
 
 	if !ok {
-		return fmt.Errorf("Couldn't infer cotainer type")
+		return ExprErrorf(ex, "Couldn't infer cotainer type")
 	}
 
 	if !IsTypeInt(keyType) {
 		t, _ := ex.leftExprType(tc)
-		return fmt.Errorf("Type %s doesn't support slice expressions", t)
+		return ExprErrorf(ex, "Type %s doesn't support slice expressions", t)
 	}
 
 	err = firstErr(
@@ -1435,7 +1437,7 @@ func (ex *ArrayExpr) applyTypeSliceExpr(tc *TypesContext, typ Type) error {
 	resultType := &SliceType{Of: valueType}
 
 	if !IsAssignable(typ, resultType) {
-		return fmt.Errorf("Types %s and %s are not assignable", resultType, typ)
+		return ExprErrorf(ex, "Types %s and %s are not assignable", resultType, typ)
 	}
 
 	return nil
@@ -1462,7 +1464,7 @@ func (ex *ArrayExpr) ApplyType(tc *TypesContext, typ Type) error {
 		t := tc.GetType(ex)
 
 		if !IsIdentincal(t, typ) {
-			return fmt.Errorf("Array expression has type %s, not %s", t, typ)
+			return ExprErrorf(ex, "Array expression has type %s, not %s", t, typ)
 		}
 		return nil
 	}
@@ -1473,7 +1475,7 @@ func (ex *ArrayExpr) ApplyType(tc *TypesContext, typ Type) error {
 	}
 
 	if !lt.Known() {
-		return fmt.Errorf("Coudln't infer container's type")
+		return ExprErrorf(ex, "Coudln't infer container's type")
 	}
 
 	if err := ex.Left.(TypedExpr).ApplyType(tc, lt); err != nil {
@@ -1482,11 +1484,11 @@ func (ex *ArrayExpr) ApplyType(tc *TypesContext, typ Type) error {
 
 	ok, keyTyp, valueTyp := ex.baseTypesOfContainer(lt)
 	if !ok {
-		return fmt.Errorf("Coudln't infer container's type")
+		return ExprErrorf(ex, "Coudln't infer container's type")
 	}
 
 	if len(ex.Index) != 1 {
-		return fmt.Errorf("Index operator takes exactly 1 argument, not %d", len(ex.Index))
+		return ExprErrorf(ex, "Index operator takes exactly 1 argument, not %d", len(ex.Index))
 	}
 
 	if _, ok := ex.Index[0].(*SliceExpr); ok {
@@ -1503,11 +1505,11 @@ func (ex *ArrayExpr) ApplyType(tc *TypesContext, typ Type) error {
 	if typ.Kind() == KIND_TUPLE {
 		tuple := typ.(*TupleType)
 		if len(tuple.Members) != 2 || !IsBoolAssignable(tuple.Members[1]) {
-			return fmt.Errorf("Second value is bool")
+			return ExprErrorf(ex, "Second value is bool")
 		}
 
 		if RootType(lt).Kind() != KIND_MAP {
-			return fmt.Errorf("Only map index expressions can return extra bool value")
+			return ExprErrorf(ex, "Only map index expressions can return extra bool value")
 		}
 
 		// Unwrap the tuple
@@ -1515,7 +1517,7 @@ func (ex *ArrayExpr) ApplyType(tc *TypesContext, typ Type) error {
 	}
 
 	if !IsAssignable(vt, valueTyp) {
-		return fmt.Errorf("Type %s cannot be assigned to %s", valueTyp, typ)
+		return ExprErrorf(ex, "Type %s cannot be assigned to %s", valueTyp, typ)
 	}
 
 	tc.SetType(ex, typ)
@@ -1551,7 +1553,7 @@ func (ex *CompoundLit) Type(tc *TypesContext) (Type, error) {
 
 	typ, isTyp := ExprToTypeName(tc, ex.Left)
 	if !isTyp {
-		return nil, fmt.Errorf("Non-type on the left of complex literal")
+		return nil, ExprErrorf(ex, "Non-type on the left of complex literal")
 	}
 
 	ex.typ = typ
@@ -1602,7 +1604,7 @@ func (ex *CompoundLit) ApplyType(tc *TypesContext, typ Type) error {
 			apply = true
 		case COMPOUND_LISTLIKE:
 			if len(ex.elems) != len(asStruct.Members) {
-				return fmt.Errorf("Type has %d members, but literal has just %d",
+				return ExprErrorf(ex, "Type has %d members, but literal has just %d",
 					len(asStruct.Members), len(ex.elems))
 			}
 
@@ -1619,13 +1621,13 @@ func (ex *CompoundLit) ApplyType(tc *TypesContext, typ Type) error {
 
 				ident, ok := elName.(*Ident)
 				if !ok {
-					return fmt.Errorf("Expected a member name")
+					return ExprErrorf(elName, "Expected a member name")
 				}
 				ident.memberName = true
 				name := ident.name
 				memb, ok := asStruct.Members[name]
 				if !ok {
-					return fmt.Errorf("No member named %s", name)
+					return ExprErrorf(elName, "No member named %s", name)
 				}
 				if err := elType.(TypedExpr).ApplyType(tc, memb); err != nil {
 					return err
@@ -1660,7 +1662,7 @@ func (ex *CompoundLit) ApplyType(tc *TypesContext, typ Type) error {
 		ex.typ = typ
 		return nil
 	}
-	return fmt.Errorf("Can't use a compound literal to initialize type %s", typ.String())
+	return ExprErrorf(ex, "Can't use a compound literal to initialize type %s", typ.String())
 }
 
 func (ex *CompoundLit) GuessType(tc *TypesContext) (ok bool, typ Type) {
@@ -1777,7 +1779,7 @@ func (ex *BinaryOp) applyTypeForComparisonOp(tc *TypesContext, typ Type) error {
 	leftExpr, rightExpr := ex.Left.(TypedExpr), ex.Right.(TypedExpr)
 
 	if !IsBoolAssignable(typ) {
-		return fmt.Errorf("Comparison operators return bools, not %s", typ)
+		return ExprErrorf(ex, "Comparison operators return bools, not %s", typ)
 	}
 
 	t1, err := leftExpr.Type(tc)
@@ -1810,7 +1812,7 @@ func (ex *BinaryOp) applyTypeForComparisonOp(tc *TypesContext, typ Type) error {
 		err = leftExpr.ApplyType(tc, t2)
 		t1 = t2
 	case !t1.Known() && !t2.Known():
-		err = fmt.Errorf("Couldn't infer types of left and right operands")
+		err = ExprErrorf(ex, "Couldn't infer types of left and right operands")
 	}
 
 	if err != nil {
@@ -1819,11 +1821,11 @@ func (ex *BinaryOp) applyTypeForComparisonOp(tc *TypesContext, typ Type) error {
 
 	if ex.op.IsOrderOp() {
 		if !AreOrdered(t1, t2) {
-			return fmt.Errorf("Operands of types %s and %s can't be ordered", t1, t2)
+			return ExprErrorf(ex, "Operands of types %s and %s can't be ordered", t1, t2)
 		}
 	} else {
 		if !AreComparable(t1, t2) {
-			return fmt.Errorf("Types %s and %s aren't comparable", t1, t2)
+			return ExprErrorf(ex, "Types %s and %s aren't comparable", t1, t2)
 		}
 	}
 
@@ -1841,7 +1843,7 @@ func (ex *BinaryOp) ApplyType(tc *TypesContext, typ Type) error {
 
 	if ex.op.IsLogicalOp() {
 		if !IsBoolAssignable(typ) {
-			return fmt.Errorf("Logical operators return bools, not %s", typ)
+			return ExprErrorf(ex, "Logical operators return bools, not %s", typ)
 		}
 	}
 
@@ -1922,7 +1924,7 @@ func (ex *UnaryOp) ApplyType(tc *TypesContext, typ Type) error {
 	case TOKEN_AMP:
 		typ = UnderlyingType(typ)
 		if typ.Kind() != KIND_POINTER {
-			return fmt.Errorf("Not a pointer type")
+			return ExprErrorf(ex, "Not a pointer type")
 		}
 		to := typ.(*PointerType).To
 		return right.ApplyType(tc, to)
@@ -1933,20 +1935,20 @@ func (ex *UnaryOp) ApplyType(tc *TypesContext, typ Type) error {
 		}
 		rootTyp := RootType(rightType)
 		if rootTyp.Kind() != KIND_CHAN {
-			return fmt.Errorf("Type %s is not a channel", rightType)
+			return ExprErrorf(ex, "Type %s is not a channel", rightType)
 		}
 		if rootTyp.(*ChanType).Dir == CHAN_DIR_SEND {
-			return fmt.Errorf("Type %s is a send-only channel", rightType)
+			return ExprErrorf(ex, "Type %s is a send-only channel", rightType)
 		}
 
 		if typ.Kind() == KIND_TUPLE {
 			tuple := typ.(*TupleType)
 			if len(tuple.Members) != 2 {
-				fmt.Errorf("Wrong number of elements on channel receive (max. 2)")
+				ExprErrorf(ex, "Wrong number of elements on channel receive (max. 2)")
 			}
 
 			if !IsBoolAssignable(tuple.Members[1]) {
-				fmt.Errorf("Second value returned from chan receive is bool, and bools aren't assignable to %s", tuple.Members[1])
+				ExprErrorf(ex, "Second value returned from chan receive is bool, and bools aren't assignable to %s", tuple.Members[1])
 			}
 
 			tc.SetType(ex, typ)
@@ -1954,7 +1956,7 @@ func (ex *UnaryOp) ApplyType(tc *TypesContext, typ Type) error {
 		}
 
 		if !IsAssignable(rootTyp.(*ChanType).Of, typ) {
-			return fmt.Errorf("Types %s and %s are not assignable", rootTyp.(*ChanType).Of, typ)
+			return ExprErrorf(ex, "Types %s and %s are not assignable", rootTyp.(*ChanType).Of, typ)
 		}
 		return nil
 	default:
@@ -2019,11 +2021,19 @@ func applyTypeToObject(obj Object, name string, typ Type) error {
 }
 
 func (ex *Ident) Type(tc *TypesContext) (Type, error) {
-	return typeOfObject(ex.object, ex.name)
+	typ, err := typeOfObject(ex.object, ex.name)
+	if err != nil {
+		return typ, ExprErrorf(ex, err.Error())
+	}
+	return typ, nil
 }
 
 func (ex *Ident) ApplyType(tc *TypesContext, typ Type) error {
-	return applyTypeToObject(ex.object, ex.name, typ)
+	err := applyTypeToObject(ex.object, ex.name, typ)
+	if err != nil {
+		return ExprErrorf(ex, err.Error())
+	}
+	return nil
 }
 
 func (ex *Ident) GuessType(tc *TypesContext) (ok bool, typ Type) {
@@ -2040,7 +2050,7 @@ func (ex *NilExpr) ApplyType(tc *TypesContext, typ Type) error {
 		tc.SetType(ex, typ)
 		return nil
 	}
-	return fmt.Errorf("Type %s can't be set to nil", typ)
+	return ExprErrorf(ex, "Type %s can't be set to nil", typ)
 }
 
 func (ex *NilExpr) GuessType(tc *TypesContext) (ok bool, typ Type) {
@@ -2055,7 +2065,7 @@ func (ex *BasicLit) ApplyType(tc *TypesContext, typ Type) error {
 	actualType := RootType(typ)
 
 	if actualType.Kind() != KIND_SIMPLE {
-		return fmt.Errorf("Can't use this literal for type %s", typ)
+		return ExprErrorf(ex, "Can't use this literal for type %s", typ)
 	}
 
 	switch {
@@ -2076,7 +2086,7 @@ func (ex *BasicLit) ApplyType(tc *TypesContext, typ Type) error {
 		tc.SetType(ex, typ)
 		return nil
 	}
-	return fmt.Errorf("Can't use this literal for type %s", typ)
+	return ExprErrorf(ex, "Can't use this literal for type %s", typ)
 }
 
 func (ex *BasicLit) GuessType(tc *TypesContext) (ok bool, typ Type) {
