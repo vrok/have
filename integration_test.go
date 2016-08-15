@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -29,6 +30,8 @@ func TestGenerate(t *testing.T) {
 		if err != nil {
 			panic(err)
 		}
+
+		os.MkdirAll("tmp", 0744)
 
 		model, sample := fmt.Sprintf("samples/%s.go", c), fmt.Sprintf("tmp/case_%d.go", i)
 
