@@ -679,8 +679,6 @@ loop:
 		}
 	}
 
-	// TODO: else, elsif statements
-
 	return &IfStmt{
 		stmt{expr: expr{ident.Pos}},
 		branches,
@@ -693,7 +691,6 @@ func (p *Parser) parseSwitchStmt() (*SwitchStmt, error) {
 		return nil, CompileErrorf(ident, "Impossible happened")
 	}
 
-	//scopedVar := p.scanForSemicolon()
 	scopedVar := p.scanForToken(TOKEN_SEMICOLON, []TokenType{TOKEN_CASE, TOKEN_DEFAULT})
 
 	var (
@@ -2452,6 +2449,99 @@ func (p *Parser) parseImportStmt() (*ImportStmt, error) {
 	return result, nil
 }
 
+func (p *Parser) parseWhenStmt() (*WhenStmt, error) {
+	t, ok := p.expect(TOKEN_WHEN)
+	if !ok {
+		return nil, CompileErrorf(t, "Expected `when`")
+	}
+
+	var args []string
+
+	for {
+		t, ok := p.expect(TOKEN_WORD)
+		if !ok {
+			return nil, CompileErrorf(t, "Expected generic type name")
+		}
+
+		args = append(args, t.Value.(string))
+		if p.peek().Type != TOKEN_COMMA {
+			break
+		}
+		p.nextToken()
+	}
+
+	result := &WhenStmt{Args: args}
+
+	var parseOneBranch = func() (*WhenBranch, error) {
+		branch := &WhenBranch{}
+		var lastKindToken *Token
+
+	inLoop:
+		for {
+			switch t := p.peek(); t.Type {
+			case TOKEN_IS, TOKEN_IMPLEMENTS:
+				lastKindToken = t
+				p.nextToken()
+				continue inLoop
+			}
+
+			typ, err := p.parseType()
+			if err != nil {
+				return nil, err
+			}
+
+			branch.Predicates = append(branch.Predicates, &WhenPredicate{
+				Kind:   TokenToWhenPred(lastKindToken),
+				Target: typ,
+			})
+
+			switch p.peek().Type {
+			case TOKEN_COMMA:
+				p.nextToken()
+			case TOKEN_COLON:
+				break inLoop
+			default:
+				return nil, CompileErrorf(p.peek(), "Unexpected token %s", p.peek().Type)
+			}
+		}
+
+		var err error
+		branch.Code, err = p.parseColonWithCodeBlock()
+		if err != nil {
+			return nil, err
+		}
+		return branch, nil
+	}
+
+	switch t := p.peek(); t.Type {
+	case TOKEN_IS, TOKEN_IMPLEMENTS:
+		// In-line single-branch notation
+
+		branch, err := parseOneBranch()
+		if err != nil {
+			return nil, err
+		}
+		result.Branches = []*WhenBranch{branch}
+		return result, nil
+	}
+
+	for {
+		isBranch, t := p.checkForBranch(TOKEN_IS, TOKEN_IMPLEMENTS)
+		if !isBranch {
+			break
+		}
+		p.putBack(t)
+
+		branch, err := parseOneBranch()
+		if err != nil {
+			return nil, err
+		}
+		result.Branches = append(result.Branches, branch)
+	}
+
+	return result, nil
+}
+
 func (p *Parser) parseStmt() (Stmt, error) {
 	lbl := p.prevLbl
 	p.prevLbl = nil
@@ -2499,6 +2589,9 @@ func (p *Parser) parseStmt() (Stmt, error) {
 		case TOKEN_IMPORT:
 			p.putBack(token)
 			return p.parseImportStmt()
+		case TOKEN_WHEN:
+			p.putBack(token)
+			return p.parseWhenStmt()
 		default:
 			p.putBack(token)
 			stmt, err := p.parseSimpleStmt(true)

@@ -845,6 +845,44 @@ func TestParseGenericStruct(t *testing.T) {
 	validityTest(t, cases)
 }
 
+func TestParseWhenStmt(t *testing.T) {
+	cases := []validityTestCase{
+		{`
+func Bla[X]():
+	when X
+	is int:
+		pass
+`, true},
+		{`
+func Bla[X]():
+	when X is int:
+		pass
+	pass
+`, true},
+		{`
+func Bla[X, Y, Z]():
+	when Z, Y, X
+	is int, string, implements interface: pass:
+		pass
+`, true},
+		{`
+func Bla[X, Y, Z]():
+	when Z, Y, X
+	is int, string, implements interface: pass:
+		pass
+	implements interface: pass, interface: pass, is string:
+		pass
+`, true},
+		{`
+func Bla[X, Y, Z]():
+	when Z, Y, X
+	is int, string, implements:
+		pass
+`, false},
+	}
+	validityTest(t, cases)
+}
+
 func TestVarDecl(t *testing.T) {
 	var cases = []struct {
 		code     string

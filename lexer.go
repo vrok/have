@@ -107,6 +107,9 @@ const (
 	TOKEN_NIL                    // the "nil" keyword
 	TOKEN_CHAN                   // the "chan" keyword
 	TOKEN_RANGE                  // the "range" keyword
+	TOKEN_WHEN                   // the "when" keyword
+	TOKEN_IMPLEMENTS             // the "implements" keyword
+	TOKEN_IS                     // the "is" keyword
 	TOKEN_MUL                    // *
 	TOKEN_DIV                    // /
 	TOKEN_MUL_ASSIGN             // *=
@@ -405,6 +408,12 @@ func (l *Lexer) Next() *Token {
 			return l.retNewToken(TOKEN_CHAN, nil)
 		case "range":
 			return l.retNewToken(TOKEN_RANGE, nil)
+		case "when":
+			return l.retNewToken(TOKEN_WHEN, nil)
+		case "implements":
+			return l.retNewToken(TOKEN_IMPLEMENTS, nil)
+		case "is":
+			return l.retNewToken(TOKEN_IS, nil)
 		default:
 			return l.retNewToken(TOKEN_WORD, s)
 		}

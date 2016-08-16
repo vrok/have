@@ -138,6 +138,40 @@ type ImportStmt struct {
 func (i *ImportStmt) Name() string           { return i.name }
 func (i *ImportStmt) ObjectType() ObjectType { return OBJECT_PACKAGE }
 
+type WhenStmt struct {
+	stmt
+	Args     []string
+	Branches []*WhenBranch
+}
+
+type WhenBranch struct {
+	Predicates []*WhenPredicate
+	Code       *CodeBlock
+}
+
+type WhenPredicateKind int
+
+const (
+	WHEN_KIND_IS = WhenPredicateKind(iota + 1)
+	WHEN_KIND_IMPLEMENTS
+)
+
+type WhenPredicate struct {
+	Kind   WhenPredicateKind
+	Target Type
+}
+
+func TokenToWhenPred(t *Token) WhenPredicateKind {
+	switch t.Type {
+	case TOKEN_IS:
+		return WHEN_KIND_IS
+	case TOKEN_IMPLEMENTS:
+		return WHEN_KIND_IMPLEMENTS
+	default:
+		panic("Wrong token")
+	}
+}
+
 // Implements Object and Stmt
 type TypeDecl struct {
 	stmt
