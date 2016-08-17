@@ -2479,6 +2479,12 @@ func (p *Parser) parseWhenStmt() (*WhenStmt, error) {
 	inLoop:
 		for {
 			switch t := p.peek(); t.Type {
+			case TOKEN_DEFAULT:
+				p.nextToken()
+				branch.Predicates = []*WhenPredicate{&WhenPredicate{
+					Kind: TokenToWhenPred(t),
+				}}
+				break inLoop
 			case TOKEN_IS, TOKEN_IMPLEMENTS:
 				lastKindToken = t
 				p.nextToken()
@@ -2514,9 +2520,8 @@ func (p *Parser) parseWhenStmt() (*WhenStmt, error) {
 	}
 
 	switch t := p.peek(); t.Type {
-	case TOKEN_IS, TOKEN_IMPLEMENTS:
+	case TOKEN_IS, TOKEN_IMPLEMENTS, TOKEN_DEFAULT:
 		// In-line single-branch notation
-
 		branch, err := parseOneBranch()
 		if err != nil {
 			return nil, err
@@ -2526,7 +2531,7 @@ func (p *Parser) parseWhenStmt() (*WhenStmt, error) {
 	}
 
 	for {
-		isBranch, t := p.checkForBranch(TOKEN_IS, TOKEN_IMPLEMENTS)
+		isBranch, t := p.checkForBranch(TOKEN_IS, TOKEN_IMPLEMENTS, TOKEN_DEFAULT)
 		if !isBranch {
 			break
 		}
@@ -2537,6 +2542,11 @@ func (p *Parser) parseWhenStmt() (*WhenStmt, error) {
 			return nil, err
 		}
 		result.Branches = append(result.Branches, branch)
+
+		if t.Type == TOKEN_DEFAULT {
+			// Default has to be the last branch.
+			break
+		}
 	}
 
 	return result, nil

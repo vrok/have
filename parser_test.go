@@ -860,6 +860,24 @@ func Bla[X]():
 	pass
 `, true},
 		{`
+func Bla[X]():
+	when X
+	is int:
+		pass
+	default:
+		pass
+	pass
+`, true},
+		{`
+func Bla[X]():
+	when X
+	default:
+		pass
+	is int: # 'default' has to be the last branch
+		pass
+	pass
+`, false},
+		{`
 func Bla[X, Y, Z]():
 	when Z, Y, X
 	is int, string, implements interface: pass:

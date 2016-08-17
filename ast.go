@@ -154,6 +154,7 @@ type WhenPredicateKind int
 const (
 	WHEN_KIND_IS = WhenPredicateKind(iota + 1)
 	WHEN_KIND_IMPLEMENTS
+	WHEN_KIND_DEFAULT
 )
 
 type WhenPredicate struct {
@@ -167,6 +168,8 @@ func TokenToWhenPred(t *Token) WhenPredicateKind {
 		return WHEN_KIND_IS
 	case TOKEN_IMPLEMENTS:
 		return WHEN_KIND_IMPLEMENTS
+	case TOKEN_DEFAULT:
+		return WHEN_KIND_DEFAULT
 	default:
 		panic("Wrong token")
 	}
