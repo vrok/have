@@ -220,6 +220,36 @@ func (ls *GenericFunc) NegotiateTypes(tc *TypesContext) error { return nil }
 
 func (ls *GenericStruct) NegotiateTypes(tc *TypesContext) error { return nil }
 
+func (ws *WhenStmt) NegotiateTypes(tc *TypesContext) error {
+	for _, branch := range ws.Branches {
+		fail := false
+	loop:
+		for i, pred := range branch.Predicates {
+			switch pred.Kind {
+			case WHEN_KIND_IS:
+				if !IsIdentincal(pred.Target, ws.Args[i]) {
+					fail = true
+					break loop
+				}
+			case WHEN_KIND_IMPLEMENTS:
+				_, ok := RootType(pred.Target).(*IfaceType)
+				if !ok {
+					return ExprErrorf(branch, "Not an interface: %s", pred.Target)
+				}
+
+				if !Implements(pred.Target, ws.Args[i]) {
+					fail = true
+					break loop
+				}
+			case WHEN_KIND_DEFAULT:
+			}
+		}
+
+		branch.True = !fail
+	}
+	return nil
+}
+
 func (rs *ReturnStmt) NegotiateTypes(tc *TypesContext) error {
 	if rs.Func.Results.countVars() != len(rs.Values) {
 		return ExprErrorf(rs, "Different number of return values")

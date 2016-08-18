@@ -423,6 +423,11 @@ func (r *Instantiation) ParseAndCheck() []error {
 	// concrete types.
 	_, paramsList := r.Generic.Signature()
 	genericParams := make(map[string]Type, len(paramsList))
+	if len(paramsList) != len(r.Params) {
+		// TODO: Add location info to the error
+		return []error{fmt.Errorf("Wrong number of generic args to %s: %d, not %d",
+			len(r.Params), len(paramsList))}
+	}
 	for i := 0; i < len(paramsList); i++ {
 		name, val := paramsList[i], r.Params[i]
 		genericParams[name] = val

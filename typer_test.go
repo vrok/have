@@ -2092,6 +2092,74 @@ var placeholder int = 0`,
 	})
 }
 
+func TestTypesWhenStmt(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+func f[T]():
+	when int
+	is int:
+		pass
+f[int]()
+var placeholder int = 0`,
+			true,
+			"int",
+		},
+		{`
+func f[T]():
+	when int
+	implements int: # Error: not an interface: int
+		pass
+f[int]()
+var placeholder int = 0`,
+			false,
+			"",
+		},
+		{`
+func f[T]():
+	when T
+	implements interface: pass:
+		pass
+f[int]()
+var placeholder int = 0`,
+			true,
+			"int",
+		},
+		{`
+func f[T, K]():
+	when K, T, int
+	implements interface: pass, is string, float32:
+		pass
+f[int, string]()
+var placeholder int = 0`,
+			true,
+			"int",
+		},
+	})
+}
+
+func TestFailing(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`
+func f[T]():
+	pass
+	
+f[int]()
+var placeholder int = 0`,
+			true,
+			"int",
+		},
+		{`
+func f[T]():
+	pass
+		
+f[int]()
+var placeholder int = 0`,
+			true,
+			"int",
+		},
+	})
+}
+
 /*
 func TestTypesLateIdentLookup(t *testing.T) {
 	testVarTypes(t, []typeTestCase{

@@ -140,13 +140,15 @@ func (i *ImportStmt) ObjectType() ObjectType { return OBJECT_PACKAGE }
 
 type WhenStmt struct {
 	stmt
-	Args     []string
+	Args     []Type
 	Branches []*WhenBranch
 }
 
 type WhenBranch struct {
+	stmt
 	Predicates []*WhenPredicate
 	Code       *CodeBlock
+	True       bool
 }
 
 type WhenPredicateKind int

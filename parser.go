@@ -2455,15 +2455,15 @@ func (p *Parser) parseWhenStmt() (*WhenStmt, error) {
 		return nil, CompileErrorf(t, "Expected `when`")
 	}
 
-	var args []string
+	var args []Type
 
 	for {
-		t, ok := p.expect(TOKEN_WORD)
-		if !ok {
-			return nil, CompileErrorf(t, "Expected generic type name")
+		typ, err := p.parseType()
+		if err != nil {
+			return nil, err
 		}
 
-		args = append(args, t.Value.(string))
+		args = append(args, typ)
 		if p.peek().Type != TOKEN_COMMA {
 			break
 		}
@@ -2473,7 +2473,7 @@ func (p *Parser) parseWhenStmt() (*WhenStmt, error) {
 	result := &WhenStmt{Args: args}
 
 	var parseOneBranch = func() (*WhenBranch, error) {
-		branch := &WhenBranch{}
+		branch := &WhenBranch{stmt: stmt{expr: expr{p.peek().Pos}}}
 		var lastKindToken *Token
 
 	inLoop:
