@@ -326,7 +326,7 @@ func (l *Lexer) Slice(start, end *Token) []rune {
 func (l *Lexer) Next() *Token {
 	l.curTokenPos = l.skipped
 
-	if l.isEnd() || l.buf[0] != '\n' {
+	if !l.isEnd() && l.buf[0] != '\n' {
 		if l.tokenIndent != nil {
 			t := l.tokenIndent
 			l.tokenIndent = nil

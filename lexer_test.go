@@ -56,7 +56,6 @@ func TestIndents(t *testing.T) {
 		// no matter how many whitespace chars they have. Lexer
 		// simply jumps over them (hence ENDSCOPE is generated
 		// from EOF, not BR in this case).
-		&Token{TOKEN_INDENT, 34, "", 0},
 		&Token{TOKEN_EOF, 35, nil, 0},
 	})
 }

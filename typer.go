@@ -246,6 +246,10 @@ func (ws *WhenStmt) NegotiateTypes(tc *TypesContext) error {
 		}
 
 		branch.True = !fail
+
+		if branch.True {
+			return branch.Code.CheckTypes(tc)
+		}
 	}
 	return nil
 }

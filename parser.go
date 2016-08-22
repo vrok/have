@@ -344,6 +344,11 @@ func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
 			return nil, err
 		}
 
+		if stmt == nil {
+			// EOF right after indent
+			break
+		}
+
 		if lbl, ok := stmt.(*LabelStmt); ok {
 			if err := result.AddLabel(lbl); err != nil {
 				return nil, err

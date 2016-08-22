@@ -2125,6 +2125,26 @@ var placeholder int = 0`,
 			"int",
 		},
 		{`
+func f[T]():
+	when T
+	is int:
+		var x int = "test" # Fail, "test" can't be int
+f[int]()
+var placeholder int = 0`,
+			false,
+			"",
+		},
+		{`
+func f[T]():
+	when T
+	is int:
+		var x int = "test" # "test" can't be int, but this branch isn't typechecked
+f[string]()
+var placeholder int = 0`,
+			true,
+			"int",
+		},
+		{`
 func f[T, K]():
 	when K, T, int
 	implements interface: pass, is string, float32:
@@ -2137,8 +2157,18 @@ var placeholder int = 0`,
 	})
 }
 
-func TestFailing(t *testing.T) {
+func TestTypesAndWeirdIndents(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
+		{`
+func f[T]():
+	pass
+	
+	pass
+f[int]()
+var placeholder int = 0`,
+			true,
+			"int",
+		},
 		{`
 func f[T]():
 	pass
@@ -2155,6 +2185,26 @@ func f[T]():
 f[int]()
 var placeholder int = 0`,
 			true,
+			"int",
+		},
+		{`
+func f[T]():
+	pass
+
+	pass
+f[int]()
+var placeholder int = 0`,
+			true,
+			"int",
+		},
+		{`
+func f[T]():
+	pass
+
+		pass
+f[int]()
+var placeholder int = 0`,
+			false,
 			"int",
 		},
 	})
