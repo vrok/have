@@ -705,4 +705,13 @@ func (gs *GenericStruct) Generate(tc *TypesContext, current *CodeChunk) {
 	}
 }
 
+func (ws *WhenStmt) Generate(tc *TypesContext, current *CodeChunk) {
+	for _, branch := range ws.Branches {
+		if branch.True {
+			current.AddChprintf(tc, "{\n%C%C}\n", branch.Code, ForcedIndent)
+			return
+		}
+	}
+}
+
 // TODO: Now just write Generables for all statements/expressions and we're done...

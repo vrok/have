@@ -493,6 +493,53 @@ func a():
 	testCases(t, cases)
 }
 
+func TestGenerateWhenStmt(t *testing.T) {
+	cases := []generatorTestCase{
+		{source: `
+func a():
+	when int
+	is int:
+		pass
+`,
+			reference: `
+func a() {
+	{
+		// pass
+	}
+}
+`},
+		{source: `
+func a[T](x T):
+	when T
+	is string:
+		print("string")
+	is int:
+		print("int")
+a(1)
+a("bla")
+`,
+			reference: `
+// Generic instantiation
+func a_int(x int) {
+	{
+		print("int")
+	}
+}
+
+// Generic instantiation
+func a_string(x string) {
+	{
+		print("string")
+	}
+}
+
+a_int(1)
+a_string("bla")
+`},
+	}
+	testCases(t, cases)
+}
+
 func TestGenerateRangeFor(t *testing.T) {
 	cases := []generatorTestCase{
 		{source: `
