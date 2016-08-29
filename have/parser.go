@@ -59,9 +59,6 @@ func (p *Parser) peek() *Token {
 
 func NewParser(lex *Lexer) *Parser {
 	parser := NewParserWithoutBuiltins(lex)
-	//parser.loadBuiltinFuncs()
-	// Push a scope so that builtins are stored in a separate scope.
-	parser.identStack.pushScope()
 	return parser
 }
 
@@ -831,20 +828,26 @@ func (p *Parser) parseFuncStmt() (Stmt, error) {
 
 	p.putBack(ident)
 
+	// For generic types
+	p.identStack.pushScope()
+
 	fun, obj, err := p.parseFunc(true)
 	if err != nil {
+		p.identStack.popScope()
 		return nil, err
 	}
 
 	if len(fun.GenericParams) > 0 {
 		// TODO: this is ugly
+		p.identStack.popScope()
+		p.identStack.addObject(obj)
 		return obj.(*GenericFunc), nil
 	}
 
 	funcVar := obj.(*Variable)
 	decl := &VarDecl{Vars: []*Variable{funcVar}, Inits: []Expr{fun}}
 
-	// TODO: mark as final/not changeable
+	p.identStack.popScope()
 	p.identStack.addObject(funcVar)
 	return &VarStmt{stmt{expr: expr{ident.Pos}}, []*VarDecl{decl}, true}, nil
 }
@@ -2638,7 +2641,7 @@ func (p *Parser) ParseFile(f *File) error {
 }
 
 func (p *Parser) reapNewDecls() error {
-	objs := (*p.identStack)[1]
+	objs := (*p.identStack)[0]
 
 	for name, obj := range objs {
 		if _, ok := p.topLevelDecls[name]; ok {
@@ -2646,7 +2649,7 @@ func (p *Parser) reapNewDecls() error {
 		}
 		p.topLevelDecls[name] = obj
 	}
-	p.identStack.eraseAllExceptBuiltins()
+	p.identStack.erase()
 	p.identStack.pushScope()
 	return nil
 }

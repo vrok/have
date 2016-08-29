@@ -7,8 +7,8 @@ package have
 // variables, types), which later helps the type checker.
 type IdentStack []map[string]Object
 
-func (is *IdentStack) eraseAllExceptBuiltins() {
-	*is = (*is)[:1]
+func (is *IdentStack) erase() {
+	*is = IdentStack{}
 }
 
 func (is *IdentStack) pushScope() {
