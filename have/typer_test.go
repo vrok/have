@@ -255,6 +255,23 @@ var a int = f("las", b)`,
 			false,
 			"",
 		},
+		{`
+func g(aa string, bb int) int:
+	return 1
+func f(fun func(aa string, bb int) int) int:
+	return fun("a", 3)
+var a int = f(g)`,
+			true,
+			"int",
+		},
+		{`
+func f(x string):
+	pass
+f(1)
+var a = 1`,
+			false,
+			"",
+		},
 		{`func f() int:
 	if true:
 		var y = 2

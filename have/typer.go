@@ -1023,6 +1023,29 @@ func (ex *FuncCallExpr) getCalleeType(tc *TypesContext) (Type, error) {
 	return calleeType, nil
 }
 
+func (ex *FuncCallExpr) checkArgs(tc *TypesContext, asFunc *FuncType) error {
+	if len(asFunc.Args) != len(ex.Args) {
+		if len(ex.Args) == 1 {
+			types := make([]*Type, len(asFunc.Args))
+			for i, v := range asFunc.Args {
+				//typ := v.(TypedExpr).Type(tc)
+				v := v
+				types[i] = &v
+			}
+
+			return NegotiateTupleUnpackAssign(tc, true, types, ex.Args[0].(TypedExpr))
+		}
+		return ExprErrorf(ex, "Wrong number of arguments: %d instead of %d", len(ex.Args), len(asFunc.Args))
+	} else {
+		for i, arg := range asFunc.Args {
+			if err := NegotiateExprType(tc, &arg, ex.Args[i].(TypedExpr)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (ex *FuncCallExpr) Type(tc *TypesContext) (Type, error) {
 	if tc.IsTypeSet(ex) {
 		return tc.GetType(ex), nil
@@ -1050,6 +1073,14 @@ func (ex *FuncCallExpr) Type(tc *TypesContext) (Type, error) {
 			return &UnknownType{}, nil
 		}
 		asFunc := calleeType.(*FuncType)
+
+		if calleeType.Known() {
+			err := ex.checkArgs(tc, asFunc)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		switch {
 		case len(asFunc.Results) == 0:
 			return &UnknownType{}, nil
@@ -1108,25 +1139,11 @@ func (ex *FuncCallExpr) ApplyType(tc *TypesContext, typ Type) error {
 			return ExprErrorf(ex, "Function `%s` returns more than one result", asFunc)
 		}
 
-		if len(asFunc.Args) != len(ex.Args) {
-			if len(ex.Args) == 1 {
-				types := make([]*Type, len(asFunc.Args))
-				for i, v := range asFunc.Args {
-					//typ := v.(TypedExpr).Type(tc)
-					v := v
-					types[i] = &v
-				}
-
-				return NegotiateTupleUnpackAssign(tc, true, types, ex.Args[0].(TypedExpr))
-			}
-			return ExprErrorf(ex, "Wrong number of arguments: %d instead of %d", len(ex.Args), len(asFunc.Args))
-		} else {
-			for i, arg := range asFunc.Args {
-				if err := NegotiateExprType(tc, &arg, ex.Args[i].(TypedExpr)); err != nil {
-					return err
-				}
-			}
+		err = ex.checkArgs(tc, asFunc)
+		if err != nil {
+			return err
 		}
+
 		tc.SetType(ex, typ)
 		return nil
 	}
