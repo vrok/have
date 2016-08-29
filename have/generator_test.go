@@ -583,6 +583,19 @@ for x, y := range []int{
 	print(x)
 }`},
 		{source: `
+for var _, y range {1, 2, 3}:
+	print(y)
+`,
+			reference: `
+for _, y := range []int{
+	1,
+	2,
+	3,
+} {
+	y := y // Added by compiler
+	print(y)
+}`},
+		{source: `
 var ch chan int
 for var x range ch:
 	print(x)

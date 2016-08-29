@@ -19,9 +19,9 @@ func testErrors(t *testing.T, files []fakeLocatorFile, errsTarget []string) {
 
 	for i := 0; i < len(errs); i++ {
 		if compErr, ok := errs[i].(*CompileError); ok {
-			if compErr.PrettyString(manager.fset) != errsTarget[i] {
+			if compErr.PrettyString(manager.Fset) != errsTarget[i] {
 				t.Fail()
-				fmt.Printf("Wrong compile error, want: \n\t'%s'\n, got \n\t'%s'\n", errsTarget[i], compErr.PrettyString(manager.fset))
+				fmt.Printf("Wrong compile error, want: \n\t'%s'\n, got \n\t'%s'\n", errsTarget[i], compErr.PrettyString(manager.Fset))
 			}
 		} else {
 			if errs[i].Error() != errsTarget[i] {

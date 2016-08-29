@@ -9,38 +9,41 @@ import (
 
 type Package struct {
 	path    string
-	files   []*File
+	Files   []*File
 	objects map[string]Object
 	manager *PkgManager
 	tc      *TypesContext
-	fset    *gotoken.FileSet
+	Fset    *gotoken.FileSet
 }
 
 func NewPackage(path string, files ...*File) *Package {
 	files = append(files, builtinsFile(path))
 	pkg := &Package{
 		path:    path,
-		files:   files,
+		Files:   files,
 		objects: make(map[string]Object),
 		tc:      NewTypesContext(),
-		fset:    gotoken.NewFileSet(),
+		Fset:    gotoken.NewFileSet(),
 	}
 	for _, f := range files {
 		f.tc = pkg.tc
-		f.tfile = pkg.fset.AddFile(f.name, pkg.fset.Base(), f.size)
+		f.tfile = pkg.Fset.AddFile(f.Name, pkg.Fset.Base(), f.size)
 	}
 	return pkg
 }
 
+const BuiltinsFileName = "_builtin.hav"
+
 func builtinsFile(pkgName string) *File {
 	code := "package " + pkgName + `
 func print(s interface: pass) bool: return false
-func read() string: pass`
+func read() string: pass
+func len[T](c T) int: pass`
 	return &File{
-		name: "_builtin.go",
-		code: code,
+		Name: BuiltinsFileName,
+		Code: code,
 		size: len(code),
-		pkg:  pkgName,
+		Pkg:  pkgName,
 	}
 }
 
@@ -51,19 +54,19 @@ func newPackageWithManager(path string, manager *PkgManager) (*Package, error) {
 		return nil, err
 	}
 
-	for _, f := range files {
-		f.tfile = manager.fset.AddFile(f.name, manager.fset.Base(), f.size)
-	}
+	files = append(files, builtinsFile(path))
 
 	pkg := &Package{
 		path:    path,
-		files:   files,
+		Files:   files,
 		objects: make(map[string]Object),
 		manager: manager,
 		tc:      NewTypesContext(),
-		fset:    manager.fset,
+		Fset:    manager.Fset,
 	}
+
 	for _, f := range files {
+		f.tfile = manager.Fset.AddFile(f.Name, manager.Fset.Base(), f.size)
 		f.tc = pkg.tc
 	}
 	return pkg, nil
@@ -251,7 +254,7 @@ func matchUnbounds(tc *TypesContext, imports Imports, unboundTypes map[string][]
 
 func (o *Package) ParseAndCheck() []error {
 	var errors []error
-	for _, f := range o.files {
+	for _, f := range o.Files {
 		errors = append(errors, f.Parse()...)
 	}
 	if len(errors) > 0 {
@@ -260,7 +263,7 @@ func (o *Package) ParseAndCheck() []error {
 
 	importPaths := map[string]bool{}
 
-	for _, f := range o.files {
+	for _, f := range o.Files {
 		for _, importStmt := range f.parser.imports {
 			importPaths[importStmt.path] = true
 			pkg, errs := o.manager.Load(importStmt.path)
@@ -282,7 +285,7 @@ func (o *Package) ParseAndCheck() []error {
 		return errors
 	}
 
-	for _, f := range o.files {
+	for _, f := range o.Files {
 		for name, obj := range f.objects {
 			if _, ok := o.objects[name]; ok {
 				errors = append(errors, fmt.Errorf("Redeclared %s in the same package", name))
@@ -292,7 +295,7 @@ func (o *Package) ParseAndCheck() []error {
 		}
 	}
 
-	for _, f := range o.files {
+	for _, f := range o.Files {
 		for _, stmt := range f.statements {
 			stmt.loadDeps()
 			errors = append(errors, matchUnbounds(o.tc, f.parser.imports, stmt.unboundTypes, stmt.unboundIdents)...)
@@ -304,7 +307,7 @@ func (o *Package) ParseAndCheck() []error {
 	}
 
 	allStmts := []*TopLevelStmt{}
-	for _, f := range o.files {
+	for _, f := range o.Files {
 		allStmts = append(allStmts, f.statements...)
 	}
 
@@ -348,7 +351,7 @@ type PkgManager struct {
 	greyStack []string
 	locator   PkgLocator
 
-	fset *gotoken.FileSet
+	Fset *gotoken.FileSet
 }
 
 func NewPkgManager(locator PkgLocator) *PkgManager {
@@ -356,7 +359,7 @@ func NewPkgManager(locator PkgLocator) *PkgManager {
 		pkgs:      make(map[string]*Package),
 		greyNodes: make(map[string]bool),
 		locator:   locator,
-		fset:      gotoken.NewFileSet(),
+		Fset:      gotoken.NewFileSet(),
 	}
 }
 

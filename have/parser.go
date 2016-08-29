@@ -2633,7 +2633,7 @@ func (p *Parser) ParseFile(f *File) error {
 		return err
 	}
 
-	f.pkg, f.statements = pkg, stmts
+	f.Pkg, f.statements = pkg, stmts
 	return nil
 }
 

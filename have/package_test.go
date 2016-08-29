@@ -17,7 +17,8 @@ func testPkg(t *testing.T, shouldFail bool, files []struct {
 	var list []*File
 	ctx := NewTypesContext()
 	for _, input := range files {
-		f := NewFile(input.name, input.file, ctx, nil)
+		f := NewFile(input.name, input.file)
+		f.tc = ctx
 		list = append(list, f)
 	}
 
@@ -482,7 +483,8 @@ func newFakeLocator(files ...fakeLocatorFile) *fakeLocator {
 	result := fakeLocator{make(map[string][]*File, len(files))}
 	ctx := NewTypesContext()
 	for _, file := range files {
-		f := NewFile(file.name, file.code, ctx, nil)
+		f := NewFile(file.name, file.code)
+		f.tc = ctx
 		result.files[file.pkg] = append(result.files[file.pkg], f)
 	}
 	return &result
@@ -516,12 +518,15 @@ func testPkgImport(t *testing.T, files []fakeLocatorFile, outputRef map[string]s
 		}
 	}
 
-	for i, f := range pkg.files {
+	for i, f := range pkg.Files {
+		if f.Name == BuiltinsFileName {
+			continue
+		}
 		output := f.GenerateCode()
-		if strings.TrimSpace(output) != strings.TrimSpace(outputRef[f.name]) {
+		if strings.TrimSpace(output) != strings.TrimSpace(outputRef[f.Name]) {
 			t.Fail()
 			fmt.Printf("ERROR, different output code for case #%d\n", i)
-			fmt.Printf("-- Source:\n%s\n-- Wanted:\n%s\n-- Got:\n%s\n", f.code, outputRef[f.name], output)
+			fmt.Printf("-- Source:\n%s\n-- Wanted:\n%s\n-- Got:\n%s\n", f.Code, outputRef[f.Name], output)
 		}
 	}
 }

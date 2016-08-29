@@ -567,14 +567,19 @@ func (fs *ForRangeStmt) Generate(tc *TypesContext, current *CodeChunk) {
 	current.AddChprintf(tc, "for ")
 
 	if fs.ScopedVars != nil {
-		var namesList []string
+		var namesList, realNamesList []string
 		fs.ScopedVars.eachPair(func(v *Variable, init Expr) {
-			namesList = append(namesList, v.Name())
+			n := v.Name()
+			if n != Blank {
+				realNamesList = append(realNamesList, n)
+			}
+			namesList = append(namesList, n)
 		})
 
 		names := strings.Join(namesList, ", ")
+		realNames := strings.Join(realNamesList, ", ")
 		current.AddChprintf(tc, "%s := range %iC {\n%C\t%s := %s // Added by compiler\n%C%C}\n",
-			names, fs.Series, ForcedIndent, names, names, fs.Code, ForcedIndent)
+			names, fs.Series, ForcedIndent, realNames, realNames, fs.Code, ForcedIndent)
 	} else if fs.OutsideVars != nil {
 		i := 0
 		for _, expr := range fs.OutsideVars {
@@ -592,7 +597,7 @@ func (fs *ForRangeStmt) Generate(tc *TypesContext, current *CodeChunk) {
 }
 
 func (f *File) Generate(tc *TypesContext, current *CodeChunk) {
-	current.AddChprintf(tc, "package %s\n\n", f.pkg)
+	current.AddChprintf(tc, "package %s\n\n", f.Pkg)
 	for _, stmt := range f.statements {
 		stmt.Stmt.(Generable).Generate(tc, current)
 	}

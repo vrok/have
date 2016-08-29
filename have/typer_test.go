@@ -19,12 +19,12 @@ func processFileAsPkg(code string) (*Package, []*TopLevelStmt, []error) {
 		code = "package main\n" + code
 	}
 
-	f := NewFile("main.go", code, nil, nil)
+	f := NewFile("main.go", code)
 
 	pkg := NewPackage("main", f)
 	errs := pkg.ParseAndCheck()
 
-	return pkg, pkg.files[0].statements, errs
+	return pkg, pkg.Files[0].statements, errs
 }
 
 func testVarTypes(t *testing.T, cases []typeTestCase) {
@@ -1238,6 +1238,14 @@ var placeholder = 1
 		{`
 var a int
 for _, a range {1, 2, 3}:
+	pass
+var placeholder = 1
+`,
+			true,
+			"int",
+		},
+		{`
+for var _, a range {1, 2, 3}:
 	pass
 var placeholder = 1
 `,

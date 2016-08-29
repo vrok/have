@@ -15,7 +15,7 @@ func transpile(code string, outputFile string) error {
 	if len(errs) > 0 {
 		return errs[0]
 	}
-	output := pkg.files[0].GenerateCode()
+	output := pkg.Files[0].GenerateCode()
 	return ioutil.WriteFile(outputFile, []byte(output), 0644)
 }
 

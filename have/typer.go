@@ -467,8 +467,11 @@ func (ss *SwitchStmt) NegotiateTypes(tc *TypesContext) error {
 				if len(b.Values) != 1 {
 					return ExprErrorf(b.Values[0], "More than 1 value in a branch of type switch")
 				}
-				typ, isTyp := ExprToTypeName(tc, b.Values[0])
-				if !isTyp {
+				typ, err := ExprToTypeName(tc, b.Values[0])
+				if err != nil {
+					return err
+				}
+				if typ == nil {
 					return ExprErrorf(b.Values[0], "Not a type name in type switch")
 				}
 
@@ -907,30 +910,42 @@ func IsConvertable(tc *TypesContext, what TypedExpr, to Type) bool {
 // 	blah(123)
 //
 // This function tells if an expression is really a type name, and
-// returns that type if the answer was yes.
-func ExprToTypeName(tc *TypesContext, e Expr) (t Type, ok bool) {
+// returns that type if the answer was yes (nil otherwise).
+// Additionaly, if it encounters an error it returns it, usually
+// they are non-recoverable and can be printed out as compilation errors.
+func ExprToTypeName(tc *TypesContext, e Expr) (t Type, err error) {
 	// TODO: dot operator for packages in below switch:
 	switch e := e.(type) {
 	case *TypeExpr:
-		return e.typ, true
+		return e.typ, nil
 	case *UnaryOp:
-		if subType, ok := ExprToTypeName(tc, e.Right); ok {
-			return &PointerType{To: subType}, true
+		subType, err := ExprToTypeName(tc, e.Right)
+		if err != nil {
+			return nil, err
 		}
+		if subType == nil {
+			return nil, nil
+		}
+		return &PointerType{To: subType}, nil
 	case *Ident:
+		if e.object == nil {
+			return nil, ExprErrorf(e, "Unknown identifier: %s", e.name)
+		}
 		if e.object.ObjectType() == OBJECT_TYPE {
-			return e.object.(*TypeDecl).Type(), true
+			return e.object.(*TypeDecl).Type(), nil
 		}
 	case *DotSelector:
 		if IsPackage(e.Left.(TypedExpr)) {
 			importStmt := e.Left.(*Ident).object.(*ImportStmt)
 			decl := importStmt.pkg.GetType(e.Right.name)
 			if decl != nil {
-				return &CustomType{Decl: decl, Name: decl.name, Package: importStmt}, true
+				return &CustomType{Decl: decl, Name: decl.name, Package: importStmt}, nil
 			}
+			return nil, ExprErrorf(e, "No member %s in package %s", e.Right.name, importStmt.path)
 		}
 	}
-	return nil, false
+	// No error found, but the expression is not a type.
+	return nil, nil
 }
 
 // Just like ExprToTypeName, but for generics.
@@ -1013,7 +1028,13 @@ func (ex *FuncCallExpr) Type(tc *TypesContext) (Type, error) {
 		return tc.GetType(ex), nil
 	}
 
-	if castType, isCast := ExprToTypeName(tc, ex.Left); isCast {
+	castType, err := ExprToTypeName(tc, ex.Left)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if castType != nil {
 		if len(ex.Args) != 1 {
 			return nil, ExprErrorf(ex, "Type casts take only 1 argument")
 		}
@@ -1042,7 +1063,12 @@ func (ex *FuncCallExpr) Type(tc *TypesContext) (Type, error) {
 }
 
 func (ex *FuncCallExpr) ApplyType(tc *TypesContext, typ Type) error {
-	if castType, isCast := ExprToTypeName(tc, ex.Left); isCast {
+	castType, err := ExprToTypeName(tc, ex.Left)
+	if err != nil {
+		return err
+	}
+
+	if castType != nil {
 		if len(ex.Args) != 1 {
 			return ExprErrorf(ex, "Type conversion takes exactly one argument")
 		}
@@ -1107,7 +1133,12 @@ func (ex *FuncCallExpr) ApplyType(tc *TypesContext, typ Type) error {
 }
 
 func (ex *FuncCallExpr) GuessType(tc *TypesContext) (ok bool, typ Type) {
-	if castType, cast := ExprToTypeName(tc, ex.Left); cast {
+	castType, err := ExprToTypeName(tc, ex.Left)
+	if err != nil {
+		return false, nil
+	}
+
+	if castType != nil {
 		return true, castType
 	} else {
 		// No guessing needed for now
@@ -1388,8 +1419,11 @@ func (ex *ArrayExpr) Type(tc *TypesContext) (Type, error) {
 		var types []Type
 
 		for i, arg := range ex.Index {
-			typ, ok := ExprToTypeName(tc, arg)
-			if !ok {
+			typ, err := ExprToTypeName(tc, arg)
+			if err != nil {
+				return nil, err
+			}
+			if typ == nil {
 				return nil, ExprErrorf(arg, "Generic parameter #%d is not a type", i)
 			}
 			types = append(types, typ)
@@ -1585,8 +1619,11 @@ func (ex *CompoundLit) Type(tc *TypesContext) (Type, error) {
 		return &UnknownType{}, nil
 	}
 
-	typ, isTyp := ExprToTypeName(tc, ex.Left)
-	if !isTyp {
+	typ, err := ExprToTypeName(tc, ex.Left)
+	if err != nil {
+		return nil, err
+	}
+	if typ == nil {
 		return nil, ExprErrorf(ex, "Non-type on the left of complex literal")
 	}
 

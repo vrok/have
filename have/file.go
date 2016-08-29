@@ -7,7 +7,7 @@ type PkgLocator interface {
 }
 
 type File struct {
-	name, code, pkg string
+	Name, Code, Pkg string
 	size            int
 
 	statements []*TopLevelStmt
@@ -17,17 +17,15 @@ type File struct {
 	tc         *TypesContext
 }
 
-func NewFile(name, code string, tc *TypesContext, tfile *gotoken.File) *File {
-	return &File{name: name,
-		code:    code,
-		tc:      tc,
-		tfile:   tfile,
+func NewFile(name, code string) *File {
+	return &File{Name: name,
+		Code:    code,
 		size:    len(code),
 		objects: make(map[string]Object)}
 }
 
 func (f *File) Parse() []error {
-	f.parser = NewParser(NewLexer([]rune(f.code), f.tfile, 0))
+	f.parser = NewParser(NewLexer([]rune(f.Code), f.tfile, 0))
 	err := f.parser.ParseFile(f)
 	if err != nil {
 		return []error{err}
