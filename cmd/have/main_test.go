@@ -97,6 +97,11 @@ func TestTrans(t *testing.T) {
 				"hello",
 			},
 		},
+		{"scattered_world",
+			[]string{
+				"hello",
+			},
+		},
 	}
 
 	for _, c := range cases {
