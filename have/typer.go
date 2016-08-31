@@ -1023,6 +1023,7 @@ func (ex *FuncCallExpr) getCalleeType(tc *TypesContext) (Type, error) {
 	return calleeType, nil
 }
 
+// Type check function arguments.
 func (ex *FuncCallExpr) checkArgs(tc *TypesContext, asFunc *FuncType) error {
 	if len(asFunc.Args) != len(ex.Args) {
 		if len(ex.Args) == 1 {

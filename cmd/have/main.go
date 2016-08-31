@@ -39,13 +39,13 @@ func (gpl *FilesystemPkgLocator) Locate(relativePath string) ([]*have.File, erro
 				return nil, fmt.Errorf("Error reading %s: %s", n, err)
 			}
 
-			files = append(files, have.NewFile(f.Name(), string(code)))
+			files = append(files, have.NewFile(path.Join(relativePath, f.Name()), string(code)))
 		}
 	}
 	return files, nil
 }
 
-func trans(args []string) error {
+func trans(args []string) {
 	var pkgs, files []string
 	for _, arg := range args {
 		if strings.HasSuffix(arg, ".hav") {
@@ -55,13 +55,14 @@ func trans(args []string) error {
 		}
 	}
 
+	var gopath = os.Getenv("GOPATH")
+	if gopath == "" {
+		fmt.Fprintf(os.Stderr, "GOPATH not set")
+		os.Exit(1)
+	}
+
 	var srcpath = os.Getenv("HAVESRCPATH")
 	if srcpath == "" {
-		var gopath = os.Getenv("GOPATH")
-		if gopath == "" {
-			return fmt.Errorf("Neither HAVESRCPATH nor GOPATH is set")
-		}
-
 		srcpath = path.Join(gopath, "src")
 	}
 
@@ -81,19 +82,29 @@ func trans(args []string) error {
 		}
 
 		if len(errs) > 0 {
-			continue
+			os.Exit(1)
 		}
 
 		for _, f := range pkg.Files {
 			if f.Name == have.BuiltinsFileName {
 				continue
 			}
-			output := f.GenerateCode()
-			fmt.Printf("OUTPUT %s:\n%s\n", f.Name, output)
+			var output = f.GenerateCode()
+
+			var fullFname = path.Join(gopath, "src", f.Name+".go")
+			if strings.HasSuffix(f.Name, ".hav") {
+				fullFname = path.Join(gopath, "src", f.Name[0:len(f.Name)-len("hav")]+"go")
+			}
+
+			os.MkdirAll(path.Dir(fullFname), 0744)
+
+			var err = ioutil.WriteFile(fullFname, []byte(output), 0644)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error writing file %s: %s", fullFname, err)
+				os.Exit(1)
+			}
 		}
 	}
-
-	return nil
 }
 
 func main() {
