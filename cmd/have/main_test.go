@@ -21,6 +21,10 @@ func currentPkgFullPath() string {
 	return path.Join(os.Getenv("GOPATH"), "src", currentPkg())
 }
 
+// Compare a directory against a model directory and return the differences as
+// a list of human-readable errors. If there are differences, not all of them
+// are shown, in certain cases the function stops the recursive walk when some
+// differences were already encountered.
 func compareDirs(src, model string) (errs []error) {
 	srcList, err := ioutil.ReadDir(src)
 	if err != nil {
@@ -34,13 +38,13 @@ func compareDirs(src, model string) (errs []error) {
 		return
 	}
 
-	hash := map[string]bool{}
+	set := map[string]bool{}
 	for _, d := range modelList {
-		hash[d.Name()] = true
+		set[d.Name()] = true
 	}
 
 	for _, d := range srcList {
-		if !hash[d.Name()] {
+		if !set[d.Name()] {
 			errs = append(errs, fmt.Errorf("Directory %s is missing %s", src, d.Name()))
 		}
 	}
