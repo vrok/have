@@ -23,6 +23,7 @@ func TestGenerate(t *testing.T) {
 	cases := []string{
 		"helloworld",
 		"fizzbuzz",
+		"check_builtins",
 	}
 
 	for i, c := range cases {

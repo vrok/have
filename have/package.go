@@ -40,6 +40,14 @@ func print(s interface: pass) bool: return false
 func read() string: pass
 func len[T](c T) int: __compiler_macro("len(%a0)")
 func make[T](size int) T: __compiler_macro("make(%t0, %a0)")
+# TODO: Update append with varargs when varargs work
+func append[T](slice []T, elem T) []T: __compiler_macro("append(%a0, %a1)")
+# TODO: Refactor cap() to be a generic with 'when' stmt after pattern
+# matching is added to 'when'
+func cap(v interface: pass) int: pass
+func copy[T](dst, src []T) int: __compiler_macro("copy(%a0, %a1)")
+func delete[T, K](m map[T]K, key T): __compiler_macro("delete(%a0, %a1)")
+func panic(v interface: pass): pass
 func close[T](c chan<- T): pass`
 	return &File{
 		Name: BuiltinsFileName,
