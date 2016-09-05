@@ -523,6 +523,11 @@ func (p *PassStmt) NegotiateTypes(tc *TypesContext) error {
 	return nil
 }
 
+func (c *compilerMacro) NegotiateTypes(tc *TypesContext) error {
+	c.Active = true
+	return nil
+}
+
 // For convenience, always returns TupleType, even for one type (chans).
 func iteratorType(containerType Type) (*TupleType, error) {
 	ct := RootType(containerType)
@@ -949,6 +954,7 @@ func ExprToTypeName(tc *TypesContext, e Expr) (t Type, err error) {
 }
 
 // Just like ExprToTypeName, but for generics.
+// TODO: Refactor this so that it has a similar signature to ExprToTypeName
 func ExprToGeneric(e Expr) (t Generic, ok bool) {
 	switch e := e.(type) {
 	case *Ident:
@@ -999,7 +1005,6 @@ func (ex *FuncCallExpr) inferGeneric(tc *TypesContext) (*Variable, string, error
 		return nil, "", ExprErrorf(ex, "Result of a generic is not a value")
 	}
 
-	//t := obj.(*Variable).Type
 	return obj.(*Variable), goName, nil
 }
 
@@ -1012,12 +1017,14 @@ func (ex *FuncCallExpr) getCalleeType(tc *TypesContext) (Type, error) {
 	if generic != nil {
 		calleeType = generic.Type
 		tc.goNames[ex.Left] = goName
+		ex.fn = funcUnderneath(&Ident{object: generic})
 	} else {
 		callee := ex.Left.(TypedExpr)
 		calleeType, err = callee.Type(tc)
 		if err != nil {
 			return nil, err
 		}
+		ex.fn = funcUnderneath(ex.Left)
 	}
 	calleeType = UnderlyingType(calleeType)
 	return calleeType, nil
@@ -1029,7 +1036,6 @@ func (ex *FuncCallExpr) checkArgs(tc *TypesContext, asFunc *FuncType) error {
 		if len(ex.Args) == 1 {
 			types := make([]*Type, len(asFunc.Args))
 			for i, v := range asFunc.Args {
-				//typ := v.(TypedExpr).Type(tc)
 				v := v
 				types[i] = &v
 			}

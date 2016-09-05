@@ -5,10 +5,12 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode"
+
+	gotoken "go/token"
 
 	spew "github.com/davecgh/go-spew/spew"
 	"github.com/kr/pretty"
-	gotoken "go/token"
 )
 
 func compareExpr(a, b Expr) (equal bool, msg string) {
@@ -24,6 +26,9 @@ func compareExpr(a, b Expr) (equal bool, msg string) {
 	for i := 0; i < l; i++ {
 		field := valA.Field(i)
 		if field.Type().Implements(typeOfExpr) {
+			if unicode.IsLower(rune(valA.Type().Field(i).Name[0])) {
+				continue
+			}
 			if field.Interface() == nil &&
 				valB.Field(i).Interface() == nil {
 				continue
@@ -926,6 +931,18 @@ func TestVarDecl(t *testing.T) {
 					&Variable{
 						name: "x",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
+						init: &BinaryOp{
+							expr: expr{pos: 15},
+							Left: &BasicLit{
+								expr:  expr{pos: 13},
+								token: &Token{Type: TOKEN_INT, Offset: 12, Value: "1", Pos: 13},
+							},
+							Right: &BasicLit{
+								expr:  expr{pos: 17},
+								token: &Token{Type: TOKEN_INT, Offset: 16, Value: "2", Pos: 17},
+							},
+							op: &Token{Type: TOKEN_PLUS, Offset: 14, Value: "+", Pos: 15},
+						},
 					},
 				},
 					Inits: []Expr{
@@ -955,10 +972,18 @@ func TestVarDecl(t *testing.T) {
 					&Variable{
 						name: "x",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
+						init: &BasicLit{
+							expr:  expr{pos: 15},
+							token: &Token{Type: TOKEN_INT, Offset: 14, Value: "1", Pos: 15},
+						},
 					},
 					&Variable{
 						name: "y",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
+						init: &BasicLit{
+							expr:  expr{pos: 18},
+							token: &Token{Type: TOKEN_INT, Offset: 17, Value: "2", Pos: 18},
+						},
 					},
 				},
 					Inits: []Expr{
@@ -985,10 +1010,28 @@ func TestVarDecl(t *testing.T) {
 							&Variable{
 								name: "x",
 								Type: &SimpleType{ID: SIMPLE_TYPE_INT},
+								init: &BasicLit{
+									expr: expr{pos: 16},
+									token: &Token{
+										Type:   13,
+										Offset: 15,
+										Value:  "1",
+										Pos:    16,
+									},
+								},
 							},
 							&Variable{
 								name: "y",
 								Type: &SimpleType{ID: SIMPLE_TYPE_INT},
+								init: &BasicLit{
+									expr: expr{pos: 19},
+									token: &Token{
+										Type:   13,
+										Offset: 18,
+										Value:  "2",
+										Pos:    19,
+									},
+								},
 							},
 						},
 						Inits: []Expr{
@@ -1017,6 +1060,15 @@ func TestVarDecl(t *testing.T) {
 							&Variable{
 								name: "z",
 								Type: &UnknownType{},
+								init: &BasicLit{
+									expr: expr{pos: 27},
+									token: &Token{
+										Type:   13,
+										Offset: 26,
+										Value:  "3",
+										Pos:    27,
+									},
+								},
 							},
 						},
 						Inits: []Expr{
@@ -1043,10 +1095,28 @@ func TestVarDecl(t *testing.T) {
 					&Variable{
 						name: "x",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
+						init: &BasicLit{
+							expr: expr{pos: 16},
+							token: &Token{
+								Type:   TOKEN_INT,
+								Offset: 15,
+								Value:  "1",
+								Pos:    16,
+							},
+						},
 					},
 					&Variable{
 						name: "y",
 						Type: &SimpleType{ID: simpleTypeStrToID["int"]},
+						init: &BasicLit{
+							expr: expr{pos: 20},
+							token: &Token{
+								Type:   TOKEN_INT,
+								Offset: 19,
+								Value:  "2",
+								Pos:    20,
+							},
+						},
 					},
 				},
 					Inits: []Expr{
@@ -1093,6 +1163,15 @@ func TestVarDecl(t *testing.T) {
 							&Variable{
 								name: "y",
 								Type: &UnknownType{},
+								init: &BasicLit{
+									expr: expr{pos: 16},
+									token: &Token{
+										Type:   13,
+										Offset: 15,
+										Value:  "1",
+										Pos:    16,
+									},
+								},
 							},
 						},
 						Inits: []Expr{

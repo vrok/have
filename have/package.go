@@ -38,7 +38,7 @@ func builtinsFile(pkgName string) *File {
 	code := "package " + pkgName + `
 func print(s interface: pass) bool: return false
 func read() string: pass
-func len[T](c T) int: pass`
+func len[T](c T) int: __compiler_macro("len(%iC)")`
 	return &File{
 		Name: BuiltinsFileName,
 		Code: code,

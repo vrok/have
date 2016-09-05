@@ -418,7 +418,38 @@ func (se *SliceExpr) Generate(tc *TypesContext, current *CodeChunk) {
 	// TODO: third component
 }
 
+func funcUnderneath(expr Expr) *FuncDecl {
+	if dots, ok := expr.(*DotSelector); ok {
+		expr = dots.Right
+	}
+
+	if id, ok := expr.(*Ident); ok {
+		vr, ok := id.object.(*Variable)
+		if !ok {
+			return nil
+		}
+
+		fd, ok := vr.init.(*FuncDecl)
+		if !ok {
+			return nil
+		}
+
+		return fd
+	}
+
+	return nil
+}
+
 func (fc *FuncCallExpr) Generate(tc *TypesContext, current *CodeChunk) {
+	if fd := fc.fn; fd != nil && len(fd.compilerMacros) > 0 {
+		for _, cm := range fd.compilerMacros {
+			if cm.Active {
+				cm.generate(tc, current, fc.Args)
+				return
+			}
+		}
+	}
+
 	current.AddChprintf(tc, "%iC(", fc.Left.(Generable))
 	for i, arg := range fc.Args {
 		current.AddChprintf(tc, "%iC", arg)
@@ -430,6 +461,15 @@ func (fc *FuncCallExpr) Generate(tc *TypesContext, current *CodeChunk) {
 }
 
 func (fd *FuncDecl) Generate(tc *TypesContext, current *CodeChunk) {
+	if len(fd.compilerMacros) > 0 {
+		for _, cm := range fd.compilerMacros {
+			if cm.Active {
+				current.AddChprintf(tc, "// Compiler macro inside function, skipping\n")
+				return
+			}
+		}
+	}
+
 	fd.InlineGenerate(tc, current, true)
 	current.AddChprintf(tc, "\n")
 }
@@ -717,6 +757,26 @@ func (ws *WhenStmt) Generate(tc *TypesContext, current *CodeChunk) {
 			return
 		}
 	}
+}
+
+func removeQuotes(s string) string {
+	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+		return s[1 : len(s)-1]
+	}
+	return s
+}
+
+func (cm *compilerMacro) generate(tc *TypesContext, current *CodeChunk, args []Expr) {
+	if !cm.Active {
+		return
+	}
+
+	var asIface = make([]interface{}, len(args))
+	for i, arg := range args {
+		asIface[i] = arg
+	}
+
+	current.AddChprintf(tc, removeQuotes(cm.Args[0].(*BasicLit).token.Value.(string)), asIface...)
 }
 
 // TODO: Now just write Generables for all statements/expressions and we're done...

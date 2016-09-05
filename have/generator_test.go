@@ -609,3 +609,44 @@ for x := range ch {
 	}
 	testCases(t, cases)
 }
+
+func TestGenerateCompilerMacro(t *testing.T) {
+	cases := []generatorTestCase{
+		{source: `
+func xyz():
+	__compiler_macro("abc()")
+xyz()
+`,
+			reference: `
+// Compiler macro inside function, skipping
+abc()
+`},
+		{source: `
+func xyz(x int):
+	__compiler_macro("abc(%iC)", x)
+xyz(123)
+`,
+			reference: `
+// Compiler macro inside function, skipping
+abc(123)
+`},
+		{source: `
+func xyz[T](x T):
+	__compiler_macro("abc(%iC)", x)
+xyz("bla")
+xyz(123)
+`,
+			reference: `
+// Generic instantiation
+// Compiler macro inside function, skipping
+
+// Generic instantiation
+// Compiler macro inside function, skipping
+
+abc("bla")
+abc(123)
+`},
+	}
+
+	testCases(t, cases)
+}

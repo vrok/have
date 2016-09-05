@@ -114,6 +114,8 @@ type Object interface {
 type Variable struct {
 	name string
 	Type Type
+
+	init Expr
 }
 
 func (o *Variable) Name() string           { return o.name }
@@ -408,6 +410,13 @@ type ReturnStmt struct {
 
 	Func   *FuncDecl
 	Values []Expr
+}
+
+type compilerMacro struct {
+	stmt
+
+	Active bool
+	Args   []Expr
 }
 
 type Generic interface {
@@ -1186,8 +1195,10 @@ type FuncCallExpr struct {
 	expr
 
 	Left Expr
-	//args []*Expr
 	Args []Expr
+
+	// nil unless Left refers to a function
+	fn *FuncDecl
 }
 
 // implements PrimaryExpr
@@ -1206,6 +1217,8 @@ type FuncDecl struct {
 	PtrReceiver bool
 	// Names of generic type paramaters. Nil for standard functions.
 	GenericParams []string
+
+	compilerMacros []*compilerMacro
 }
 
 // implements PrimaryExpr

@@ -1000,7 +1000,16 @@ groupsLoop:
 			}
 		}
 
-		if len(inits) != len(vars) && len(inits) != 1 {
+		if len(inits) == len(vars) {
+			for i, v := range varDecls[len(varDecls)-1].Vars {
+				v.init = inits[i]
+			}
+		} else if len(inits) == 1 {
+			// Possible tuple unpack
+			for _, v := range varDecls[len(varDecls)-1].Vars {
+				v.init = inits[0]
+			}
+		} else {
 			return nil, CompileErrorf(t, "Different number of new vars and initializers\n")
 		}
 
@@ -1690,7 +1699,7 @@ loop:
 			if t, ok := p.expect(TOKEN_RPARENTH); !ok {
 				return nil, CompileErrorf(t, "Expected `)`")
 			}
-			left = &FuncCallExpr{expr{token.Pos}, left, args}
+			left = &FuncCallExpr{expr{token.Pos}, left, args, nil}
 		case TOKEN_LBRACKET:
 			var index []Expr
 			exp, err := p.parseExpr()
@@ -2122,7 +2131,7 @@ func (p *Parser) parseFunc(genericPossible bool) (*FuncDecl, Object, error) {
 		}
 		obj = gf
 	} else {
-		obj = &Variable{name: fd.name, Type: fd.typ}
+		obj = &Variable{name: fd.name, Type: fd.typ, init: fd}
 	}
 
 	if fd.Receiver == nil {
@@ -2249,6 +2258,37 @@ func (p *Parser) parseReturnStmt() (*ReturnStmt, error) {
 		s.Values = exps
 		return s, nil
 	}
+}
+
+func (p *Parser) parseCompilerMacro() (*compilerMacro, error) {
+	tok := p.nextToken()
+	if tok.Type != TOKEN_WORD || tok.Value.(string) != "__compiler_macro" {
+		return nil, CompileErrorf(tok, "Expected __compiler_macro")
+	}
+
+	if t, ok := p.expect(TOKEN_LPARENTH); !ok {
+		return nil, CompileErrorf(t, "Expected `(`")
+	}
+
+	args, err := p.parseArgs(0)
+	if err != nil {
+		return nil, err
+	}
+
+	if t, ok := p.expect(TOKEN_RPARENTH); !ok {
+		return nil, CompileErrorf(t, "Expected `)`")
+	}
+
+	result := &compilerMacro{stmt: stmt{expr: expr{tok.Pos}}, Args: args}
+
+	if len(p.funcStack) == 0 {
+		return nil, CompileErrorf(tok, "__compiler_macro used outside a function")
+	}
+
+	fun := p.funcStack[len(p.funcStack)-1]
+	fun.compilerMacros = append(fun.compilerMacros, result)
+
+	return result, nil
 }
 
 func (p *Parser) skipIndents() {
@@ -2611,6 +2651,10 @@ func (p *Parser) parseStmt() (Stmt, error) {
 			p.putBack(token)
 			return p.parseWhenStmt()
 		default:
+			if token.Type == TOKEN_WORD && token.Value.(string) == "__compiler_macro" {
+				p.putBack(token)
+				return p.parseCompilerMacro()
+			}
 			p.putBack(token)
 			stmt, err := p.parseSimpleStmt(true)
 			p.prevLbl, _ = stmt.(*LabelStmt)
