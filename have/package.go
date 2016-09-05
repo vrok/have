@@ -38,7 +38,9 @@ func builtinsFile(pkgName string) *File {
 	code := "package " + pkgName + `
 func print(s interface: pass) bool: return false
 func read() string: pass
-func len[T](c T) int: __compiler_macro("len(%iC)")`
+func len[T](c T) int: __compiler_macro("len(%iC)")
+func make[T](size int) T: __compiler_macro("make(%iC, %iC)", T, size)
+func close[T](c chan<- T): pass`
 	return &File{
 		Name: BuiltinsFileName,
 		Code: code,
@@ -461,11 +463,13 @@ func (r *Instantiation) ParseAndCheck() []error {
 		r.Object = s.Vars[0].Vars[0]
 		r.Init = s.Vars[0].Inits[0]
 		r.Init.(*FuncDecl).name = r.getGoName()
+		r.Init.(*FuncDecl).GenericParamVals = r.Params
 	case *StructStmt:
 		r.Object = s.Decl
 		s.Decl.name = r.getGoName()
 		s.Decl.AliasedType.(*StructType).Name = r.getGoName()
 		s.Decl.AliasedType.(*StructType).selfType.Name = r.getGoName()
+		s.Decl.AliasedType.(*StructType).GenericParamVals = r.Params
 	default:
 		panic("Internal error")
 	}

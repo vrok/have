@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -418,33 +419,11 @@ func (se *SliceExpr) Generate(tc *TypesContext, current *CodeChunk) {
 	// TODO: third component
 }
 
-func funcUnderneath(expr Expr) *FuncDecl {
-	if dots, ok := expr.(*DotSelector); ok {
-		expr = dots.Right
-	}
-
-	if id, ok := expr.(*Ident); ok {
-		vr, ok := id.object.(*Variable)
-		if !ok {
-			return nil
-		}
-
-		fd, ok := vr.init.(*FuncDecl)
-		if !ok {
-			return nil
-		}
-
-		return fd
-	}
-
-	return nil
-}
-
 func (fc *FuncCallExpr) Generate(tc *TypesContext, current *CodeChunk) {
 	if fd := fc.fn; fd != nil && len(fd.compilerMacros) > 0 {
 		for _, cm := range fd.compilerMacros {
 			if cm.Active {
-				cm.generate(tc, current, fc.Args)
+				cm.generate(tc, current, fc.Args, fd.GenericParamVals)
 				return
 			}
 		}
@@ -766,17 +745,47 @@ func removeQuotes(s string) string {
 	return s
 }
 
-func (cm *compilerMacro) generate(tc *TypesContext, current *CodeChunk, args []Expr) {
+var reArgs = regexp.MustCompile(`%[at]\d+`)
+
+func (cm *compilerMacro) generate(tc *TypesContext, current *CodeChunk, args []Expr, types []Type) {
 	if !cm.Active {
 		return
 	}
 
-	var asIface = make([]interface{}, len(args))
-	for i, arg := range args {
-		asIface[i] = arg
+	pattern := removeQuotes(cm.Args[0].(*BasicLit).token.Value.(string))
+	str := []byte(pattern)
+	all := reArgs.FindAllIndex(str, -1)
+
+	var finalArgs []interface{}
+
+	for i := len(all) - 1; i >= 0; i-- {
+		loc := all[i]
+
+		num, err := strconv.ParseInt(string(str[loc[0]+len("%a"):loc[1]]), 10, 64)
+		if err != nil {
+			panic(err)
+		}
+
+		switch str[loc[0]+1] {
+		case 'a':
+			pattern = pattern[:loc[0]] + "%iC" + pattern[loc[1]:]
+			finalArgs = append(finalArgs, args[num])
+		case 't':
+			pattern = pattern[:loc[0]] + "%s" + pattern[loc[1]:]
+			finalArgs = append(finalArgs, types[num])
+		default:
+			panic("internal error")
+		}
 	}
 
-	current.AddChprintf(tc, removeQuotes(cm.Args[0].(*BasicLit).token.Value.(string)), asIface...)
+	// Reverse
+	i, j := 0, len(finalArgs)-1
+	for i < j {
+		finalArgs[i], finalArgs[j] = finalArgs[j], finalArgs[i]
+		i, j = i+1, j-1
+	}
+
+	current.AddChprintf(tc, pattern, finalArgs...)
 }
 
 // TODO: Now just write Generables for all statements/expressions and we're done...

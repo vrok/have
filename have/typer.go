@@ -198,6 +198,25 @@ func IsBlank(e TypedExpr) bool {
 	return isIdent && ident.name == Blank
 }
 
+// Given an expression, returns a function referred by it or nil otherwise.
+func funcUnderneath(expr Expr) *FuncDecl {
+	if oe, ok := expr.(ObjectExpr); ok {
+		vr, ok := oe.ReferedObject().(*Variable)
+		if !ok {
+			return nil
+		}
+
+		fd, ok := vr.init.(*FuncDecl)
+		if !ok {
+			return nil
+		}
+
+		return fd
+	}
+
+	return nil
+}
+
 func (vs *VarStmt) NegotiateTypes(tc *TypesContext) error {
 	for _, v := range vs.Vars {
 		err := v.NegotiateTypes(tc)
@@ -1406,6 +1425,10 @@ func (ex *DotSelector) GuessType(tc *TypesContext) (ok bool, typ Type) {
 	return false, nil
 }
 
+func (ex *DotSelector) ReferedObject() Object {
+	return ex.Right.ReferedObject()
+}
+
 func (ex *ArrayExpr) baseTypesOfContainer(containerType Type) (ok bool, key, value Type) {
 	switch root := RootType(containerType); root.Kind() {
 	case KIND_MAP:
@@ -1470,6 +1493,7 @@ func (ex *ArrayExpr) Type(tc *TypesContext) (Type, error) {
 			tc.SetType(ex, t)
 		}
 		tc.goNames[ex] = goName
+		ex.object = obj
 		return t, nil
 	}
 
@@ -1632,6 +1656,10 @@ func (ex *ArrayExpr) GuessType(tc *TypesContext) (ok bool, typ Type) {
 	}
 
 	return true, valueType
+}
+
+func (ex *ArrayExpr) ReferedObject() Object {
+	return ex.object
 }
 
 func (ex *CompoundLit) Type(tc *TypesContext) (Type, error) {
@@ -2133,6 +2161,10 @@ func (ex *Ident) ApplyType(tc *TypesContext, typ Type) error {
 
 func (ex *Ident) GuessType(tc *TypesContext) (ok bool, typ Type) {
 	return false, nil
+}
+
+func (ex *Ident) ReferedObject() Object {
+	return ex.object
 }
 
 func (ex *NilExpr) Type(tc *TypesContext) (Type, error) {

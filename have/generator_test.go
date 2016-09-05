@@ -623,7 +623,7 @@ abc()
 `},
 		{source: `
 func xyz(x int):
-	__compiler_macro("abc(%iC)", x)
+	__compiler_macro("abc(%a0)", x)
 xyz(123)
 `,
 			reference: `
@@ -632,7 +632,7 @@ abc(123)
 `},
 		{source: `
 func xyz[T](x T):
-	__compiler_macro("abc(%iC)", x)
+	__compiler_macro("abc(%a0)", x)
 xyz("bla")
 xyz(123)
 `,
@@ -645,6 +645,28 @@ xyz(123)
 
 abc("bla")
 abc(123)
+`},
+		{source: `
+func xyz[T](x T):
+	__compiler_macro("abc(%t0, %a0)", T, x)
+xyz(100)
+`,
+			reference: `
+// Generic instantiation
+// Compiler macro inside function, skipping
+
+abc(int, 100)
+`},
+		{source: `
+func make2[T](size int) T:
+	__compiler_macro("make(%t0, %a0)")
+make2[[]int](5)
+`,
+			reference: `
+// Generic instantiation
+// Compiler macro inside function, skipping
+
+make([]int, 5)
 `},
 	}
 

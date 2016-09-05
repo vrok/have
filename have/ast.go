@@ -31,6 +31,19 @@ type declStmt interface {
 	Decls() []string
 }
 
+// Some expressions refer to an object (e.g. variable, constant, instantiation).
+// If so, they should implement this (not all do at the time of writing).
+// ReferedObject() works only after type checking is done (some expressions
+// can return correct values before that, but that's not guaranteed).
+// Expressions that sometimes refer to an object and sometimes don't (e.g. array
+// expression can refer to a generic instantiation or can just mean an n-th
+// element in a slice (not an object)) - if so, they should implement it but
+// return nils appropriately.
+type ObjectExpr interface {
+	Expr
+	ReferedObject() Object
+}
+
 // Simple statements are those that can be used in the 3rd
 // clause of the `for` loop.
 type SimpleStmt interface {
@@ -412,6 +425,13 @@ type ReturnStmt struct {
 	Values []Expr
 }
 
+// Compiler macros are an internal mechanism for generating special-case
+// Go code, like Go's builtin functions. Placing "__compiler_macro" in a
+// function causes every call to this function to be replaced with the macro.
+// Macros can use %tN and %aN in their format string to put N-th generic
+// type parameter or N-th function argument in the generated code.
+// Compiler macros are activated by the type checker, so a macro in an
+// inactive "when" statement branch does nothing.
 type compilerMacro struct {
 	stmt
 
@@ -948,8 +968,10 @@ type StructType struct {
 	Keys    []string
 	Methods map[string]*FuncDecl
 	Name    string
-	// Names of generic type paramaters. Nil for standard functions.
+	// Names of generic type paramaters. Nil for standard structs.
 	GenericParams []string
+	// Values of generic parameters. Nil for standard structs.
+	GenericParamVals []Type
 
 	selfType *CustomType
 }
@@ -1158,6 +1180,8 @@ type ArrayExpr struct {
 	Left  Expr
 	Index []Expr
 
+	object Object
+
 	// Type can be e.g. a tuple (X, bool) after type negotiation.
 }
 
@@ -1217,6 +1241,8 @@ type FuncDecl struct {
 	PtrReceiver bool
 	// Names of generic type paramaters. Nil for standard functions.
 	GenericParams []string
+	// Values of generic parameters. Nil for standard functions.
+	GenericParamVals []Type
 
 	compilerMacros []*compilerMacro
 }
