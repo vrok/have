@@ -13,7 +13,7 @@ func testErrors(t *testing.T, files []fakeLocatorFile, errsTarget []string) {
 
 	if len(errs) != len(errsTarget) {
 		t.Fail()
-		fmt.Print("Wrong number of errors, want %d, got %d\n", len(errsTarget), len(errs))
+		fmt.Printf("Wrong number of errors, want %d, got %d\n", len(errsTarget), len(errs))
 		return
 	}
 

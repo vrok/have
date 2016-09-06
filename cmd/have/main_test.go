@@ -102,6 +102,11 @@ func TestTrans(t *testing.T) {
 				"hello",
 			},
 		},
+		{"simple_nested",
+			[]string{
+				"hel/lo",
+			},
+		},
 	}
 
 	for _, c := range cases {

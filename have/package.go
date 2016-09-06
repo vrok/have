@@ -17,19 +17,22 @@ type Package struct {
 }
 
 func NewPackage(path string, files ...*File) *Package {
-	files = append(files, builtinsFile(path))
 	pkg := &Package{
 		path:    path,
-		Files:   files,
 		objects: make(map[string]Object),
 		tc:      NewTypesContext(),
 		Fset:    gotoken.NewFileSet(),
 	}
 	for _, f := range files {
-		f.tc = pkg.tc
-		f.tfile = pkg.Fset.AddFile(f.Name, pkg.Fset.Base(), f.size)
+		pkg.addFile(f)
 	}
 	return pkg
+}
+
+func (p *Package) addFile(f *File) {
+	f.tc = p.tc
+	f.tfile = p.Fset.AddFile(f.Name, p.Fset.Base(), f.size)
+	p.Files = append(p.Files, f)
 }
 
 const BuiltinsFileName = "_builtin.hav"
@@ -64,11 +67,8 @@ func newPackageWithManager(path string, manager *PkgManager) (*Package, error) {
 		return nil, err
 	}
 
-	files = append(files, builtinsFile(path))
-
 	pkg := &Package{
 		path:    path,
-		Files:   files,
 		objects: make(map[string]Object),
 		manager: manager,
 		tc:      NewTypesContext(),
@@ -76,8 +76,7 @@ func newPackageWithManager(path string, manager *PkgManager) (*Package, error) {
 	}
 
 	for _, f := range files {
-		f.tfile = manager.Fset.AddFile(f.Name, manager.Fset.Base(), f.size)
-		f.tc = pkg.tc
+		pkg.addFile(f)
 	}
 	return pkg, nil
 }
@@ -264,9 +263,23 @@ func matchUnbounds(tc *TypesContext, imports Imports, unboundTypes map[string][]
 
 func (o *Package) ParseAndCheck() []error {
 	var errors []error
+	var pkgName string
 	for _, f := range o.Files {
 		errors = append(errors, f.Parse()...)
+		if pkgName != "" && pkgName != f.Pkg {
+			errors = append(errors, fmt.Errorf("Different packages in one dir: %s and %s", pkgName, f.Pkg))
+		}
+		pkgName = f.Pkg
 	}
+
+	if len(errors) > 0 {
+		return errors
+	}
+
+	builtins := builtinsFile(pkgName)
+	o.addFile(builtins)
+	errors = append(errors, builtins.Parse()...)
+
 	if len(errors) > 0 {
 		return errors
 	}
