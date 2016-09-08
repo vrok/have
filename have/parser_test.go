@@ -457,6 +457,9 @@ func TestParseCompoundLiterals(t *testing.T) {
 		{`{1: 2, 3, 4: 5}`, false, COMPOUND_UNKNOWN},
 		{`{2, 3: 4}`, false, COMPOUND_UNKNOWN},
 		{`{1}`, true, COMPOUND_LISTLIKE},
+		{`{{1: "a"}}`, true, COMPOUND_LISTLIKE},
+		{`{{1: "a",}}`, true, COMPOUND_LISTLIKE},
+		{`{{1,}}`, true, COMPOUND_LISTLIKE},
 	}
 	for _, c := range cases {
 		parser := newTestParser(c.code)

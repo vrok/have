@@ -1043,6 +1043,12 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 	for i := 0; true; i++ {
 		p.skipWhiteSpace()
 
+		if p.peek().Type == TOKEN_RBRACE {
+			// Literal with a trailing comma
+			p.nextToken()
+			return &CompoundLit{expr{startTok.Pos}, nil, &UnknownType{}, kind, elems, startTok.Pos}, nil
+		}
+
 		p.ignoreUnknowns = true
 		el, err := p.parseExpr()
 		p.ignoreUnknowns = false
