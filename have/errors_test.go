@@ -48,6 +48,20 @@ func main():
 			[]fakeLocatorFile{fakeLocatorFile{"a", "a.hav", `package a
 ~`}}, []string{"a.hav:2: Unexpected token (expected a primary expression): TOKEN_UNEXP_CHAR"},
 		},
+
+		{
+			[]fakeLocatorFile{fakeLocatorFile{"a", "a.hav", `package a
+func main():
+	somethingUnknown()
+`}}, []string{"a.hav:3: Unknown identifier: somethingUnknown"},
+		},
+
+		{
+			[]fakeLocatorFile{fakeLocatorFile{"a", "a.hav", `package a
+func main():
+	somethingUnknown[int]()
+`}}, []string{"a.hav:3: Unknown identifier: somethingUnknown"},
+		},
 	}
 
 	for _, c := range cases {

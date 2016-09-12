@@ -973,28 +973,34 @@ func ExprToTypeName(tc *TypesContext, e Expr) (t Type, err error) {
 }
 
 // Just like ExprToTypeName, but for generics.
-// TODO: Refactor this so that it has a similar signature to ExprToTypeName
-func ExprToGeneric(e Expr) (t Generic, ok bool) {
+func ExprToGeneric(e Expr) (t Generic, err error) {
 	switch e := e.(type) {
 	case *Ident:
+		if e.object == nil {
+			return nil, ExprErrorf(e, "Unknown identifier: %s", e.name)
+		}
 		if e.object.ObjectType() == OBJECT_GENERIC {
-			return e.object.(Generic), true
+			return e.object.(Generic), nil
 		}
 	case *DotSelector:
 		if IsPackage(e.Left.(TypedExpr)) {
 			importStmt := e.Left.(*Ident).object.(*ImportStmt)
 			obj := importStmt.pkg.GetObject(e.Right.name)
 			if obj != nil && obj.ObjectType() == OBJECT_GENERIC {
-				return obj.(Generic), true
+				return obj.(Generic), nil
 			}
 		}
 	}
-	return nil, false
+	// No error found, but the expression is no a generic.
+	return nil, nil
 }
 
 func (ex *FuncCallExpr) inferGeneric(tc *TypesContext) (*Variable, string, error) {
-	generic, isGeneric := ExprToGeneric(ex.Left)
-	if !isGeneric {
+	generic, err := ExprToGeneric(ex.Left)
+	if err != nil {
+		return nil, "", err
+	}
+	if generic == nil {
 		return nil, "", nil
 	}
 	// Generic function call with indirect generic params
@@ -1461,7 +1467,12 @@ func (ex *ArrayExpr) Type(tc *TypesContext) (Type, error) {
 		return tc.GetType(ex), nil
 	}
 
-	if generic, ok := ExprToGeneric(ex.Left); ok {
+	generic, err := ExprToGeneric(ex.Left)
+	if err != nil {
+		return nil, err
+	}
+
+	if generic != nil {
 		// This isn't a map/array lookup but a generic function.
 		var types []Type
 

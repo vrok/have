@@ -42,6 +42,7 @@ func builtinsFile(pkgName string) *File {
 func print(s interface: pass) bool: return false
 func read() string: pass
 func len[T](c T) int: __compiler_macro("len(%a0)")
+func new[T]() *T: __compiler_macro("new(%t0)")
 func make[T](size int) T: __compiler_macro("make(%t0, %a0)")
 # TODO: Update append with varargs when varargs work
 func append[T](slice []T, elem T) []T: __compiler_macro("append(%a0, %a1)")
