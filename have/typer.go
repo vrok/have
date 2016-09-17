@@ -1945,24 +1945,14 @@ func AreComparable(tc *TypesContext, e1, e2 TypedExpr) bool {
 
 // Implements the definition of ordered operands from the Go spec.
 func AreOrdered(t1, t2 Type) bool {
-	//if !AreComparable(tc, t1, t2) {
-	//	return false
-	//}
+	rootT1, rootT2 := RootType(t1), RootType(t2)
 
-	if t1.Kind() == KIND_SIMPLE && t2.Kind() == KIND_SIMPLE {
-		if t1.(*SimpleType).ID != t2.(*SimpleType).ID {
-			return false
-		}
-
-		switch t1.(*SimpleType).ID {
-		case SIMPLE_TYPE_INT, SIMPLE_TYPE_STRING:
-			return true
-		}
+	if rootT1.String() != rootT2.String() {
 		return false
 	}
 
-	// TODO: other cases
-	panic("todo")
+	return IsTypeIntKind(rootT1) || IsTypeFloatKind(rootT1) ||
+		IsTypeString(rootT1) || IsTypeSimple(rootT1, SIMPLE_TYPE_RUNE)
 }
 
 func firstErr(errors ...error) error {

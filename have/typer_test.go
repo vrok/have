@@ -1339,6 +1339,60 @@ func TestTypesNumberLiterals(t *testing.T) {
 	})
 }
 
+func TestTypesOrdered(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`var a, b int
+var c = a < b`,
+			true,
+			"bool",
+		},
+		{`var a, b int8
+var c = a < b`,
+			true,
+			"bool",
+		},
+		{`var a, b byte
+var c = a < b`,
+			true,
+			"bool",
+		},
+		{`var a, b rune
+var c = a < b`,
+			true,
+			"bool",
+		},
+		{`var a, b string
+var c = a < b`,
+			true,
+			"bool",
+		},
+		{`var a, b float64
+var c = a < b`,
+			true,
+			"bool",
+		},
+		{`
+type t int
+var a, b t
+var c = a < b`,
+			true,
+			"bool",
+		},
+		{`var a, b bool
+var c = a < b`,
+			false,
+			"",
+		},
+		{`
+type t bool
+var a, b t
+var c = a < b`,
+			false,
+			"",
+		},
+	})
+}
+
 func TestTypesComparability(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`var a, b bool
