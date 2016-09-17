@@ -444,7 +444,7 @@ func (ss *SwitchStmt) NegotiateTypes(tc *TypesContext) error {
 		return err
 	}
 
-	var valType Type = &SimpleType{SIMPLE_TYPE_BOOL}
+	var valExpr TypedExpr = &BasicLit{token: &Token{Type: TOKEN_TRUE}}
 
 	typeSwitch, assertion := false, (*TypeAssertion)(nil)
 
@@ -471,12 +471,26 @@ func (ss *SwitchStmt) NegotiateTypes(tc *TypesContext) error {
 					return err
 				}
 
-				valType, err = val.Expression.(TypedExpr).Type(tc)
-				if err != nil {
-					return err
-				}
+				valExpr = val.Expression.(TypedExpr)
 			}
 		}
+	}
+
+	// Determine type of the switch value. It is done independently from values in switch branches.
+	valType, err := valExpr.Type(tc)
+	if err != nil {
+		return err
+	}
+	if !valType.Known() {
+		var ok bool
+		ok, valType = valExpr.GuessType(tc)
+		if !ok {
+			return ExprErrorf(valExpr, "Couldn't determine type of switch expression")
+		}
+	}
+	err = valExpr.ApplyType(tc, valType)
+	if err != nil {
+		return err
 	}
 
 	wasDefault := false
@@ -512,13 +526,8 @@ func (ss *SwitchStmt) NegotiateTypes(tc *TypesContext) error {
 						return ExprErrorf(b.Values[0], "Error with switch clause: %s", i+1, err)
 					}
 
-					expType, err := val.(TypedExpr).Type(tc)
-					if err != nil {
-						return err
-					}
-					if !AreComparable(valType, expType) {
-						return ExprErrorf(b.Values[0], "Error with switch clause, %s is not comparable to %s",
-							valType, expType)
+					if !AreComparable(tc, valExpr, val.(TypedExpr)) {
+						return ExprErrorf(b.Values[0], "Error with switch clause, values are not comparable")
 					}
 				}
 			}
@@ -1863,26 +1872,82 @@ func (ex *BinaryOp) Type(tc *TypesContext) (Type, error) {
 	return ex.Right.(TypedExpr).Type(tc)
 }
 
+// Function assumes that two expressions were checked for assignability, and their
+// can be used to check if the common root type is comparable.
+func isRootTypeComparable(t Type) bool {
+	switch t.Kind() {
+	case KIND_CHAN, KIND_POINTER, KIND_SIMPLE, KIND_CUSTOM:
+		return true
+	case KIND_ARRAY:
+		return isRootTypeComparable(t.(*ArrayType).Of)
+	case KIND_GENERIC_INST, KIND_STRUCT:
+		var asStruct *StructType
+		switch t.Kind() {
+		case KIND_GENERIC_INST:
+			asStruct = t.(*GenericType).Struct
+		case KIND_STRUCT:
+			asStruct = t.(*StructType)
+		}
+
+		for _, memb := range asStruct.Members {
+			if !isRootTypeComparable(memb) {
+				return false
+			}
+		}
+		return true
+	case KIND_INTERFACE:
+		// Assignability should have alrady been checked before calling this function,
+		// so we can don't have to check if one side implements the other side.
+		return true
+	default:
+		return false
+	}
+}
+
 // Implements the definition of comparable operands from the Go spec.
-func AreComparable(t1, t2 Type) bool {
-	if t1.Kind() == KIND_UNKNOWN || t2.Kind() == KIND_UNKNOWN {
-		// This still might be eventually work after we run GuessType on the
-		// parent expression and underlying types will be set.
+// Panic is e1's or e2's methods return errors - their types need to be negotiated earlier.
+func AreComparable(tc *TypesContext, e1, e2 TypedExpr) bool {
+	t1, err := e1.Type(tc)
+	if err != nil || t1.Kind() == KIND_UNKNOWN {
+		panic(fmt.Errorf("Not yet type negotiated expression: %s", err))
+	}
+
+	t2, err := e2.Type(tc)
+	if err != nil || t2.Kind() == KIND_UNKNOWN {
+		panic(fmt.Errorf("Not yet type negotiated expression: %s", err))
+	}
+
+	// Initial requirement from the Go spec.
+	if !IsAssignable(t1, t2) && !IsAssignable(t2, t1) {
 		return false
 	}
 
-	if !IsAssignable(t1, t2) || !IsAssignable(t2, t1) {
-		return false
+	rootT1, rootT2 := RootType(t1), RootType(t2)
+
+	_, isE1Nil := e1.(*NilExpr)
+	_, isE2Nil := e2.(*NilExpr)
+
+	switch {
+	case isE2Nil && (rootT1.Kind() == KIND_MAP || rootT1.Kind() == KIND_SLICE || rootT1.Kind() == KIND_FUNC):
+		return true
+	case isE1Nil && (rootT2.Kind() == KIND_MAP || rootT2.Kind() == KIND_SLICE || rootT2.Kind() == KIND_FUNC):
+		return true
+	case rootT1.String() == rootT2.String():
+		return isRootTypeComparable(rootT1)
+	case IsInterface(t1):
+		return Implements(t1, t2)
+	case IsInterface(t2):
+		return Implements(t2, t1)
 	}
 
-	return true
+	return false
 }
 
 // Implements the definition of ordered operands from the Go spec.
 func AreOrdered(t1, t2 Type) bool {
-	if !AreComparable(t1, t2) {
-		return false
-	}
+	//if !AreComparable(tc, t1, t2) {
+	//	return false
+	//}
 
 	if t1.Kind() == KIND_SIMPLE && t2.Kind() == KIND_SIMPLE {
 		if t1.(*SimpleType).ID != t2.(*SimpleType).ID {
@@ -1953,17 +2018,22 @@ func (ex *BinaryOp) applyTypeForComparisonOp(tc *TypesContext, typ Type) error {
 		return err
 	}
 
+	err = firstErr(leftExpr.ApplyType(tc, t1), rightExpr.ApplyType(tc, t2))
+	if err != nil {
+		return err
+	}
+
 	if ex.op.IsOrderOp() {
 		if !AreOrdered(t1, t2) {
 			return ExprErrorf(ex, "Operands of types %s and %s can't be ordered", t1, t2)
 		}
 	} else {
-		if !AreComparable(t1, t2) {
+		if !AreComparable(tc, leftExpr, rightExpr) {
 			return ExprErrorf(ex, "Types %s and %s aren't comparable", t1, t2)
 		}
 	}
 
-	return firstErr(leftExpr.ApplyType(tc, t1), rightExpr.ApplyType(tc, t2))
+	return nil
 }
 
 func (ex *BinaryOp) ApplyType(tc *TypesContext, typ Type) error {

@@ -1339,6 +1339,98 @@ func TestTypesNumberLiterals(t *testing.T) {
 	})
 }
 
+func TestTypesComparability(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`var a, b bool
+var c = a == b`,
+			true,
+			"bool",
+		},
+		{`var a, b int
+var c = a == b`,
+			true,
+			"bool",
+		},
+		{`var a, b *int
+var c = a == b`,
+			true,
+			"bool",
+		},
+		{`var a, b chan int
+var c = a == b`,
+			true,
+			"bool",
+		},
+		{`var a, b interface: pass
+var c = a == b`,
+			true,
+			"bool",
+		},
+		{`
+interface I: func f()
+struct S: func f(): pass
+var a I, b S	
+var c = a == b`,
+			true,
+			"bool",
+		},
+		{`
+interface I: func f()
+struct S: pass # S doesn't implement I, so S and I aren't comparable
+var a I, b S	
+var c = a == b`,
+			false,
+			"",
+		},
+		{`
+struct S: x int
+var a, b S
+var c = a == b`,
+			true,
+			"bool",
+		},
+		{`
+struct S: x []int # []int aren't comparable, so S isn't comparable
+var a, b S
+var c = a == b`,
+			false,
+			"",
+		},
+		{`
+var a, b [1]int
+var c = a == b`,
+			true,
+			"bool",
+		},
+		{`
+var a, b [1][]int # slices aren't comparable, so arrays of them aren't too
+var c = a == b`,
+			false,
+			"bool",
+		},
+		{`var x, y func()
+var y = x == y # Functions aren't comparable`,
+			false,
+			"",
+		},
+		{`var x map[string]int
+var y = x == nil # Special case, can compare to nil`,
+			true,
+			"bool",
+		},
+		{`var x []int
+var y = x == nil # Special case, can compare to nil`,
+			true,
+			"bool",
+		},
+		{`var x func()
+var y = x == nil # Special case, can compare to nil`,
+			true,
+			"bool",
+		},
+	})
+}
+
 func TestTypesNil(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`var a *int = nil`,
@@ -1392,9 +1484,9 @@ var b = a == nil`,
 func TestTypesCompareLiterals(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`var x []int
-var y = x == {1, 2, 3}`,
-			true,
-			"bool",
+var y = x == {1, 2, 3} # slices aren't comparable`,
+			false,
+			"",
 		},
 		{`var x []int
 var y = x == {1, "bla", 3}`,
@@ -1402,7 +1494,7 @@ var y = x == {1, "bla", 3}`,
 			"",
 		},
 		{`var x []int
-var y = x == nil`,
+var y = x == nil # as a special case, slices/maps/functions can be compared to nil`,
 			true,
 			"bool",
 		},
@@ -1416,9 +1508,9 @@ var y = nil == x`,
 			"",
 		},
 		{`var x map[string]int
-var y = x == {"a": 1, "b": 2, "c": 3}`,
-			true,
-			"bool",
+var y = x == {"a": 1, "b": 2, "c": 3} # maps aren't comparable`,
+			false,
+			"",
 		},
 		{`var x map[string]int
 var y = x == {1, 2, 3}`,
