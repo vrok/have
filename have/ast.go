@@ -36,7 +36,7 @@ type declStmt interface {
 // ReferedObject() works only after type checking is done (some expressions
 // can return correct values before that, but that's not guaranteed).
 // Expressions that sometimes refer to an object and sometimes don't (e.g. array
-// expression can refer to a generic instantiation or can just mean an n-th
+// expression can refer to a generic instantiation or can just mean the n-th
 // element in a slice (not an object)) - if so, they should implement it but
 // return nils appropriately.
 type ObjectExpr interface {
@@ -231,8 +231,7 @@ var builtinTypes map[string]*TypeDecl = map[string]*TypeDecl{}
 func initVarDecls() {
 	for _, name := range builtinTypeNames {
 		builtinTypes[name] = &TypeDecl{
-			name: name,
-			//Type: &SimpleType{ID: simpleTypeStrToID[name]},
+			name:        name,
 			AliasedType: nil, // Simple types aren't aliases
 		}
 	}
@@ -381,7 +380,6 @@ type SwitchStmt struct {
 type ForStmt struct {
 	stmt
 
-	// TODO: foreach-like loops can't be handled by this
 	ScopedVar  Stmt
 	Condition  Expr
 	RepeatStmt SimpleStmt
@@ -484,7 +482,6 @@ func (gs *GenericStruct) Instantiate(tc *TypesContext, params ...Type) (Object, 
 		Generic: gs,
 		Params:  params,
 		tc:      tc,
-		// TODO: ...
 	}
 	tc.instantiations[instKey] = r
 	errs := r.ParseAndCheck()
@@ -653,12 +650,15 @@ type DeclaredType interface {
 }
 
 // Helper function used by all MapSubtypes implementations.
+// The difference between this function and using t.MapSubtypes(c) directly is that
+// this function calls c with t itself too.
 func mapSubtype(t Type, callback func(t Type) bool) {
 	if goOn := callback(t); goOn {
 		t.MapSubtypes(callback)
 	}
 }
 
+// Calls mapSubtype on multiple types.
 func mapSubtypes(ts []Type, callback func(t Type) bool) {
 	for _, t := range ts {
 		mapSubtype(t, callback)
@@ -1027,7 +1027,6 @@ func (t *IfaceType) Kind() Kind  { return KIND_INTERFACE }
 func (t *IfaceType) String() string {
 	out := &bytes.Buffer{}
 	out.WriteString("interface{")
-	// TODO: use 't.Keys' for consistent order
 	for i, k := range t.Keys {
 		fmt.Fprintf(out, "%s%s", t.Methods[k].name, t.Methods[k].typ.Header())
 		if (i + 1) < len(t.Methods) {
@@ -1078,8 +1077,7 @@ func (t *CustomType) PackagePtr() *ImportStmt {
 	return t.Package
 }
 
-type UnknownType struct {
-}
+type UnknownType struct{}
 
 func (t *UnknownType) Known() bool                            { return false }
 func (t *UnknownType) String() string                         { return "_" }
@@ -1100,8 +1098,7 @@ func (s *stmt) Label() *Object {
 	return s.label
 }
 
-// Blank expression, represents no expression.
-// Sometimes useful.
+// Blank expression, represents no expression. Sometimes useful.
 // implements Expr
 type BlankExpr struct {
 	expr
@@ -1166,7 +1163,6 @@ type UnaryOp struct {
 
 	Right Expr
 	op    *Token
-	// Type can be e.g. a tuple (X, bool) after type negotiation.
 }
 
 type PrimaryExpr interface {
@@ -1181,8 +1177,6 @@ type ArrayExpr struct {
 	Index []Expr
 
 	object Object
-
-	// Type can be e.g. a tuple (X, bool) after type negotiation.
 }
 
 // Represents subslice extraction - for x[a:b], it represents a:b.
@@ -1210,8 +1204,6 @@ type TypeAssertion struct {
 	ForSwitch bool
 	Left      Expr
 	Right     *TypeExpr
-
-	// Type can be e.g. a tuple (X, bool) after type negotiation.
 }
 
 // implements PrimaryExpr
@@ -1253,16 +1245,11 @@ type Ident struct {
 
 	name   string
 	object Object
+
 	// After type checking, some Ident instances turn out to be just
 	// member names used in a composite literal. They aren't matched
 	// with any object and it's not an error.
 	memberName bool
-	//token *Token
-}
-
-type Node interface {
-	//Pos() int // TODO
-	//End() int // TODO
 }
 
 func init() {

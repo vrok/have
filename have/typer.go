@@ -127,7 +127,6 @@ func IsAssignable(to, what Type) bool {
 		return to.String() == what.String()
 	}
 
-	// TODO: handle other cases (nils, interfaces, etc.)
 	return UnderlyingType(to).String() == UnderlyingType(what).String()
 }
 
@@ -180,7 +179,6 @@ func Implements(iface, value Type) bool {
 		}
 
 		if !found {
-			//return fmt.Errorf("Interface not satisfied, method %s (%s) missing", imet.name, imet.typ)
 			return false
 		}
 	}
@@ -821,7 +819,6 @@ func (vd *VarDecl) NegotiateTypes(tc *TypesContext) error {
 	}
 
 	var err error
-	//var depErrs []*needsDepErr
 	vd.eachPair(func(v *Variable, init Expr) {
 		if err == nil {
 			if init == nil {
@@ -831,50 +828,6 @@ func (vd *VarDecl) NegotiateTypes(tc *TypesContext) error {
 		}
 	})
 	return err
-
-	/*
-		if err != nil {
-			return err
-		}
-
-		if len(depErrs) > 0 {
-			merged := needsDepErr{
-				depName: depErrs[0].depName, // Use the first one for now
-			}
-
-			for _, nde := range depErrs {
-				merged.unchecked = append(merged.unchecked, nde.unchecked...)
-			}
-
-			return &merged
-		}*/
-
-	/*
-		var progress bool
-		for progress {
-			before := len(depErrs)
-			for i := len(depErrs) - 1; i >= 0; i-- {
-				depErr := depErrs[i]
-				err = NegotiateExprType(&(depErr.unchecked.v.Type), depErr.unchecked.init.(TypedExpr))
-
-				_, isDepErr := err.(*needsDepErr)
-
-				switch {
-				case err == nil:
-					// Fixed - VarDecl had an internal dependency.
-					depErrs = append(depErrs[:i], depErrs[i+1:]...)
-				case isDepErr:
-					// Still unresolved, but might be an external dependency.
-				default:
-					// Some other error, report it.
-					return err
-				}
-			}
-			after := len(depErrs)
-			progress = after < before
-		}
-	*/
-	return nil
 }
 
 func (es *ExprStmt) NegotiateTypes(tc *TypesContext) error {
@@ -947,7 +900,6 @@ func IsConvertable(tc *TypesContext, what TypedExpr, to Type) bool {
 // Additionaly, if it encounters an error it returns it, usually
 // they are non-recoverable and can be printed out as compilation errors.
 func ExprToTypeName(tc *TypesContext, e Expr) (t Type, err error) {
-	// TODO: dot operator for packages in below switch:
 	switch e := e.(type) {
 	case *TypeExpr:
 		return e.typ, nil
@@ -1214,10 +1166,6 @@ func (ex *FuncCallExpr) IsNullResult(tc *TypesContext) bool {
 	if calleeType.Kind() != KIND_FUNC {
 		return false
 	}
-
-	//if calleeType.Kind() == KIND_TUPLE {
-	//	panic("todo")
-	//}
 
 	asFunc := calleeType.(*FuncType)
 	return len(asFunc.Results) == 0
@@ -1778,7 +1726,6 @@ func (ex *CompoundLit) ApplyType(tc *TypesContext, typ Type) error {
 			}
 			apply = true
 		}
-		//panic("todo")
 	case KIND_MAP:
 		asMap := rootTyp.(*MapType)
 
@@ -1817,7 +1764,6 @@ func (ex *CompoundLit) GuessType(tc *TypesContext) (ok bool, typ Type) {
 		for _, el := range ex.elems {
 			ok, t := el.(TypedExpr).GuessType(tc)
 			if !ok {
-				//return fmt.Errorf("Can't guess the type of the compound literal, because can't guess the type of %#v", el)
 				return false, nil
 			}
 			if typ == nil {
@@ -1905,16 +1851,16 @@ func isRootTypeComparable(t Type) bool {
 }
 
 // Implements the definition of comparable operands from the Go spec.
-// Panic is e1's or e2's methods return errors - their types need to be negotiated earlier.
+// Panic if e1's or e2's methods return errors - their types need to be negotiated earlier.
 func AreComparable(tc *TypesContext, e1, e2 TypedExpr) bool {
 	t1, err := e1.Type(tc)
 	if err != nil || t1.Kind() == KIND_UNKNOWN {
-		panic(fmt.Errorf("Not yet type negotiated expression: %s", err))
+		panic(fmt.Errorf("Not type-negotiated expression: %s", err))
 	}
 
 	t2, err := e2.Type(tc)
 	if err != nil || t2.Kind() == KIND_UNKNOWN {
-		panic(fmt.Errorf("Not yet type negotiated expression: %s", err))
+		panic(fmt.Errorf("Not type-negotiated expression: %s", err))
 	}
 
 	// Initial requirement from the Go spec.
@@ -2161,7 +2107,6 @@ func (ex *UnaryOp) ApplyType(tc *TypesContext, typ Type) error {
 func (ex *UnaryOp) GuessType(tc *TypesContext) (ok bool, typ Type) {
 	switch right := ex.Right.(TypedExpr); ex.op.Type {
 	case TOKEN_PLUS, TOKEN_MINUS, TOKEN_SHR, TOKEN_SHL:
-		//return right.ApplyType(typ)
 		return right.GuessType(tc)
 	case TOKEN_MUL:
 		ok, typ := right.GuessType(tc)
@@ -2187,7 +2132,6 @@ func (ex *UnaryOp) GuessType(tc *TypesContext) (ok bool, typ Type) {
 	default:
 		panic("todo")
 	}
-	//return ex.Right.(TypedExpr).GuessType(tc)
 }
 
 // Helper function for expressions with common Type() implementations.
@@ -2207,7 +2151,6 @@ func applyTypeToObject(obj Object, name string, typ Type) error {
 		return fmt.Errorf("Identifier %s is not a variable", name)
 	}
 
-	//if ex.object.(*VarDecl).Type.String() != typ.String() {
 	if !IsAssignable(typ, obj.(*Variable).Type) {
 		return fmt.Errorf("Identifier %s is of type %s, can't assign type %s to it", name, obj.(*Variable).Type, typ)
 	}
@@ -2358,7 +2301,7 @@ func deduceGenericParams(tc *TypesContext, params []string, decls []Type, uses [
 				var ok bool
 				ok, use = uses[i].(TypedExpr).GuessType(tc)
 				if !ok {
-					return nil, fmt.Errorf("Argument #i has unknown type", i)
+					return nil, fmt.Errorf("Argument #%d has unknown type", i)
 				}
 			}
 
@@ -2388,7 +2331,7 @@ func deduceGenericParams(tc *TypesContext, params []string, decls []Type, uses [
 					j++
 					return false
 				} else if declSubt.Kind() != t.Kind() {
-					err = fmt.Errorf("Generic function and the parameter have incomptible types (%s and %s)", declSubt.Kind(), t.Kind())
+					err = fmt.Errorf("Generic function and the parameter have incomptible types (%s and %s)", declSubt, t)
 					return false
 				}
 

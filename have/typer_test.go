@@ -2219,7 +2219,7 @@ f(1, "aaa")`,
 			t.Fatalf("Case %d: Unexpected number of instantiations: %d", i, len(tc.instantiations))
 		}
 
-		for k, _ := range tc.instantiations {
+		for k := range tc.instantiations {
 			if string(k) != c.want {
 				t.Fatalf("Case %d: Deduced wrong arguments: %s instead of %s", i, k, c.want)
 			}

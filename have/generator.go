@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// CodeChunk can either be a string of smaller CodeChunks
+// CodeChunk can either be a slice of smaller CodeChunks
 // or its value can be a string.
 // Think of it as of a union type.
 // Every statement should have a separate CodeChunk.
@@ -68,18 +68,12 @@ func (cc *CodeChunk) AddChunks(chunks ...*CodeChunk) {
 
 func (cc *CodeChunk) NewStrChunk(s string) *CodeChunk {
 	ch := &CodeChunk{code: s, parent: cc}
-	//if cc.blockOfStmts {
-	//	ch.code = cc.indent + cc.code
-	//}
 	return ch
 }
 
 // Created a new empty chunk whose parent is the receiver.
 func (cc *CodeChunk) NewChunk() *CodeChunk {
 	ch := &CodeChunk{parent: cc, indent: cc.indent}
-	//if cc.blockOfStmts {
-	//	ch.AddString(cc.indent)
-	//}
 	cc.chunks = append(cc.chunks, ch)
 	return ch
 }
@@ -787,5 +781,3 @@ func (cm *compilerMacro) generate(tc *TypesContext, current *CodeChunk, args []E
 
 	current.AddChprintf(tc, pattern, finalArgs...)
 }
-
-// TODO: Now just write Generables for all statements/expressions and we're done...

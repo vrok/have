@@ -86,11 +86,6 @@ func (p *Package) Get(name string) Object {
 	panic("todo")
 }
 
-/*
-func (o *Package) Name() string           { return o.name }
-func (o *Package) ObjectType() ObjectType { return OBJECT_PACKAGE }
-*/
-
 func topoSort(stmts []*TopLevelStmt) ([]*TopLevelStmt, error) {
 	// First, build a revered graph of statement dependencies.
 	type node struct {
@@ -161,7 +156,6 @@ func topoSort(stmts []*TopLevelStmt) ([]*TopLevelStmt, error) {
 	}
 
 	if len(remains) > 0 {
-		// TODO: Print the actual loop
 		allDecls := map[string]bool{}
 		for _, stmt := range stmts {
 			decls := stmt.Decls()
@@ -452,14 +446,15 @@ func (r *Instantiation) ParseAndCheck() []error {
 	genericParams := make(map[string]Type, len(paramsList))
 	if len(paramsList) != len(r.Params) {
 		// TODO: Add location info to the error
-		return []error{fmt.Errorf("Wrong number of generic args to %s: %d, not %d",
+		return []error{fmt.Errorf("Wrong number of generic args: %d, not %d",
 			len(r.Params), len(paramsList))}
 	}
+
 	for i := 0; i < len(paramsList); i++ {
 		name, val := paramsList[i], r.Params[i]
 		genericParams[name] = val
 	}
-	//r.ParseAndCheck()
+
 	r.parser.genericParams = genericParams
 	r.parser.generic = r.Generic
 
