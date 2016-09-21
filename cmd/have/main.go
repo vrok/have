@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"have/have"
+	"github.com/vrok/have/have"
 	"io/ioutil"
 	"os"
 	"os/exec"
