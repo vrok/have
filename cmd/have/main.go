@@ -3,13 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/vrok/have/have"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
 	"strings"
 	"syscall"
+
+	"github.com/vrok/have/have"
 )
 
 // Implements PkgLocator
@@ -216,6 +217,19 @@ func run(args []string) {
 }
 
 func main() {
+	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
+	flag.Usage = func() {
+		messages := map[string]string{
+			"trans": "Translate .hav files to .go",
+			"run":   "Run the translated versions of .hav files",
+			"help":  "Print this help message",
+		}
+		fmt.Printf("Usage: have command [arguments]\n\n")
+		fmt.Printf("The commands are: \n")
+		for command, message := range messages {
+			fmt.Printf("\t%s\t%s\n", command, message)
+		}
+	}
 	flag.Parse()
 
 	var args = flag.Args()
@@ -230,6 +244,8 @@ func main() {
 		trans(args[1:])
 	case "run":
 		run(args[1:])
+	case "help":
+		flag.Usage()
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", args[0])
 	}
