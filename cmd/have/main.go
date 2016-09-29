@@ -221,7 +221,7 @@ func main() {
 	flag.Usage = func() {
 		messages := map[string]string{
 			"trans": "Translate .hav files to .go",
-			"run":   "Run the translated versions of .hav files",
+			"run":   "Translate and then run .hav files",
 			"help":  "Print this help message",
 		}
 		fmt.Printf("Usage: have command [arguments]\n\n")
