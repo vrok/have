@@ -29,6 +29,16 @@ type Parser struct {
 
 	dontLookup bool
 
+	// Used in situations like these:
+	//   type List []int
+	//   for var x range List{1, 2, 3} {}
+	// We don't know whether List is a type name or a value, so we can't tell whether the '{' that
+	// follows it marks the beginning of a literal or a code block. Just like in Go, we just assume
+	// the latter.
+	// nakedControlClause is used to track whether we are in a control clause without any parentheses
+	// around, otherwise we can always assume that it's a literal, not a code block.
+	nakedControlClause bool
+
 	prevLbl *LabelStmt // Just declared labal is stored here temporarily
 }
 
@@ -296,44 +306,65 @@ func tokenTypesEq(a, b []TokenType) bool {
 	return true
 }
 
-// Parse an indented block of code.
+// Parse a block of code that ends with '}'.
 func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
-	if t := p.peek(); t.Type != TOKEN_INDENT {
-		stmt, err := p.parseStmt()
-		if err != nil {
-			return nil, err
-		}
+	return p.parseCustomCodeBlock([]TokenType{TOKEN_RBRACE}, true)
+}
 
-		if stmt == nil {
-			return nil, CompileErrorf(t, "Expected a statement in a block")
-		}
-
-		result := &CodeBlock{Labels: map[string]*LabelStmt{}, Statements: []Stmt{stmt}}
-		return result, nil
+func (p *Parser) parseColonAndCustomBlock(terminators []TokenType) (*CodeBlock, error) {
+	if t, ok := p.expect(TOKEN_COLON); !ok {
+		return nil, CompileErrorf(t, "Expected `:`, got %s", t.Type)
 	}
+	return p.parseCustomCodeBlock(terminators, false)
+}
 
-	indent, err := p.expectNewIndent()
-	if err != nil {
-		return nil, err
-	}
+// Parse an indented block of code.
+func (p *Parser) parseCustomCodeBlock(terminators []TokenType, consumeTerminator bool) (*CodeBlock, error) {
+	//if t := p.peek(); t.Type != TOKEN_INDENT {
+	//	stmt, err := p.parseStmt()
+	//	if err != nil {
+	//		return nil, err
+	//	}
+
+	//	if stmt == nil {
+	//		return nil, CompileErrorf(t, "Expected a statement in a block")
+	//	}
+
+	//	result := &CodeBlock{Labels: map[string]*LabelStmt{}, Statements: []Stmt{stmt}}
+	//	return result, nil
+	//}
+
+	//indent, err := p.expectNewIndent()
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	result := &CodeBlock{Labels: map[string]*LabelStmt{}}
-	p.putBack(indent)
+	//p.putBack(indent)
 
-	p.identStack.pushScope()
-	defer p.identStack.popScope()
+	//p.identStack.pushScope()
+	//defer p.identStack.popScope()
 
 	p.branchTreesStack.pushNew()
 	defer p.branchTreesStack.pop()
 
-	for t := p.nextToken(); t.Type != TOKEN_EOF; t = p.nextToken() {
-		p.putBack(t) // So that we can use handleIndentEnd
-		end, err := p.handleIndentEnd()
-		if err != nil {
-			return nil, err
+	isTerminator := func(typ TokenType) bool {
+		for _, t := range terminators {
+			if t == typ {
+				return true
+			}
 		}
-		if end {
-			break
+		return false
+	}
+
+	for p.peek().Type != TOKEN_EOF {
+		p.skipWhiteSpace()
+
+		if isTerminator(p.peek().Type) {
+			if consumeTerminator {
+				p.nextToken()
+			}
+			return result, nil
 		}
 
 		stmt, err := p.parseStmt()
@@ -342,8 +373,9 @@ func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
 		}
 
 		if stmt == nil {
+			panic("todo")
 			// EOF right after indent
-			break
+			//break
 		}
 
 		if lbl, ok := stmt.(*LabelStmt); ok {
@@ -353,6 +385,17 @@ func (p *Parser) parseCodeBlock() (*CodeBlock, error) {
 		}
 
 		result.Statements = append(result.Statements, stmt)
+
+		switch p.peek().Type {
+		case TOKEN_SEMICOLON, TOKEN_INDENT:
+			// Fine, read next statement
+			p.nextToken()
+		default:
+			if isTerminator(p.peek().Type) {
+				continue // Break in next iteration
+			}
+			return nil, CompileErrorf(p.peek(), "Unexpected token after a statement")
+		}
 	}
 
 	p.branchTreesStack.top().MatchGotoLabels(result.Labels)
@@ -431,16 +474,16 @@ func (p *Parser) parse3ClauseForStmt() (*ForStmt, error) {
 		return nil, CompileErrorf(t, "Expected semicolon")
 	}
 
-	if p.peek().Type != TOKEN_COLON {
+	if p.peek().Type != TOKEN_LBRACE {
 		result.RepeatStmt, err = p.parseSimpleStmt(false)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	// Consume the colon
-	if t, ok := p.expect(TOKEN_COLON); !ok {
-		return nil, CompileErrorf(t, "Expected `:` at the end of `for` statement")
+	// Consume left brace
+	if t, ok := p.expect(TOKEN_LBRACE); !ok {
+		return nil, CompileErrorf(t, "Expected `{` at the end of `for` statement")
 	}
 
 	result.Code, err = p.parseCodeBlock()
@@ -460,8 +503,8 @@ func (p *Parser) parseWhileLikeFor() (*ForStmt, error) {
 		return nil, err
 	}
 
-	// Consume the colon
-	if t, ok := p.expect(TOKEN_COLON); !ok {
+	// Consume the left brace
+	if t, ok := p.expect(TOKEN_LBRACE); !ok {
 		return nil, CompileErrorf(t, "Expected `:` at the end of `for` statement")
 	}
 
@@ -521,14 +564,14 @@ func (p *Parser) parseRangeForStmt() (*ForRangeStmt, error) {
 		return nil, CompileErrorf(t, "Expected `range`")
 	}
 
-	result.Series, err = p.parseExpr()
+	result.Series, err = p.parseCtrlClauseExpr()
 	if err != nil {
 		return nil, err
 	}
 
-	// Consume the colon
-	if t, ok := p.expect(TOKEN_COLON); !ok {
-		return nil, CompileErrorf(t, "Expected `:` at the end of `for` statement")
+	// Consume the left brace
+	if t, ok := p.expect(TOKEN_LBRACE); !ok {
+		return nil, CompileErrorf(t, "Expected `{` at the end of `for` statement")
 	}
 
 	result.Code, err = p.parseCodeBlock()
@@ -548,8 +591,7 @@ func (p *Parser) parseForStmt(lbl *LabelStmt) (stmt Stmt, err error) {
 	// We push another BranchStmtsTree so that code like below fails:
 	//  if true:
 	//      break
-	//  for x = 0; x < 10; x += 1:
-	//      pass
+	//  for x = 0; x < 10; x += 1 { pass }
 	// Without this extra tree, for's MatchBranchableStmt would be called
 	// for the surrounding block's tree. Another option would be to plug
 	// it into for's CodeBlock, but it would result in nasty code.
@@ -581,9 +623,14 @@ func (p *Parser) parseForStmt(lbl *LabelStmt) (stmt Stmt, err error) {
 }
 
 func (p *Parser) parseColonWithCodeBlock() (*CodeBlock, error) {
-	colon, ok := p.expect(TOKEN_COLON)
+	//colon, ok := p.expect(TOKEN_COLON)
+	//if !ok {
+	//	return nil, CompileErrorf(colon, "Expected `:` at the end of `if` condition")
+	//}
+
+	brace, ok := p.expect(TOKEN_LBRACE)
 	if !ok {
-		return nil, CompileErrorf(colon, "Expected `:` at the end of `if` condition")
+		return nil, CompileErrorf(brace, "Expected `{` at the end of `if` condition")
 	}
 
 	return p.parseCodeBlock()
@@ -619,7 +666,7 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 
 	getCondAndBlock := func() (condition Expr, block *CodeBlock, err error) {
 		t := p.peek()
-		condition, err = p.parseExpr()
+		condition, err = p.parseCtrlClauseExpr()
 		if err != nil {
 			return nil, nil, CompileErrorf(t, "Couldn't parse the condition expression: %s", err)
 		}
@@ -693,7 +740,7 @@ func (p *Parser) parseSwitchStmt() (*SwitchStmt, error) {
 		return nil, CompileErrorf(ident, "Impossible happened")
 	}
 
-	scopedVar := p.scanForToken(TOKEN_SEMICOLON, []TokenType{TOKEN_CASE, TOKEN_DEFAULT})
+	scopedVar := p.scanForToken(TOKEN_SEMICOLON, []TokenType{TOKEN_LBRACE})
 
 	var (
 		err                     error
@@ -718,36 +765,42 @@ func (p *Parser) parseSwitchStmt() (*SwitchStmt, error) {
 
 	var typeSwitchVar *Variable
 
-	switch p.peek().Type {
-	case TOKEN_DEFAULT, TOKEN_CASE, TOKEN_INDENT:
+	p.runWithCtrClauseEnabled(func() {
+		switch p.peek().Type {
+		case TOKEN_LBRACE:
 		// No main stmt/expr
-	case TOKEN_VAR:
-		var varStmt *VarStmt
-		// Push and pop scope so that this variable isn't available for binding,
-		// we use its copies instead (type switches are a bit odd).
-		p.identStack.pushScope()
-		t := p.peek()
-		varStmt, err = p.parseVarStmt(true)
-		p.identStack.popScope()
-		if len(varStmt.Vars) != 1 || len(varStmt.Vars[0].Vars) != 1 {
-			return nil, CompileErrorf(t, "Invalid variable declaration in switch header")
+		case TOKEN_VAR:
+			var varStmt *VarStmt
+			// Push and pop scope so that this variable isn't available for binding,
+			// we use its copies instead (type switches are a bit odd).
+			p.identStack.pushScope()
+			t := p.peek()
+			varStmt, err = p.parseVarStmt(true)
+			p.identStack.popScope()
+			if len(varStmt.Vars) != 1 || len(varStmt.Vars[0].Vars) != 1 {
+				err = CompileErrorf(t, "Invalid variable declaration in switch header")
+				return
+			}
+			typeSwitchVar = varStmt.Vars[0].Vars[0]
+			mainStmt = varStmt
+		default:
+			mainStmt, err = p.parseSimpleStmt(false)
 		}
-		typeSwitchVar = varStmt.Vars[0].Vars[0]
-		mainStmt = varStmt
-	default:
-		mainStmt, err = p.parseSimpleStmt(false)
-	}
+	})
 
 	if err != nil {
 		return nil, err
 	}
 
+	if t, ok := p.expect(TOKEN_LBRACE); !ok {
+		return nil, CompileErrorf(t, "`{` expceted")
+	}
+
+	p.skipWhiteSpace()
+
 loop:
 	for {
-		isBranch, t := p.checkForBranch(TOKEN_CASE, TOKEN_DEFAULT)
-		if !isBranch {
-			break loop
-		}
+		t := p.nextToken()
 
 		switch t.Type {
 		case TOKEN_CASE:
@@ -765,7 +818,7 @@ loop:
 				p.identStack.addObject(typeSwitchVarCopy)
 			}
 
-			block, err := p.parseColonWithCodeBlock()
+			block, err := p.parseColonAndCustomBlock([]TokenType{TOKEN_CASE, TOKEN_DEFAULT, TOKEN_RBRACE})
 			p.identStack.popScope()
 			if err != nil {
 				return nil, err
@@ -778,7 +831,7 @@ loop:
 				TypeSwitchVar: typeSwitchVarCopy,
 			})
 		case TOKEN_DEFAULT:
-			block, err := p.parseColonWithCodeBlock()
+			block, err := p.parseColonAndCustomBlock([]TokenType{TOKEN_CASE, TOKEN_DEFAULT, TOKEN_RBRACE})
 			if err != nil {
 				return nil, err
 			}
@@ -787,9 +840,10 @@ loop:
 				stmt: stmt{expr: expr{t.Pos}},
 				Code: block,
 			})
-		default:
-			p.putBack(t)
+		case TOKEN_RBRACE:
 			break loop
+		default:
+			return nil, CompileErrorf(t, "Unexpected token: %s", t.Type)
 		}
 	}
 
@@ -800,21 +854,6 @@ loop:
 		branches,
 	}, nil
 }
-
-/*
-func (p *Parser) loadBuiltinFuncs() {
-	for _, code := range builtinFuncs {
-		parser := NewParserWithoutBuiltins(NewLexer([]rune(code)))
-		fun, _, err := parser.parseFunc(false)
-		if err != nil {
-			panic(err)
-		}
-
-		decl := &Variable{name: fun.name, Type: fun.typ}
-		p.identStack.addObject(decl)
-	}
-}
-*/
 
 func (p *Parser) parseFuncStmt() (Stmt, error) {
 	ident, ok := p.expect(TOKEN_FUNC)
@@ -1050,7 +1089,7 @@ func (p *Parser) parseCompoundLit() (*CompoundLit, error) {
 		}
 
 		p.ignoreUnknowns = true
-		el, err := p.parseExpr()
+		el, err := p.parseEnclosedExpr()
 		p.ignoreUnknowns = false
 		if err != nil {
 			return nil, err
@@ -1632,7 +1671,7 @@ func (p *Parser) parsePrimaryExpr() (PrimaryExpr, error) {
 
 	switch token.Type {
 	case TOKEN_LPARENTH:
-		left, err = p.parseExpr()
+		left, err = p.parseEnclosedExpr()
 		if err != nil {
 			return nil, err
 		}
@@ -1708,7 +1747,7 @@ loop:
 			left = &FuncCallExpr{expr{token.Pos}, left, args, nil}
 		case TOKEN_LBRACKET:
 			var index []Expr
-			exp, err := p.parseExpr()
+			exp, err := p.parseEnclosedExpr()
 			if err != nil {
 				return nil, err
 			}
@@ -1717,7 +1756,7 @@ loop:
 				p.nextToken()
 
 				from := exp
-				to, err := p.parseExpr()
+				to, err := p.parseEnclosedExpr()
 				if err != nil {
 					return nil, err
 				}
@@ -1728,7 +1767,7 @@ loop:
 
 				for p.peek().Type == TOKEN_COMMA {
 					p.nextToken()
-					exp, err := p.parseExpr()
+					exp, err := p.parseEnclosedExpr()
 					if err != nil {
 						return nil, err
 					}
@@ -1745,6 +1784,16 @@ loop:
 			left = &ArrayExpr{expr{token.Pos}, left, index, nil}
 		case TOKEN_LBRACE:
 			p.putBack(token)
+
+			if p.nakedControlClause {
+				switch left.(type) {
+				case *Ident, *DotSelector, *CompoundLit:
+					// Left side can be either a type name or a value.
+					// Like Go, assume it's value if we're in a control clause.
+					return left, nil
+				}
+			}
+
 			literal, err := p.parseCompoundLit()
 			if err != nil {
 				return nil, err
@@ -1814,6 +1863,32 @@ func hierarchyNum(typ TokenType) int {
 	panic(fmt.Errorf("Token %#v isn't a binary operator", typ))
 }
 
+// See the commend above nakedControlClause.
+func (p *Parser) parseEnclosedExpr() (Expr, error) {
+	var oldVal = p.nakedControlClause
+	p.nakedControlClause = false
+	defer func() { p.nakedControlClause = oldVal }()
+
+	return p.parseExpr()
+}
+
+// See the commend above nakedControlClause.
+func (p *Parser) parseCtrlClauseExpr() (Expr, error) {
+	var oldVal = p.nakedControlClause
+	p.nakedControlClause = true
+	defer func() { p.nakedControlClause = oldVal }()
+
+	return p.parseExpr()
+}
+
+func (p *Parser) runWithCtrClauseEnabled(f func()) {
+	var oldVal = p.nakedControlClause
+	p.nakedControlClause = true
+	defer func() { p.nakedControlClause = oldVal }()
+
+	f()
+}
+
 func (p *Parser) parseExpr() (Expr, error) {
 	exprStack := []Expr{}
 	opStack := []*Token{}
@@ -1870,7 +1945,7 @@ func (p *Parser) parseArgs(max int) ([]Expr, error) {
 			// nada
 		default:
 			p.putBack(token)
-			expr, err := p.parseExpr()
+			expr, err := p.parseEnclosedExpr()
 			if err != nil {
 				return nil, err
 			}

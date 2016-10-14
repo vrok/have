@@ -238,32 +238,47 @@ func TestForStmt(t *testing.T) {
 		code       string
 		shouldPass bool
 	}{
-		{`for var i = 0; i < 10; i+1:
-	var y = 3`, true},
-		{`for var i = 0; j < 10; i+1:
-	var y = 3`, false},
-		{`for var i = 0; i < 10; j+1:
-	var y = 3`, false},
-		{`for var i = 0; ; i+1:
-	var y = 3`, true},
-		{`for var i = 0; i < 10; :
-	var y = 3`, true},
-		{`for ;;:
-	var y = 3`, true},
-		{`for var i range {1, 2, 3}:
-	var y = 3`, true},
-		{`for var i, j range {1, 2, 3}:
-	var y = 3`, true},
-		{`for var i int range {1, 2, 3}:
-	var y = 3`, false},
-		{`for true:
-	pass`, true},
-		{`for true: pass`, true},
-		{`for var x = 0:
-	pass`, false},
+		{`for var i = 0; i < 10; i+1 {
+	var y = 3
+}`, true},
+		{`for var i = 0; j < 10; i+1 {
+	var y = 3
+}`, false},
+		{`for var i = 0; i < 10; j+1 {
+	var y = 3
+}`, false},
+		{`for var i = 0; ; i+1 {
+	var y = 3
+}`, true},
+		{`for var i = 0; i < 10; {
+	var y = 3
+}`, true},
+		{`for ;; {
+	var y = 3
+}`, true},
+		{`for var i range {1, 2, 3} {
+	var y = 3
+}`, true},
+		{`for var i, j range {1, 2, 3} {
+	var y = 3
+}`, true},
+		{`for var i int range {1, 2, 3} {
+	var y = 3
+} `, false},
+		{`for true {
+	pass
+}`, true},
+		{`for true { pass }`, true},
+		{`for var x = 0 {
+	pass
+}`, false},
 	}
 
-	for _, c := range cases {
+	for i, c := range cases {
+		if *justCase >= 0 && i != *justCase {
+			continue
+		}
+
 		parser := newTestParser(c.code)
 		result, err := parser.parseForStmt(nil)
 
@@ -281,42 +296,44 @@ func TestIfStmt(t *testing.T) {
 		code       string
 		shouldPass bool
 	}{
-		{`if var x = 0; x == 1:
-	var y = 3`, true},
-		{`if var x int = 0; x == 1:
-	var y = 3`, true},
-		{`if var x = 100; x > 10:
-  if true:
-    var y = 3`, true},
-		{`if var x = 100; x > 10: if true: var y = 3`, true},
-		{`if var x = 100; x > 10:
-	if true: var y = 3`, true},
-		{`if var x = 100; x > 10: if true:
-	var y = 3`, true},
-		{`if var x = 100; x > 10: if true:`, false},
-		{`if var x = 1; false:
-  var y = 3`, true},
-		{`if var x = 1; false:
+		{`if var x = 0; x == 1 {
+	var y = 3
+}`, true},
+		{`if var x int = 0; x == 1 {
+	var y = 3
+}`, true},
+		{`if var x = 100; x > 10 {
+  if true {
+    var y = 3
+  }
+}`, true},
+		{`if var x = 100; x > 10 { if true { var y = 3 }}`, true},
+		{`if var x = 100; x > 10 {
+	if true { var y = 3 }}`, true},
+		{`if var x = 100; x > 10 { if true {
+	var y = 3 }}`, true},
+		{`if var x = 100; x > 10 { if true {`, false},
+		{`if var x = 1; false {
   var y = 3
-else:
-  var x = 3`, true},
-		{`if var x = 1; false:
+}`, true},
+		{`if var x = 1; false {
   var y = 3
-  else:
-    var x = 3`, false},
-		{`if x int; false:
+} else {
+  var x = 3
+}`, true},
+		{`if x int; false {
   var y = 3
-else:`, false},
-		{`if x = 1; false:
+} else {`, false},
+		{`if x = 1; false {
   var y = 3
-else:
+} else
 var x = 3`, false},
-		{`if x = 1; false:
-  var y = 3
-else
-  var x = 3`, false},
 	}
-	for _, c := range cases {
+	for i, c := range cases {
+		if *justCase >= 0 && i != *justCase {
+			continue
+		}
+
 		parser := newTestParser(c.code)
 		result, err := parser.parseIf()
 
@@ -333,38 +350,48 @@ else
 
 func TestParseSwitchStmt(t *testing.T) {
 	cases := []validityTestCase{
-		{`switch 7
+		{`switch 7 {
 case 7:
-	pass`, true},
-		{`switch 7
-	case 7:
-	pass`, false},
-		{`switch 7
+	pass
+}`, true},
+		{`switch 7 {
+{ case 7:
+	pass
+}
+}`, false},
+		{`switch 7 {
 case 7, 8, 9:
-	pass`, true},
-		{`switch 7
+	pass
+}`, true},
+		{`switch 7 {
 case 7:
 	pass
 default:
-	pass`, true},
-		{`switch var x = 1; x
+	pass
+}`, true},
+		{`switch var x = 1; x {
 case 7:
-	pass`, true},
+	pass
+}`, true},
 		{`var x int
-switch x = 1; x
+switch x = 1; x {
 case 7:
-	pass`, true},
+	pass
+}`, true},
 		// Only `=` assignment allowed
 		{`var x int
-switch x += 1; x
+switch x += 1; x {
 case 7:
-	pass`, false},
-		{`switch x = 1; x
+	pass
+}`, false},
+		{`switch x = 1; x {
 case 7:
-	pass`, false},
-		{`switch
+	pass
+}`, false},
+		{`switch {
 case 1 == 1:
-	pass`, true},
+	pass
+}`, true},
 	}
 	validityTest(t, cases)
 }
@@ -614,6 +641,27 @@ func TestFuncDecl(t *testing.T) {
 			fmt.Printf("Parsing a compound literal should've failed %s %s\n", err, spew.Sdump(result))
 		}
 	}
+}
+
+func TestNakedControlClauses(t *testing.T) {
+	// This tests a very specific issue which is caused by Go-like syntax.
+	// Check comments around nakedControlClause var for more information.
+
+	cases := []validityTestCase{
+		{`for var a range {1, 2, 3} { pass }`, true},
+		{`for var a range []int{1, 2, 3} { pass }`, true},
+		{`type List []int		
+for var a range List{1, 2, 3} { pass }`, false},
+		{`type List []int		
+for var a range (List{1, 2, 3}) { pass }`, true},
+		{`type Point [2]int
+var p = Point{1, 2}
+if p == Point{0, 0} { pass }`, false},
+		{`type Point [2]int
+var p = Point{1, 2}
+if p == (Point{0, 0}) { pass }`, true},
+	}
+	validityTest(t, cases)
 }
 
 func TestSimpleStmt(t *testing.T) {
