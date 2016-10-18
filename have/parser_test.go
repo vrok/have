@@ -524,39 +524,45 @@ func TestParseCompoundLiterals(t *testing.T) {
 
 func TestIdentSearch(t *testing.T) {
 	cases := []validityTestCase{
-		{`func abc(x int):
+		{`func abc(x int) {
 		  var x = 1
-		`, true},
-		{`func abc(x int) int:
+}`, true},
+		{`func abc(x int) int {
 		  var zzz = 1
 		  var y = x * zzz
-		`, true},
-		{`func abc() int:
+}`, true},
+		{`func abc() int {
 		  var x = z
-		`, false},
-		{`func abc(x int, y int) int:
-	if var z = 1; z == x:
+}`, false},
+		{`func abc(x int, y int) int {
+	if var z = 1; z == x {
 		var b = x * y * z
-`, true},
-		{`func abc(x int, y int) int:
+	}
+}`, true},
+		{`func abc(x int, y int) int {
 	var z = 2
-	if z = 1; z == x:
+	if z = 1; z == x {
 		var b = x * y * z
-`, true},
-		{`func abc(x int, y int) int:
-	if var z = 1; z == x:
+	}
+}`, true},
+		{`func abc(x int, y int) int {
+	if var z = 1; z == x {
 		var b = x * y * z
+	}
 	var a = x * y * z
-`, false},
-		{`func abc(x int, y int) int:
-	if var Z = 1; z == x:
+}`, false},
+		{`func abc(x int, y int) int {
+	if var Z = 1; z == x {
 		var b = x * y * z
-`, false},
-		{`func abc(x int) int:
-	if var y = 1; y == x:
-		if var z = 1; z == y:
+	}
+}`, false},
+		{`func abc(x int) int {
+	if var y = 1; y == x {
+		if var z = 1; z == y {
 			var b = x * y * z
-`, true},
+		}
+	}
+}`, true},
 	}
 	for _, c := range cases {
 		parser := newTestParser(c.code)
@@ -700,64 +706,70 @@ x, y += 1, 2`, false},
 func TestParseInterfaces(t *testing.T) {
 	cases := []validityTestCase{
 		{`
-type Ble interface:
+type Ble interface {
 	func x()
-`, true},
+}`, true},
 		{`
-type Ble interface:
+type Ble interface {
 	func x(a, b int)
-`, true},
+}`, true},
 		{`
-type Ble interface:
+type Ble interface {
 	func x(a, b int, c string)
-`, true},
+}`, true},
 		{`
-type Ble interface:
+type Ble interface {
 	func x(int, string)
-`, true},
+}`, true},
 		{`
-type Ble interface:
+type Ble interface {
 	func x(a int, string)
-`, false},
+}`, false},
 		{`
-type Ble interface:
+type Ble interface {
 	func x() int
-`, true},
+}`, true},
 		{`
-type Ble interface:
+type Ble interface {
 	func *x()
-`, true},
+}`, true},
 		{`
-type Ble interface:
+type Ble interface {
 	x int
 	func x()
-`, false},
+}`, false},
 		{`
-interface Ble:
+interface Ble{
 	func x()
-`, true},
+}`, true},
 		{`
-interface:
+interface{
 	func x()
-`, false},
+}`, false},
 		{`
-type Ble interface:
+type Ble interface{
 	x int
 	func x()
-`, false},
+}`, false},
 		{`
-type Ble interface: func x()
-`, true},
+type Ble interface{
+	func x()
+}`, true},
 		{`
-type Ble interface: func x()
+type Ble interface{
+	func x()
 	func y()
-`, false},
+}`, true},
 		{`
-type Ble interface: pass
-`, true},
+type Ble interface{
+	pass
+}`, true},
 		{`
-type Ble interface:
-`, false},
+type Ble interface{
+}`, true},
+		{`type Ble interface{}`, true},
+		{`type Ble interface
+{}`, true},
 	}
 	validityTest(t, cases)
 }
