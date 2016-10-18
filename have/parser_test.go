@@ -398,18 +398,21 @@ case 1 == 1:
 
 func TestParseInlineStruct(t *testing.T) {
 	cases := []string{
-		`struct:
+		`struct {
   x int
   yb string
-
-`,
-		`struct: x int`,
-		`struct: pass`,
-		`struct:
+}`,
+		`struct { x int }`,
+		`struct
+{ x int }`,
+		`struct { pass }`,
+		`struct {
   x int
-  kreff struct:
+  kreff struct {
     pr int
-  yb string`,
+  }
+  yb string
+}`,
 	}
 	for _, c := range cases {
 		parser := newTestParser(c)
@@ -426,34 +429,48 @@ func TestParseInlineStruct(t *testing.T) {
 
 func TestParseStructStmt(t *testing.T) {
 	cases := []string{
-		`struct A:
+		`struct A {
   x int
   yb string
-
-`,
-		`struct A: x int`,
-		`struct A: pass`,
-		`struct A: func a(): pass`,
-		`struct A:
+}`,
+		`struct A { x int }`,
+		`struct A
+{ x int }`,
+		`struct A { x int
+}`,
+		`struct A { pass }`,
+		`struct A { func a() { pass }}`,
+		`struct A {
   x int
-  kreff struct:
+  kreff struct {
     pr int
-  yb string`,
+  }
+  yb string
+}`,
 		`
-struct Abc:
-	func foo():
-		pass`,
+struct Abc {
+	func foo() {
+		pass
+	}
+}`,
 		`
-struct Abc:
+struct Abc {
 	x int
 	y string
-	func foo():
+	func foo() {
 		pass
-	func* bar():
-		pass
-	z int`,
 	}
-	for _, c := range cases {
+	func* bar() {
+		pass
+	}
+	z int
+}`,
+	}
+	for i, c := range cases {
+		if *justCase >= 0 && i != *justCase {
+			continue
+		}
+
 		parser := newTestParser(strings.TrimSpace(c))
 		result, err := parser.parseStructStmt()
 
@@ -589,43 +606,41 @@ func validityTest(t *testing.T, cases []validityTestCase) {
 	}
 }
 
-func TestFuncDecl(t *testing.T) {
+func TestParseFuncDecl(t *testing.T) {
 	cases := []struct {
 		code  string
 		valid bool
 	}{
-		{`func abc(x int):
+		{`func abc(x int) { var x = 1 }`, true},
+		{`func abc(x int) int {
 		  var x = 1
-		`, true},
-		{`func abc(x int) int:
+}`, true},
+		{`func abc() int {
 		  var x = 1
-		`, true},
-		{`func abc() int:
-		  var x = 1
-		`, true},
-		{`func abc(x int, y int) int:
+  }`, true},
+		{`func abc(x int, y int) int {
 		  var x = y * 2
-		`, true},
-		{`func abc(x, y int) int:
+  }	`, true},
+		{`func abc(x, y int) int {
 		  var x = 1
-		`, true},
-		{`func abc(x, y int, z string) int:
-	pass`, true},
-		{`func abc(x, y int, z) int: # Error: last parameter needs type
-	pass`, false},
-		{`func abc(x, y int int, z string) int: # Error: unexpected token (double int)
-	pass`, false},
-		{`func abc() (int, float64):
+  }		`, true},
+		{`func abc(x, y int, z string) int {
+	pass }`, true},
+		{`func abc(x, y int, z) int { # Error: last parameter needs type
+	pass }`, false},
+		{`func abc(x, y int int, z string) int { # Error: unexpected token (double int)
+	pass }`, false},
+		{`func abc() (int, float64) {
   var x = 1
-`, true},
-		{`func abc() (x int):
+}`, true},
+		{`func abc() (x int) {
 		  var x = 1
-`, true},
+ } `, true},
 		{`func abc() (int, struct:
     x int
-    y float64):
+    y float64) {
   var x = 1
-`, true},
+}`, true},
 	}
 	for _, c := range cases {
 		parser := newTestParser(c.code)

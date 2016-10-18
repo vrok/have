@@ -320,30 +320,7 @@ func (p *Parser) parseColonAndCustomBlock(terminators []TokenType) (*CodeBlock, 
 
 // Parse an indented block of code.
 func (p *Parser) parseCustomCodeBlock(terminators []TokenType, consumeTerminator bool) (*CodeBlock, error) {
-	//if t := p.peek(); t.Type != TOKEN_INDENT {
-	//	stmt, err := p.parseStmt()
-	//	if err != nil {
-	//		return nil, err
-	//	}
-
-	//	if stmt == nil {
-	//		return nil, CompileErrorf(t, "Expected a statement in a block")
-	//	}
-
-	//	result := &CodeBlock{Labels: map[string]*LabelStmt{}, Statements: []Stmt{stmt}}
-	//	return result, nil
-	//}
-
-	//indent, err := p.expectNewIndent()
-	//if err != nil {
-	//	return nil, err
-	//}
-
 	result := &CodeBlock{Labels: map[string]*LabelStmt{}}
-	//p.putBack(indent)
-
-	//p.identStack.pushScope()
-	//defer p.identStack.popScope()
 
 	p.branchTreesStack.pushNew()
 	defer p.branchTreesStack.pop()
@@ -1151,6 +1128,8 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl, genericPossible bool) (
 		}
 		name = tokens[1].Value.(string)
 
+		p.skipWhiteSpace()
+
 		switch t := p.peek(); t.Type {
 		case TOKEN_LBRACKET:
 			if !genericPossible {
@@ -1164,17 +1143,23 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl, genericPossible bool) (
 				return nil, err
 			}
 
-			if t, ok := p.expect(TOKEN_COLON); !ok {
-				return nil, CompileErrorf(t, "Expected `:` after `]`")
+			p.skipWhiteSpace()
+
+			if t, ok := p.expect(TOKEN_LBRACE); !ok {
+				return nil, CompileErrorf(t, "Expected `{` after `]`")
 			}
-		case TOKEN_COLON:
+		case TOKEN_LBRACE:
 			p.nextToken()
 		default:
 			return nil, CompileErrorf(t, "Couldn't parse struct header")
 		}
 	} else {
-		if tokens, ok := p.expectSeries(TOKEN_STRUCT, TOKEN_COLON); !ok {
-			return nil, CompileErrorf(tokens[0], "Couldn't parse struct declaration")
+		if t, ok := p.expect(TOKEN_STRUCT); !ok {
+			return nil, CompileErrorf(t, "Expected `struct`")
+		}
+		p.skipWhiteSpace()
+		if t, ok := p.expect(TOKEN_LBRACE); !ok {
+			return nil, CompileErrorf(t, "Expected `{`")
 		}
 	}
 
@@ -1228,42 +1213,17 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl, genericPossible bool) (
 		return nil
 	}
 
-	if p.peek().Type != TOKEN_INDENT {
-		// Could be a one-line inline declaration
-		token := parseMember()
-		if err != nil {
-			return nil, err
-		}
-		if token != nil {
-			return nil, CompileErrorf(token, "Use `pass` for empty interface")
-		}
-		return result, nil
-	}
-
-	_, err = p.expectNewIndent()
-	if err != nil {
-		return nil, err
-	}
-
 	for {
 		token := parseMember()
 
 		if token != nil {
 			switch token.Type {
-			case TOKEN_INDENT:
-				p.putBack(token)
-				end, err := p.handleIndentEndOrNoToken(TOKEN_WORD, TOKEN_FUNC)
-				if err != nil {
-					return nil, err
-				}
-				if end {
-					return result, nil
-				}
+			case TOKEN_INDENT, TOKEN_SEMICOLON:
 				// Struct continues.
-			default:
-				p.putBack(token)
-				p.forceIndentEnd()
+			case TOKEN_RBRACE:
 				return result, nil
+			default:
+				return nil, CompileErrorf(token, "Unexpected indent: %s", token.Type)
 			}
 		}
 	}
@@ -1278,12 +1238,12 @@ func (p *Parser) parseInterface(named bool) (*IfaceType, error) {
 
 		tokens, ok := p.expectSeries(TOKEN_INTERFACE, TOKEN_WORD, TOKEN_COLON)
 		if !ok {
-			return nil, CompileErrorf(tokens[0], "Couldn't parse struct header")
+			return nil, CompileErrorf(tokens[0], "Couldn't parse interface header")
 		}
 		name = tokens[1].Value.(string)
 	} else {
 		if tokens, ok := p.expectSeries(TOKEN_INTERFACE, TOKEN_COLON); !ok {
-			return nil, CompileErrorf(tokens[0], "Couldn't parse struct declaration")
+			return nil, CompileErrorf(tokens[0], "Couldn't parse interface declaration")
 		}
 	}
 
@@ -2237,9 +2197,9 @@ func (p *Parser) parseFunc(genericPossible bool) (*FuncDecl, Object, error) {
 
 // Parse function body assuming that its header has been already parsed.
 func (p *Parser) parseFuncBody(fd *FuncDecl) (*FuncDecl, error) {
-	t, ok := p.expect(TOKEN_COLON)
+	t, ok := p.expect(TOKEN_LBRACE)
 	if !ok {
-		return nil, CompileErrorf(t, "Expected `:`")
+		return nil, CompileErrorf(t, "Expected `{`")
 	}
 
 	p.identStack.pushScope()
