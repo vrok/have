@@ -887,36 +887,46 @@ func x():
 
 func TestParseGenericFunc(t *testing.T) {
 	cases := []validityTestCase{
-		{`func a[T]() int: # OK
-	return 1`, true},
-		{`func a[T, K]() int: # OK
-	return 1`, true},
-		{`func a[]() int: # Expected a generic type name
-	return 1`, false},
-		{`func a[T]() T: # OK
-	return 1`, true},
+		{`func a[T]() int { # OK
+	return 1
+}`, true},
+		{`func a[T, K]() int { # OK
+	return 1
+}`, true},
+		{`func a[]() int { # Expected a generic type name
+	return 1
+}`, false},
+		{`func a[T]() T { # OK
+	return 1
+}`, true},
 		// TODO: the sample below causes a runtime panic instead of an error
-		{`func a[T]() K: # K is unknown
-	return 1`, false},
-		{`func a[T](x T) T: # some recursion
-	return a(x + 1)`, true},
+		{`func a[T]() K { # K is unknown
+	return 1
+}`, false},
+		{`func a[T](x T) T { # some recursion
+	return a(x + 1)
+}`, true},
 	}
 	validityTest(t, cases)
 }
 
 func TestParseGenericStruct(t *testing.T) {
 	cases := []validityTestCase{
-		{`struct A[T]:
-	pass`, true},
-		{`struct A[T]: pass`, true},
-		{`struct A[T, K]:
-	pass`, true},
-		{`struct A[T, K]:
-	func x() T:
-		return T{}`, true},
-		{`struct A[T]:
-	func x() K: # K is unknown
-		return 1}`, false},
+		{`struct A[T] {
+	pass
+}`, true},
+		{`struct A[T] { pass }`, true},
+		{`struct A[T, K] {
+	pass
+}`, true},
+		{`struct A[T, K] {
+	func x() T {
+		return T{}
+	}
+}`, true},
+		{`struct A[T] {
+	func x() K { # K is unknown
+		return 1}}}`, false},
 		// This would be a cool test if validityTest allowed hanging idents:
 		//		{`struct A[T]:
 		//	func x() A[T]:
