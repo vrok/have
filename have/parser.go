@@ -1236,15 +1236,20 @@ func (p *Parser) parseInterface(named bool) (*IfaceType, error) {
 		// TypeDecl (incomplete at this stage) of the struct being parsed.
 		// It is needed for `self` variable.
 
-		tokens, ok := p.expectSeries(TOKEN_INTERFACE, TOKEN_WORD, TOKEN_COLON)
+		tokens, ok := p.expectSeries(TOKEN_INTERFACE, TOKEN_WORD)
 		if !ok {
 			return nil, CompileErrorf(tokens[0], "Couldn't parse interface header")
 		}
 		name = tokens[1].Value.(string)
 	} else {
-		if tokens, ok := p.expectSeries(TOKEN_INTERFACE, TOKEN_COLON); !ok {
-			return nil, CompileErrorf(tokens[0], "Couldn't parse interface declaration")
+		if t, ok := p.expect(TOKEN_INTERFACE); !ok {
+			return nil, CompileErrorf(t, "Couldn't parse interface declaration")
 		}
+	}
+
+	p.skipWhiteSpace()
+	if t, ok := p.expect(TOKEN_LBRACE); !ok {
+		return nil, CompileErrorf(t, "Expected `{`")
 	}
 
 	result := &IfaceType{name: name, Keys: []string{}, Methods: map[string]*FuncDecl{}}
@@ -1278,42 +1283,17 @@ func (p *Parser) parseInterface(named bool) (*IfaceType, error) {
 		return nil
 	}
 
-	if p.peek().Type != TOKEN_INDENT {
-		// Could be a one-line inline declaration
-		token := parseMember()
-		if err != nil {
-			return nil, err
-		}
-		if token != nil {
-			return nil, CompileErrorf(token, "Use `pass` for empty interface")
-		}
-		return result, nil
-	}
-
-	_, err = p.expectNewIndent()
-	if err != nil {
-		return nil, err
-	}
-
 	for {
 		token := parseMember()
 
 		if token != nil {
 			switch token.Type {
-			case TOKEN_INDENT:
-				p.putBack(token)
-				end, err := p.handleIndentEndOrNoToken(TOKEN_FUNC)
-				if err != nil {
-					return nil, err
-				}
-				if end {
-					return result, nil
-				}
+			case TOKEN_INDENT, TOKEN_SEMICOLON:
 				// Interface continues.
-			default:
-				p.putBack(token)
-				p.forceIndentEnd()
+			case TOKEN_RBRACE:
 				return result, nil
+			default:
+				return nil, CompileErrorf(token, "Unexpected token: %s", token.Type)
 			}
 		}
 	}
