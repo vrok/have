@@ -1,4 +1,5 @@
 package main
 
-func who() string:
+func who() string {
     return "world"
+}
