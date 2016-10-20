@@ -600,11 +600,6 @@ func (p *Parser) parseForStmt(lbl *LabelStmt) (stmt Stmt, err error) {
 }
 
 func (p *Parser) parseColonWithCodeBlock() (*CodeBlock, error) {
-	//colon, ok := p.expect(TOKEN_COLON)
-	//if !ok {
-	//	return nil, CompileErrorf(colon, "Expected `:` at the end of `if` condition")
-	//}
-
 	brace, ok := p.expect(TOKEN_LBRACE)
 	if !ok {
 		return nil, CompileErrorf(brace, "Expected `{` at the end of `if` condition")
@@ -2541,7 +2536,7 @@ func (p *Parser) parseWhenStmt() (*WhenStmt, error) {
 
 	result := &WhenStmt{Args: args}
 
-	var parseOneBranch = func() (*WhenBranch, error) {
+	var parseOneBranch = func(blockStart TokenType) (*WhenBranch, error) {
 		branch := &WhenBranch{stmt: stmt{expr: expr{p.peek().Pos}}}
 		var lastKindToken *Token
 
@@ -2573,7 +2568,7 @@ func (p *Parser) parseWhenStmt() (*WhenStmt, error) {
 			switch p.peek().Type {
 			case TOKEN_COMMA:
 				p.nextToken()
-			case TOKEN_COLON:
+			case blockStart:
 				break inLoop
 			default:
 				return nil, CompileErrorf(p.peek(), "Unexpected token %s", p.peek().Type)
@@ -2581,41 +2576,59 @@ func (p *Parser) parseWhenStmt() (*WhenStmt, error) {
 		}
 
 		var err error
-		branch.Code, err = p.parseColonWithCodeBlock()
+		if t, ok := p.expect(blockStart); !ok {
+			return nil, CompileErrorf(t, "Unexpected token %s", t.Type)
+		}
+		branch.Code, err = p.parseCustomCodeBlock(
+			[]TokenType{TOKEN_IMPLEMENTS, TOKEN_IS, TOKEN_DEFAULT, TOKEN_RBRACE}, false)
 		if err != nil {
 			return nil, err
 		}
 		return branch, nil
 	}
 
-	switch t := p.peek(); t.Type {
-	case TOKEN_IS, TOKEN_IMPLEMENTS, TOKEN_DEFAULT:
-		// In-line single-branch notation
-		branch, err := parseOneBranch()
-		if err != nil {
-			return nil, err
+	if t, ok := p.expect(TOKEN_LBRACE); !ok {
+		switch t.Type {
+		case TOKEN_IS, TOKEN_IMPLEMENTS, TOKEN_DEFAULT:
+			p.putBack(t)
+
+			// In-line single-branch notation
+			branch, err := parseOneBranch(TOKEN_LBRACE)
+			if err != nil {
+				return nil, err
+			}
+			result.Branches = []*WhenBranch{branch}
+			if t, ok := p.expect(TOKEN_RBRACE); !ok {
+				return nil, CompileErrorf(t, "Expected `}`, got %s", t.Type)
+			}
+			return result, nil
+		default:
+			return nil, CompileErrorf(t, "Expected `{`")
 		}
-		result.Branches = []*WhenBranch{branch}
-		return result, nil
 	}
 
+loop:
 	for {
-		isBranch, t := p.checkForBranch(TOKEN_IS, TOKEN_IMPLEMENTS, TOKEN_DEFAULT)
-		if !isBranch {
-			break
+		switch t := p.peek(); t.Type {
+		case TOKEN_IMPLEMENTS, TOKEN_IS, TOKEN_DEFAULT:
+			branch, err := parseOneBranch(TOKEN_COLON)
+			if err != nil {
+				return nil, err
+			}
+			result.Branches = append(result.Branches, branch)
+			if t.Type == TOKEN_DEFAULT {
+				// Default has to be the last branch.
+				break loop
+			}
+		case TOKEN_INDENT:
+			p.nextToken()
+		default:
+			break loop
 		}
-		p.putBack(t)
+	}
 
-		branch, err := parseOneBranch()
-		if err != nil {
-			return nil, err
-		}
-		result.Branches = append(result.Branches, branch)
-
-		if t.Type == TOKEN_DEFAULT {
-			// Default has to be the last branch.
-			break
-		}
+	if t, ok := p.expect(TOKEN_RBRACE); !ok {
+		return nil, CompileErrorf(t, "Expected `}`, got %s", t.Type)
 	}
 
 	return result, nil
