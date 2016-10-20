@@ -941,55 +941,68 @@ func TestParseGenericStruct(t *testing.T) {
 func TestParseWhenStmt(t *testing.T) {
 	cases := []validityTestCase{
 		{`
-func Bla[X]():
-	when X
+func Bla[X]() {
+	when X {
 	is int:
 		pass
-`, true},
+	}
+}`, true},
 		{`
-func Bla[X]():
-	when X is int:
+func Bla[X]() {
+	when X is int {
 		pass
+	}
 	pass
-`, true},
+}`, true},
 		{`
-func Bla[X]():
-	when X
+func Bla[X]() {
+	when X {
 	is int:
 		pass
 	default:
 		pass
+	}
 	pass
-`, true},
+}`, true},
 		{`
-func Bla[X]():
-	when X
+func Bla[X]() {
+	when X {
 	default:
 		pass
 	is int: # 'default' has to be the last branch
 		pass
+	}
 	pass
-`, false},
+}`, false},
 		{`
-func Bla[X, Y, Z]():
-	when Z, Y, X
-	is int, string, implements interface: pass:
+func Bla[X, Y, Z]() {
+	when Z, Y, X {
+	is int, string, implements interface{}:
 		pass
-`, true},
+	}
+}`, true},
 		{`
-func Bla[X, Y, Z]():
-	when Z, Y, X
-	is int, string, implements interface: pass:
+func Bla[X, Y, Z]() {
+	when Z, Y, X is int, string, implements interface{} {
 		pass
-	implements interface: pass, interface: pass, is string:
-		pass
-`, true},
+	}
+}`, true},
 		{`
-func Bla[X, Y, Z]():
-	when Z, Y, X
+func Bla[X, Y, Z]() {
+	when Z, Y, X {
+	is int, string, implements interface{}:
+		pass
+	implements interface{}, interface{}, is string:
+		pass
+	}
+}`, true},
+		{`
+func Bla[X, Y, Z]() {
+	when Z, Y, X {
 	is int, string, implements:
 		pass
-`, false},
+	}
+}`, false},
 	}
 	validityTest(t, cases)
 }
