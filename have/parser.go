@@ -452,7 +452,9 @@ func (p *Parser) parse3ClauseForStmt() (*ForStmt, error) {
 	}
 
 	if p.peek().Type != TOKEN_LBRACE {
-		result.RepeatStmt, err = p.parseSimpleStmt(false)
+		p.runWithCtrClauseEnabled(func() {
+			result.RepeatStmt, err = p.parseSimpleStmt(false)
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -1721,8 +1723,7 @@ loop:
 			p.putBack(token)
 
 			if p.nakedControlClause {
-				switch left.(type) {
-				case *Ident, *DotSelector, *CompoundLit:
+				if _, ok := left.(*TypeExpr); !ok {
 					// Left side can be either a type name or a value.
 					// Like Go, assume it's value if we're in a control clause.
 					return left, nil

@@ -160,27 +160,27 @@ var a int = b * c + d + 10`,
 			true,
 			"int",
 		},
-		{`var b = struct:
-	x int
+		{`var b = struct { x int }
 var y int = b.x`,
 			true,
 			"int",
 		},
-		{`var b = struct:
-	x int
+		{`var b = struct { x int }
 var y = b.x`,
 			true,
 			"int",
 		},
-		{`var b = struct:
-	c struct:
+		{`var b = struct {
+	c struct {
 		d string
+	}
+}
 var f = b.c.d`,
 			true,
 			"string",
 		},
-		{`var b = ((*struct:
-	c string)(&{c: "ech"}))
+		{`var b = ((*struct {
+	c string})(&{c: "ech"}))
 var f = b.c`,
 			true,
 			"string",
@@ -189,8 +189,7 @@ var f = b.c`,
 			true,
 			"int",
 		},
-		{`var b = struct:
-	x int
+		{`var b = struct { x int }
 var y string = b.x`,
 			false,
 			"",
@@ -205,85 +204,78 @@ var a string = b`,
 			false,
 			"",
 		},
-		{`func f() int:
-	var x = 1
+		{`func f() int { var x = 1 }
 var a int = f()`,
 			true,
 			"int",
 		},
-		{`func f() int:
-	var x int = "a"
+		{`func f() int { var x int = "a" }
 var a = f()`,
 			false,
 			"",
 		},
-		{`func f() string:
-	var x = 1
+		{`func f() string { var x = 1 }
 var a int = f()`,
 			false,
 			"",
 		},
-		{`func f():
-	var x = 1
+		{`func f() { var x = 1 }
 var a int = f()`,
 			false,
 			"",
 		},
-		{`func f(x int) int:
-	var x = 1
+		{`func f(x int) int { var x = 1 }
 var a int = f(4)`,
 			true,
 			"int",
 		},
-		{`func f(x string) int:
-	var x = 1
+		{`func f(x string) int { var x = 1 }
 var a int = f(4)`,
 			false,
 			"",
 		},
-		{`func f(x string, y int) int:
-	var x = 1
+		{`func f(x string, y int) int { var x = 1 }
 var b int = 5
 var a int = f("las", b)`,
 			true,
 			"int",
 		},
-		{`func f(x string, y int) int:
-	var x = 1
+		{`func f(x string, y int) int { var x = 1 }
 var b string = "5"
 var a int = f("las", b)`,
 			false,
 			"",
 		},
 		{`
-func g(aa string, bb int) int:
-	return 1
-func f(fun func(aa string, bb int) int) int:
-	return fun("a", 3)
+func g(aa string, bb int) int { return 1 }
+func f(fun func(aa string, bb int) int) int { return fun("a", 3) }
 var a int = f(g)`,
 			true,
 			"int",
 		},
 		{`
-func f(x string):
-	pass
+func f(x string) { pass }
 f(1)
 var a = 1`,
 			false,
 			"",
 		},
-		{`func f() int:
-	if true:
+		{`func f() int {
+	if true {
 		var y = 2
+	}
 	var x = 1
+}
 var a int = f()`,
 			true,
 			"int",
 		},
-		{`func f() int:
-	if 1:
+		{`func f() int {
+	if 1 {
 		var y = 2
+	}
 	var x = 1
+}
 var a int = f()`,
 			false,
 			"",
@@ -296,45 +288,56 @@ var a int = f()`,
 			false,
 			"",
 		},
-		{`func f(x int) int:
-	for x = 0; x < 100; print("a"):
+		{`func f(x int) int {
+	for x = 0; x < 100; print("a") {
 		var y = 2
+	}
+}
 var a int = f(100)`,
 			true,
 			"int",
 		},
-		{`func f() int:
-	for var x = 0; x < 100; print("a"):
+		{`func f() int {
+	for var x = 0; x < 100; print("a") {
 		var y = 2
+	}
+}
 var a int = f()`,
 			true,
 			"int",
 		},
-		{`func x(s string):
+		{`func x(s string) {
 	pass
-func f() int:
-	for var x = 0; x < 100; x(1):
+}
+func f() int {
+	for var x = 0; x < 100; x(1) {
 		pass
+	}
+}
 var a int = f()`,
 			false,
 			"int",
 		},
-		{`func f() int:
-	for ;;:
+		{`func f() int {
+	for ;; {
 		pass
+	}
+}
 var a int = f()`,
 			true,
 			"int",
 		},
-		{`func f():
+		{`func f() {
 	var x = 1
-	x = 2`,
+	x = 2
+}`,
 			true,
 			"func()",
 		},
-		{`func f():
+		{`func f() {
 	var x = 1
-	x = "bla"`,
+	x = "bla"
+}`,
 			false,
 			"",
 		},
