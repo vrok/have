@@ -349,73 +349,83 @@ var a int = f()`,
 func TestTypesForRange(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
-for var x range {1, 2, 3}:
+for var x range {1, 2, 3} {
 	var a int = x
+}
 var placeholder = 1`,
 			true,
 			"int",
 		},
 		{`
-for var x, y range {"1", "2", "3"}:
+for var x, y range {"1", "2", "3"} {
 	var a int = x, b string = y
+}
 var placeholder = 1`,
 			true,
 			"int",
 		},
 		{`
-for var x, y, y range {1, 2, 3}: # Too many vars
+for var x, y, y range {1, 2, 3} { # Too many vars
 	pass
+}
 var placeholder = 1`,
 			false,
 			"",
 		},
 		{`
-for var x range {1, 2, 3}:
+for var x range {1, 2, 3} {
 	var a int = "a" # Fail to make sure the code block is typechecked
+}
 var placeholder = 1`,
 			false,
 			"",
 		},
 		{`
-for var x, y range []string{"1", "2", "3"}:
+for var x, y range []string{"1", "2", "3"} {
 	var a int = x, b string = y
+}
 var placeholder = 1`,
 			true,
 			"int",
 		},
 		{`
-for var x, y range [3]string{"1", "2", "3"}:
+for var x, y range [3]string{"1", "2", "3"} {
 	var a int = x, b string = y
+}
 var placeholder = 1`,
 			true,
 			"int",
 		},
 		{`
-for var x, y range map[float32]string{1: "1", 2: "2", 3: "3"}:
+for var x, y range map[float32]string{1: "1", 2: "2", 3: "3"} {
 	var a float32 = x, b string = y
+}
 var placeholder = 1`,
 			true,
 			"int",
 		},
 		{`
-for var x, y range map[float32]string{1: "1", 2: "2", 3: "3"}:
+for var x, y range map[float32]string{1: "1", 2: "2", 3: "3"} {
 	var a float32 = x, b int = y # int and string aren't assignable
+}
 var placeholder = 1`,
 			false,
 			"",
 		},
 		{`
 var x float32, y string
-for x, y range map[float32]string{1: "1", 2: "2", 3: "3"}:
+for x, y range map[float32]string{1: "1", 2: "2", 3: "3"} {
 	var a float32 = x, b string = y
+}
 var placeholder = x`,
 			true,
 			"float32",
 		},
 		{`
 var x float32, y string
-for x, z range map[float32]string{1: "1", 2: "2", 3: "3"}: # z is unknown
+for x, z range map[float32]string{1: "1", 2: "2", 3: "3"} { # z is unknown 
 	pass
+}
 var placeholder = x`,
 			false,
 			"",
@@ -425,63 +435,71 @@ var placeholder = x`,
 
 func TestCustomStructTypes(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
-		{`type point struct:
+		{`type point struct {
 	x int
 	y int
+}
 var a point = {}
 var b point = a`,
 			true,
 			"point",
 		},
-		{`type point struct:
+		{`type point struct {
 	x int
 	y int
+}
 var a point = {1, 2}
 var b point = a`,
 			true,
 			"point",
 		},
-		{`type point struct:
+		{`type point struct {
 	x int
 	y int
+}
 var a = point{1, 2}`,
 			true,
 			"point",
 		},
-		{`type point struct:
+		{`type point struct {
 	x int
 	y int
+}
 var a point = {x: 1, y: 2}`,
 			true,
 			"point",
 		},
-		{`type point struct:
+		{`type point struct {
 	x int
+}
 var a = point{}
 var b = a.x`,
 			true,
 			"int",
 		},
-		{`type point struct:
+		{`type point struct {
 	x int
 	y int
+}
 var a point = {x: 1, z: 2}`,
 			false,
 			"",
 		},
-		{`type point struct:
+		{`type point struct {
 	x int
 	y int
+}
 var a point = {x: 1, y: "2"}`,
 			false,
 			"",
 		},
-		{`type point struct:
+		{`type point struct {
 	x int
 	y int
-var a struct:
+}
+var a struct {
 	x int
-	y int = {}
+	y int} = {}
 var b point = a`,
 			true,
 			"point",
@@ -491,10 +509,12 @@ var b point = a`,
 
 func TestTypesIfStmt(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
-		{`func f() int:
-	if 1 == 2:
+		{`func f() int {
+	if 1 == 2 {
 		var y = 2
+	}
 	var x = 1
+}
 var a int = f()`,
 			true,
 			"int",
@@ -505,40 +525,45 @@ var a int = f()`,
 func TestTypesTupleAssign(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
-func a() (int, int):
+func a() (int, int) {
 	pass
+}
 var x, y = a()
 var z = x`,
 			true,
 			"int",
 		},
 		{`
-func a() (int, int):
+func a() (int, int) {
 	pass
+}
 var x, y int = a()
 var z = x`,
 			true,
 			"int",
 		},
 		{`
-func a() (int, string):
+func a() (int, string) {
 	pass
+}
 var x, y = a()
 var z = y`,
 			true,
 			"string",
 		},
 		{`
-func a() (int, string):
+func a() (int, string) {
 	pass
+}
 var x, y = a()
 var z int = y`,
 			false,
 			"",
 		},
 		{`
-func a() (int, int):
+func a() (int, int) {
 	pass
+}
 var x, y int
 x, y = a()
 var z = x`,
@@ -546,27 +571,32 @@ var z = x`,
 			"int",
 		},
 		{`
-func a() (int, int):
+func a() (int, int) {
 	pass
-func b(x, y int) int:
+}
+func b(x, y int) int {
 	pass
+}
 var z = b(a())`,
 			true,
 			"int",
 		},
 		{`
-func a() (int, string):
+func a() (int, string) {
 	pass
-func b(x, y int) int:
+}
+func b(x, y int) int {
 	pass
+}
 var z = b(a())`,
 			false,
 			"",
 		},
 		{`
 type B []int
-func a() (int, []int):
+func a() (int, []int) {
 	return 1, {}
+}
 var x int, y B
 x, y = a()
 var z = y`,
@@ -579,56 +609,69 @@ var z = y`,
 func TestTypesStruct(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
-struct Abc:
-	func x():
+struct Abc {
+	func x() {
 		pass
+	}
+}
 var a = Abc{}`,
 			true,
 			"Abc",
 		},
 		{`
-struct Abc:
+struct Abc {
 	x int
-	func x():
+	func x() {
 		pass
+	}
+}
 var a = Abc{x: 7}`,
 			true,
 			"Abc",
 		},
 		{`
-struct Abc:
+struct Abc {
 	x int
-	func x():
+	func x() {
 		pass
+	}
+}
 var a = Abc{y: 7}`,
 			false,
 			"Abc",
 		},
 		{`
-struct Abc:
-	func x(z int):
+struct Abc {
+	func x(z int) {
 		z = 3
 		pass
+	}
+}
 var a = Abc{}`,
 			true,
 			"Abc",
 		},
 		{`
-struct Abc:
+struct Abc {
 	zz int
-	func x(z int):
+	func x(z int) {
 		self.zz = z
-	func *xp(z int):
+	}
+	func *xp(z int) {
 		self.zz = z
 		(*self).zz = z
+	}
+}
 var a = Abc{}`,
 			true,
 			"Abc",
 		},
 		{`
-struct Abc:
-	func x() int:
+struct Abc {
+	func x() int {
 		pass
+	}
+}
 var a Abc
 var b = a.x()
 `,
@@ -636,18 +679,22 @@ var b = a.x()
 			"int",
 		},
 		{`
-struct Abc:
-	func x() int:
+struct Abc {
+	func x() int {
 		pass
+	}
+}
 var b = Abc{}.x()
 `,
 			true,
 			"int",
 		},
 		{`
-struct Abc:
-	func x() (int, string):
+struct Abc {
+	func x() (int, string) {
 		pass
+	}
+}
 var b, c = Abc{}.x()
 var d = c
 `,
@@ -660,11 +707,14 @@ var d = c
 func TestTypesInterfaces(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
-interface A:
+interface A {
 	func x()
-struct Abc:
-	func x():
+}
+struct Abc {
+	func x() {
 		pass
+	}
+}
 var a A
 a = Abc{}
 var b = a
@@ -673,11 +723,14 @@ var b = a
 			"A",
 		},
 		{`
-interface A:
+interface A {
 	func x()
-struct Abc:
-	func *x():
+}
+struct Abc {
+	func *x() {
 		pass
+	}
+}
 var a A
 a = &Abc{}
 var b = a
@@ -686,11 +739,14 @@ var b = a
 			"A",
 		},
 		{`
-interface A:
+interface A {
 	func x()
-struct Abc:
-	func *x():
+}
+struct Abc {
+	func *x() {
 		pass
+	}
+}
 var a A
 var b *Abc = &Abc{}
 var c A = 7
@@ -699,11 +755,10 @@ var c A = 7
 			"",
 		},
 		{`
-interface A:
-	func x()
-struct Abc:
-	func *x():
-		pass
+interface A { func x() }
+struct Abc {
+	func *x() { pass }
+}
 var b *Abc = &Abc{}
 var c A = b
 var d = "placeholder for current test framework - remove this line to see why"
@@ -713,11 +768,10 @@ var d = "placeholder for current test framework - remove this line to see why"
 		},
 		// TODO: Below case doesn't compile as it should, but the error msg is very non-intuitive:
 		{`
-interface A:
-	func x()
-struct Abc:
-	func y():
-		pass
+interface A { func x() }
+struct Abc {
+	func y() { pass }
+}
 var a A
 a = Abc{}
 var b = a
@@ -726,43 +780,55 @@ var b = a
 			"",
 		},
 		{`
-interface A:
+interface A {
 	func x()
-struct Abc:
-	func x():
-		pass
-func zab() (Abc, int):
+}
+struct Abc {
+	func x() { pass }
+}
+func zab() (Abc, int) {
 	pass
-func ka(a A, i int) A:
-	pass	
+}
+func ka(a A, i int) A {
+	pass
+}
 var c = ka(zab())
 `,
 			true,
 			"A",
 		},
 		{`
-interface A:
+interface A {
 	func x()
-struct Abc:
-	func y():
+}
+struct Abc {
+	func y() {
 		pass
-func zab() (Abc, int):
+	}
+}
+func zab() (Abc, int) {
 	pass
-func ka(a A, i int) A:
-	pass	
+}
+func ka(a A, i int) A {
+	pass
+}
 var c = ka(zab())
 `,
 			false,
 			"",
 		},
 		{`
-interface A:
+interface A {
 	func x()
-struct Abc:
-	func x():
+}
+struct Abc {
+	func x() {
 		pass
-func z() (Abc, int):
+	}
+}
+func z() (Abc, int) {
 	pass
+}
 var a A, b int
 a, b = z()
 var c = a
@@ -771,13 +837,17 @@ var c = a
 			"A",
 		},
 		{`
-interface A:
+interface A {
 	func x()
-struct Abc:
-	func x():
+}
+struct Abc {
+	func x() {
 		pass
-func z() (Abc, int):
+	}
+}
+func z() (Abc, int) {
 	pass
+}
 var a A, b int
 a, b = z()
 var c = a
@@ -786,11 +856,14 @@ var c = a
 			"A",
 		},
 		{`
-struct Abc:
-	func x():
+struct Abc {
+	func x() {
 		pass
-var a interface:
+	}
+}
+var a interface {
 	func x()
+}
 a = Abc{}
 var b = a
 `,
@@ -798,9 +871,7 @@ var b = a
 			"interface{x()}",
 		},
 		{`
-func p(value interface:
-	) int:
-	pass
+func p(value interface{}) int { pass }
 var x = p("aaa")`,
 			true,
 			"int"},
@@ -810,8 +881,9 @@ var x = p("aaa")`,
 func TestTypesInterfaceMethods(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
-interface A:
+interface A {
        func x() int
+}
 var a A
 var b = a.x()
 `,
@@ -857,34 +929,39 @@ var y = x`,
 func TestTypesReturnStmt(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
-func a() int:
+func a() int {
 	return 7
+}
 var x = a()
 `,
 			true,
 			"int",
 		},
 		{`
-func a() string:
+func a() string {
 	return 7
+}
 var x = a()
 `,
 			false,
 			"",
 		},
 		{`
-func a() (int, int):
+func a() (int, int) {
 	return 1
+}
 var x = a()
 `,
 			false,
 			"",
 		},
 		{`
-struct A:
+struct A {
 	x int
-func a() *A:
+}
+func a() *A {
 	return &{1}
+}
 var x = a()
 `,
 			true,
@@ -897,8 +974,9 @@ func TestTypesTmp(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
 type B []int
-func a() (int, []int):
+func a() (int, []int) {
 	return 1, {}
+}
 var x int, y B
 x, y = a()
 var z = y`,
@@ -911,42 +989,53 @@ var z = y`,
 func TestTypesTypeAssertion(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
-interface A:
+interface A {
 	func x()
-struct B:
-	func x():
+}
+struct B {
+	func x() {
 		pass
+	}
+}
 var x A
 var y = x.(B)`,
 			true,
 			"B",
 		},
 		{`
-interface A:
+interface A {
 	func x()
-struct B:
-	func xx():
+}
+struct B {
+	func xx() {
 		pass
+	}
+}
 var x A
 var y = x.(B)`,
 			false, // B doesn't implement A
 			"",
 		},
 		{`
-struct B:
-	func x():
+struct B {
+	func x() {
 		pass
+	}
+}
 var x B
 var y = x.(B)`,
 			false, // non-interface on left
 			"",
 		},
 		{`
-interface A:
+interface A {
 	func x()
-struct B:
-	func x():
+}
+struct B {
+	func x() {
 		pass
+	}
+}
 var x A
 var y, z = x.(B)
 var final = z`,
@@ -960,11 +1049,12 @@ func TestTypesSwitch(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
 var a = 7
-switch a
+switch a {
 case 1:
 	pass
 default:
 	pass
+}
 var c = true
 `,
 			true,
@@ -972,9 +1062,10 @@ var c = true
 		},
 		{`
 var a = 7
-switch a
+switch a {
 case "bla":
 	pass
+}
 var c = true
 `,
 			false,
@@ -982,9 +1073,10 @@ var c = true
 		},
 		{`
 var a = 7
-switch a
+switch a {
 case 1, 2, 3:
 	pass
+}
 var c = true
 `,
 			true,
@@ -992,54 +1084,60 @@ var c = true
 		},
 		{`
 var a = 7
-switch a
+switch a {
 case 1, 4.5, 3:
 	pass
+}
 var c = true
 `,
 			false,
 			"",
 		},
 		{`
-switch
+switch {
 case 1 == 2:
 	pass
+}
 var c = true
 `,
 			true,
 			"bool",
 		},
 		{`
-switch
+switch {
 case 1 == 2, true:
 	pass
+}
 var c = true
 `,
 			false,
 			"",
 		},
 		{`
-switch
+switch {
 case "bla":
 	pass
+}
 var c = true
 `,
 			false,
 			"",
 		},
 		{`
-switch
+switch {
 case true:
 	var c int = "not_an_int"
+}
 var c = true
 `,
 			false,
 			"",
 		},
 		{`
-switch var x = 7; x
+switch var x = 7; x {
 case 5:
 	x = 8
+}
 var c = true
 `,
 			true,
@@ -1047,9 +1145,10 @@ var c = true
 		},
 		{`
 var x int
-switch x = 7; x
+switch x = 7; x {
 case 5:
 	x = 8
+}
 var c = true
 `,
 			true,
@@ -1061,81 +1160,91 @@ var c = true
 func TestTypesTypeSwitch(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
-var bla interface:
-	pass
-switch bla.(type)
+var bla interface {}
+switch bla.(type) {
 case int:
 	pass
+}
 var y = true`, true, "bool"},
 		{`
-var bla interface:
+var bla interface {
 	func a()
-struct x:
-	func a():
+}
+struct x {
+	func a() {
 		pass
-switch bla.(type)
+	}
+}
+switch bla.(type) {
 case x: # Error: impossible assertion, x doesn't implement the interface
 	pass
+}
 var y = true`, true, "bool"},
 		{`
-var bla interface:
+var bla interface {
 	func a()
-struct x:
+}
+struct x {
 	pass
-switch bla.(type)
+}
+switch bla.(type) {
 case x: # Error: impossible assertion, x doesn't implement the interface
 	pass
+}
 var y = true`, false, ""},
 		{`
 var bla int
-switch bla.(type) # Error: non-interface used for type switch
+switch bla.(type) { # Error: non-interface used for type switch
 case int:
 	pass
+}
 var y = true`, false, ""},
 		{`
-var bla interface:
-	pass
-switch var x = bla.(type)
+var bla interface {}
+switch var x = bla.(type) {
 case int:
 	pass
+}
 var y = true`, true, "bool"},
 		{`
-var bla interface:
-	pass
-switch var x = bla.(int) # "int" instead of "type"
+var bla interface{}
+switch var x = bla.(int) { # "int" instead of "type"
 case int:
 	pass
+}
 var y = true`, false, ""},
 		{`
-var bla interface:
-	pass
-switch var x = bla.(type)
+var bla interface{}
+switch var x = bla.(type) {
 case "ble": # Error: not a type name
 	pass
+}
 var y = true`, false, ""},
 		{`
-var bla interface:
-	pass
-switch var x = bla.(type)
+var bla interface {}
+switch var x = bla.(type) {
 case int:
 	var z int = x
+}
 var y = true`, true, "bool"},
 		{`
-var bla interface:
+var bla interface {
 	pass
-switch var x = bla.(type)
+}
+switch var x = bla.(type) {
 case int:
 	var z string = x # Error: string and int are not assignable
+}
 var y = true`, false, ""},
 		{`
 var bla = 123
-var bla interface:
-	pass
-switch var x = bla.(type)
+var bla interface {}
+switch var x = bla.(type) {
 case int:
 	var z int = x
 case string:
 	var z string = x
+}
 var y = true`, true, "bool"},
 	})
 }
@@ -1237,8 +1346,9 @@ var a int = _
 			"",
 		},
 		{`
-func a() (int, string):
+func a() (int, string) {
 	return 1, "a"
+}
 var _, _ = a()
 var placeholder = 1
 `,
@@ -1246,8 +1356,9 @@ var placeholder = 1
 			"int",
 		},
 		{`
-func a() (int, string):
+func a() (int, string) {
 	return 1, "a"
+}
 var s string
 _, s = a()
 var placeholder = 1
@@ -1257,16 +1368,18 @@ var placeholder = 1
 		},
 		{`
 var a int
-for _, a range {1, 2, 3}:
+for _, a range {1, 2, 3} {
 	pass
+}
 var placeholder = 1
 `,
 			true,
 			"int",
 		},
 		{`
-for var _, a range {1, 2, 3}:
+for var _, a range {1, 2, 3} {
 	pass
+}
 var placeholder = 1
 `,
 			true,
@@ -1274,37 +1387,43 @@ var placeholder = 1
 		},
 		{`
 var a string
-for _, a range {1, 2, 3}:
+for _, a range {1, 2, 3} {
 	pass
+}
 var placeholder = 1
 `,
 			false,
 			"",
 		},
 		{`
-if true: # check in a block
+if true { # check in a block
 	_ = 1
+}
 var placeholder = 1
 `,
 			true,
 			"int",
 		},
 		{`
-func a() (int, string):
+func a() (int, string) {
 	return 1, "a"
-if var _, s = a(); s == "a":
+}
+if var _, s = a(); s == "a" {
 	pass
+}
 var placeholder = 1
 `,
 			true,
 			"int",
 		},
 		{`
-func a() (int, string):
+func a() (int, string) {
 	return 1, "a"
+}
 var s string
-if _, s = a(); s == "a":
+if _, s = a(); s == "a" {
 	pass
+}
 var placeholder = 1
 `,
 			true,
@@ -1418,36 +1537,36 @@ var c = a == b`,
 			true,
 			"bool",
 		},
-		{`var a, b interface: pass
+		{`var a, b interface{}
 var c = a == b`,
 			true,
 			"bool",
 		},
 		{`
-interface I: func f()
-struct S: func f(): pass
+interface I{ func f() }
+struct S { func f() { pass } }
 var a I, b S	
 var c = a == b`,
 			true,
 			"bool",
 		},
 		{`
-interface I: func f()
-struct S: pass # S doesn't implement I, so S and I aren't comparable
+interface I{ func f() }
+struct S{}# S doesn't implement I, so S and I aren't comparable
 var a I, b S	
 var c = a == b`,
 			false,
 			"",
 		},
 		{`
-struct S: x int
+struct S{ x int }
 var a, b S
 var c = a == b`,
 			true,
 			"bool",
 		},
 		{`
-struct S: x []int # []int aren't comparable, so S isn't comparable
+struct S{ x []int } # []int aren't comparable, so S isn't comparable
 var a, b S
 var c = a == b`,
 			false,
@@ -1495,23 +1614,25 @@ func TestTypesNil(t *testing.T) {
 			"*int",
 		},
 		{`
-interface A:
+interface A {
 	func x()
+}
 var a A = nil`,
 			true,
 			"A",
 		},
 		{`
-interface A:
+interface A {
 	func x()
+}
 var a = A(nil)`,
 			true,
 			"A",
 		},
 		{`
-var a interface:
+var a interface {
 	func x()
-  = nil`,
+} = nil`,
 			true,
 			"interface{x()}",
 		},
@@ -1524,8 +1645,9 @@ var a interface:
 			"",
 		},
 		{`
-struct A:
+struct A {
 	x int
+}
 var a A = nil`,
 			false,
 			"",
@@ -1711,71 +1833,81 @@ var y = x[1:5]`,
 func TestTypesGenericFunc(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
-func a[T]() int: # Something very simple for start
+func a[T]() int { # Something very simple for start
 	return 1
+}
 var x = a[float32]()`,
 			true,
 			"int",
 		},
 		{`
-func a[T]() T:
+func a[T]() T {
 	return 1
+}
 var x = a[float32]()`,
 			true,
 			"float32",
 		},
 		{`
-func a[T](x T) T:
+func a[T](x T) T {
 	return 1 + x
+}
 var x = a[float32](4)`,
 			true,
 			"float32",
 		},
 		{`
-func a[T](x T) T: # Trying to add string literal "aaa" to float32
+func a[T](x T) T { # Trying to add string literal "aaa" to float32
 	return "aaa" + x
+}
 var x = a[float32](4)`,
 			false,
 			"",
 		},
 		{`
-func a[T, K](x T, y K) T:
+func a[T, K](x T, y K) T {
 	return x + y
+}
 var x = a[float32, float32](4, 5)`,
 			true,
 			"float32",
 		},
 		{`
-func a[T, K](x T, y K) T:
+func a[T, K](x T, y K) T {
 	return x + y # Error, can't add float32 and string
+}
 var x = a[float32, string](4, "s")`,
 			false,
 			"",
 		},
 		{`
-func a[T](x T) T: # a[T] used in a[T]
+func a[T](x T) T { # a[T] used in a[T]
 	return x + a[T](10)
+}
 var x = a[float32](4)`,
 			true,
 			"float32",
 		},
 		{`
-func a[T](x T) T:
+func a[T](x T) T {
 	return x
+}
 var x = a[float32]`,
 			true,
 			"func(float32) float32",
 		},
 		{`
-func a[T](x T) T:
+func a[T](x T) T {
 	return x
+}
 var x func(float32)float32 = a[float32]`,
 			true,
 			"func(float32) float32",
 		},
 		{`
-func a[T](x T) T:
+func a[T](x T) T {
 	return x
+}
 var x = a(1.2)`,
 			true,
 			"float64",
@@ -1786,56 +1918,72 @@ var x = a(1.2)`,
 func TestTypesGenericTypes(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
-struct A[T]:
-	func x() T:
+struct A[T] {
+	func x() T {
 		return 1
+	}
+}
 var a A[int]
 var x = a.x()`,
 			true,
 			"int",
 		},
 		{`
-struct A[T]:
-	func x() T:
+struct A[T] {
+	func x() T {
 		return "a"
-struct B[T]:
-	func y() T:
+	}
+}
+struct B[T] {
+	func y() T {
 		var a A[T]
 		return a.x()
+	}
+}
 var b B[string]
 var x = b.y()`,
 			true,
 			"string",
 		},
 		{`
-struct A[T]:
-	func x() T:
+struct A[T] {
+	func x() T {
 		return "a"
-struct B[T]:
-	func y(a A[T]) T:
+	}
+}
+struct B[T] {
+	func y(a A[T]) T {
 		return a.x()
+	}
+}
 var a A[string], b B[string]
 var x = b.y(a)`,
 			true,
 			"string",
 		},
 		{`
-struct A[T]:
-	func x() T:
+struct A[T] {
+	func x() T {
 		return 11.2
-func x[T](a A[T]) T:
+	}
+}
+func x[T](a A[T]) T {
 	return a.x()
+}
 var a A[float32]
 var x = x(a)`,
 			true,
 			"float32",
 		},
 		{`
-struct A[T]:
-	func x() T:
+struct A[T] {
+	func x() T {
 		return 11
-interface I:
+	}
+}
+interface I {
 	func x() float32
+}
 var a A[float32]
 var i I = a
 var x = i`,
@@ -1843,11 +1991,14 @@ var x = i`,
 			"I",
 		},
 		{`
-struct A[T]:
-	func x() T:
+struct A[T] {
+	func x() T {
 		return 11
-interface I:
+	}
+}
+interface I {
 	func x() float32
+}
 var a A[int]
 var i I = a # Error: x() returns int, not float32
 var x = i`,
@@ -2085,95 +2236,107 @@ func TestGenericFuncDeduction(t *testing.T) {
 	}{
 		{`
 var x int
-func f[T](arg T) T:
+func f[T](arg T) T {
 	pass
+}
 f(x)`,
 			"f[int]",
 			"",
 		},
 		{`
-func f[T](arg T) T:
+func f[T](arg T) T {
 	pass
+}
 f(1)`,
 			"f[int]",
 			"",
 		},
 		{`
 var x int
-func f[T](a1, a2 T) T:
+func f[T](a1, a2 T) T {
 	pass
+}
 f(x, 1)`,
 			"f[int]",
 			"",
 		},
 		{`
 var x float32
-func f[T](a1, a2 T) T:
+func f[T](a1, a2 T) T {
 	pass
+}
 f(x, 1)`,
 			"f[float32]",
 			"",
 		},
 		{`
 var x float32
-func f[T](a1, a2 T) T:
+func f[T](a1, a2 T) T {
 	pass
+}
 f(x, "aaa")`,
 			"f[float32]",
 			"Can't use this literal for type float32",
 		},
 		{`
 var x float32
-func f[T](a1, a2 T) T:
+func f[T](a1, a2 T) T {
 	pass
+}
 f("aaa", "a")`,
 			"f[string]",
 			"",
 		},
 		{`
 var x int
-func f[T](arg *T) T:
+func f[T](arg *T) T {
 	pass
+}
 f(&x)`,
 			"f[int]",
 			"",
 		},
 		{`
 var x map[string]float32
-func f[T, K](arg map[T]K) T:
+func f[T, K](arg map[T]K) T {
 	pass
+}
 f(x)`,
 			"f[string, float32]",
 			"",
 		},
 		{`
 var x []float32
-func f[T](arg []T) T:
+func f[T](arg []T) T {
 	pass
+}
 f(x)`,
 			"f[float32]",
 			"",
 		},
 		{`
 var x map[*int][]float32
-func f[T, K](arg map[T]K) T:
+func f[T, K](arg map[T]K) T {
 	pass
+}
 f(x)`,
 			"f[*int, []float32]",
 			"",
 		},
 		{`
 var x map[*int][]float32
-func f[T, K](arg map[*T][]K) T:
+func f[T, K](arg map[*T][]K) T {
 	pass
+}
 f(x)`,
 			"f[int, float32]",
 			"",
 		},
 		{`
 var x func(int)int
-func f[T](arg func(T)T) T:
+func f[T](arg func(T)T) T {
 	pass
+}
 f(x)`,
 			"f[int]",
 			"",
@@ -2181,15 +2344,17 @@ f(x)`,
 		{`
 var x int
 var y string
-func f[T](a1, a2 T) T:
+func f[T](a1, a2 T) T {
 	pass
+}
 f(x, y)`,
 			"",
 			"T can't be both int and string",
 		},
 		{`
-func f[T](a1, a2 T) T:
+func f[T](a1, a2 T) T {
 	pass
+}
 f(1, "aaa")`,
 			"",
 			"T can't be both int and string",
@@ -2233,32 +2398,36 @@ f(1, "aaa")`,
 func TestTypesExprStmt(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
-func f():
+func f() {
     pass
+}
 f()
 var placeholder int = 0`,
 			true,
 			"int",
 		},
 		{`
-func f[T]():
+func f[T]() {
     pass
+}
 f[int]()
 var placeholder int = 0`,
 			true,
 			"int",
 		},
 		{`
-func f[T](a T):
+func f[T](a T) {
     pass
+}
 f(1)
 var placeholder int = 0`,
 			true,
 			"int",
 		},
 		{`
-if true:
+if true {
 	1 + 1 # Error: expression evaluated but not used (it's only checked for blocks ATM)
+}
 var placeholder int = 0`,
 			false,
 			"",
@@ -2269,116 +2438,75 @@ var placeholder int = 0`,
 func TestTypesWhenStmt(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
-func f[T]():
-	when int
+func f[T]() {
+	when int {
 	is int:
 		pass
+	}
+}
 f[int]()
 var placeholder int = 0`,
 			true,
 			"int",
 		},
 		{`
-func f[T]():
-	when int
+func f[T]() {
+	when int {
 	implements int: # Error: not an interface: int
 		pass
+	}
+}
 f[int]()
 var placeholder int = 0`,
 			false,
 			"",
 		},
 		{`
-func f[T]():
-	when T
-	implements interface: pass:
+func f[T]() {
+	when T {
+	implements interface{}:
 		pass
+	}
+}
 f[int]()
 var placeholder int = 0`,
 			true,
 			"int",
 		},
 		{`
-func f[T]():
-	when T
+func f[T]() {
+	when T {
 	is int:
 		var x int = "test" # Fail, "test" can't be int
+	}
+}
 f[int]()
 var placeholder int = 0`,
 			false,
 			"",
 		},
 		{`
-func f[T]():
-	when T
+func f[T]() {
+	when T {
 	is int:
 		var x int = "test" # "test" can't be int, but this branch isn't typechecked
+	}
+}
 f[string]()
 var placeholder int = 0`,
 			true,
 			"int",
 		},
 		{`
-func f[T, K]():
-	when K, T, int
-	implements interface: pass, is string, float32:
+func f[T, K]() {
+	when K, T, int {
+	implements interface{}, is string, float32:
 		pass
+	}
+}
 f[int, string]()
 var placeholder int = 0`,
 			true,
-			"int",
-		},
-	})
-}
-
-func TestTypesAndWeirdIndents(t *testing.T) {
-	testVarTypes(t, []typeTestCase{
-		{`
-func f[T]():
-	pass
-	
-	pass
-f[int]()
-var placeholder int = 0`,
-			true,
-			"int",
-		},
-		{`
-func f[T]():
-	pass
-	
-f[int]()
-var placeholder int = 0`,
-			true,
-			"int",
-		},
-		{`
-func f[T]():
-	pass
-		
-f[int]()
-var placeholder int = 0`,
-			true,
-			"int",
-		},
-		{`
-func f[T]():
-	pass
-
-	pass
-f[int]()
-var placeholder int = 0`,
-			true,
-			"int",
-		},
-		{`
-func f[T]():
-	pass
-
-		pass
-f[int]()
-var placeholder int = 0`,
-			false,
 			"int",
 		},
 	})

@@ -1,6 +1,6 @@
 package main
 
-func main():
+func main() {
     var x = make[[]int](4)
 
     print(len(x))
@@ -34,4 +34,4 @@ func main():
 
     print(len(z))
     print("\n")
-
+}

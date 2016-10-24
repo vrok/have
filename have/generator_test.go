@@ -53,31 +53,31 @@ func TestGenerateExpr(t *testing.T) {
 		{source: "print('ą')", reference: "print('ą')\n"},
 		{source: "print(1+1)", reference: "print((1 + 1))\n"},
 		{source: "print(1+(-1))", reference: "print((1 + (-1)))\n"},
-		{source: "func a():\n print(1)", reference: "func a() {\n\tprint(1)\n}\n"},
-		{source: "func a(x, y int):\n print(1)", reference: "func a(x int, y int) {\n\tprint(1)\n}\n"},
+		{source: "func a() { print(1) }", reference: "func a() {\n\tprint(1)\n}\n"},
+		{source: "func a(x, y int) { print(1) }", reference: "func a(x int, y int) {\n\tprint(1)\n}\n"},
 		{source: "print(\"test\")", reference: "print(\"test\")\n"},
-		{source: "if 1 == 2:\n print(1)", reference: `
+		{source: "if 1 == 2 { print(1) }", reference: `
 if (1 == 2) {
 	print(1)
 }`,
 		},
-		{source: "if var t = 1; t == 2:\n print(1)", reference: `
+		{source: "if var t = 1; t == 2 { print(1) }", reference: `
 if t := (int)(1); (t == 2) {
 	print(1)
 }`,
 		},
-		{source: "if var t = 1, k = \"aaa\"; t == 2 && k == \"bbb\":\n print(1)", reference: `
+		{source: "if var t = 1, k = \"aaa\"; t == 2 && k == \"bbb\" { print(1) }", reference: `
 if t, k := (int)(1), (string)("aaa"); ((t == 2) && (k == "bbb")) {
 	print(1)
 } `,
 		},
-		{source: "if 1 == 2:\n print(1)\nelse:\n print(2)\n", reference: `
+		{source: "if 1 == 2 { print(1) } else { print(2) }", reference: `
 if (1 == 2) {
 	print(1)
 } else {
 	print(2)
 }`},
-		{source: "if 1 == 2:\n print(1)\nelif true == false:\n print(5)\nelse:\n print(2)\n", reference: `
+		{source: "if 1 == 2 { print(1) } elif true == false { print(5) } else { print(2) }", reference: `
 if (1 == 2) {
 	print(1)
 } else if (true == false) {
@@ -85,17 +85,19 @@ if (1 == 2) {
 } else {
 	print(2)
 }`},
-		{source: `for true:
-	print("b")`, reference: `
+		{source: `for true {
+	print("b")
+}`, reference: `
 for true {
 	print("b")
 }`},
-		{source: `for var x = 0; x < 100; print("a"):
-	print("b")`, reference: `for x := (int)(0); (x < 100); print("a") {
+		{source: `for var x = 0; x < 100; print("a") {
+	print("b")
+}`, reference: `for x := (int)(0); (x < 100); print("a") {
 	print("b")
 }`},
-		{source: `for var x = 0; x < 100; print("a"):
-	break`, reference: `for x := (int)(0); (x < 100); print("a") {
+		{source: `for var x = 0; x < 100; print("a") { break }`,
+			reference: `for x := (int)(0); (x < 100); print("a") {
 	break
 }`},
 		{source: `
@@ -104,13 +106,16 @@ bla:`, reference: `goto bla
 bla:
 `},
 		{source: `
-struct A:
+struct A {
 	x int
-	func setX(z int):
+	func setX(z int) {
 		self.x = z
-	func *setY(z string):
+	}
+	func *setY(z string) {
 		self.y = z
+	}
 	y string
+}
 `, reference: `type A struct {
 	x int
 	y string
@@ -143,19 +148,17 @@ var x = ([]string)([]string{
 var x = []string{}`, reference: `
 var x = ([]string)([]string{})`},
 		{source: `
-var j = struct:
+var j = struct {
 	x int
-	y string
-	{ 0, "ble" }`, reference: `
+	y string }{ 0, "ble" }`, reference: `
 var j = (struct {x int; y string})(struct {x int; y string}{
 	0,
 	"ble",
 })`},
 		{source: `
-var j = struct:
+var j = struct {
 	x int
-	y string
-{ 0, "ble" }`, reference: `
+	y string }{ 0, "ble" }`, reference: `
 var j = (struct {x int; y string})(struct {x int; y string}{
 	0,
 	"ble",
@@ -163,8 +166,9 @@ var j = (struct {x int; y string})(struct {x int; y string}{
 		{source: `var x *int = nil`,
 			reference: `var x = (*int)(nil)`},
 		{source: `
-interface A:
+interface A {
 	func a() int
+}
 var x A = nil`,
 			reference: `
 type A interface{a() int}
@@ -194,9 +198,10 @@ var y = ([]string)(x[1:4])
 y = x[1:4]
 `},
 		{source: `func a() (int,
-		string):
+		string) {
 	return 1,
-		"bla"`, reference: `func a() (int, string) {
+		"bla"
+}`, reference: `func a() (int, string) {
 	return 1, "bla"
 }`},
 	}
@@ -236,8 +241,9 @@ func TestGenerateBlank(t *testing.T) {
 		{source: `_ = 1`,
 			reference: `_ = 1`},
 		{source: `
-func a() (int, string):
+func a() (int, string) {
 	return 1, "a"
+}
 var _, x = a()
 `,
 			reference: `
@@ -247,8 +253,9 @@ func a() (int, string) {
 var _, x = a()
 `},
 		{source: `
-func a() (int, string):
+func a() (int, string) {
 	return 1, "a"
+}
 var x string
 _, x = a()
 `,
@@ -287,21 +294,23 @@ a, b = (<-x)`},
 
 func TestGenerateReturnStmts(t *testing.T) {
 	cases := []generatorTestCase{
-		{source: `func a() int:
-	return 7`,
+		{source: `func a() int {
+	return 7
+}`,
 			reference: `func a() (int) {
 	return 7
 }`},
-		{source: `func a() (int, string):
-	return 7, "ble"`,
+		{source: `func a() (int, string) { return 7, "ble" }`,
 			reference: `func a() (int, string) {
 	return 7, "ble"
 }`},
 		{source: `
-struct A:
+struct A {
 	x int
-func a() *A:
-	return &A{x: 10}`,
+}
+func a() *A {
+	return &A{x: 10}
+}`,
 			reference: `type A struct {
 	x int
 }
@@ -329,11 +338,11 @@ func TestGenerateUninitializedVar(t *testing.T) {
 			reference: `var x = ([3]int)([3]int{0, 0, 0})`},
 		{source: `var x [3][2]int`,
 			reference: `var x = ([3][2]int)([3][2]int{[2]int{0, 0}, [2]int{0, 0}, [2]int{0, 0}})`},
-		{source: `var x struct:
-	y int`, reference: `var x = (struct {y int})(struct {y int}{})`},
+		{source: `var x struct { y int }`, reference: `var x = (struct {y int})(struct {y int}{})`},
 
-		{source: `struct A:
+		{source: `struct A {
 	y int
+}
 var x A`, reference: `
 type A struct {
 	y int
@@ -347,11 +356,14 @@ var x = (A)(struct {y int}{})
 
 func TestGenerateTypeAssertions(t *testing.T) {
 	cases := []generatorTestCase{
-		{source: `interface A:
+		{source: `interface A {
 	func x()
-struct B:
-	func x():
+}
+struct B {
+	func x() {
 		pass
+	}
+}
 var x A
 var y = x.(B)`,
 			reference: `type A interface{x()}
@@ -364,11 +376,14 @@ func (self B) x() {
 
 var x = (A)(nil)
 var y = (B)(x.(B))`},
-		{source: `interface A:
+		{source: `interface A {
 	func x()
-struct B:
-	func x():
+}
+struct B {
+	func x() {
 		pass
+	}
+}
 var x A
 var y, z = x.(B)`,
 			reference: `type A interface{x()}
@@ -387,29 +402,32 @@ var y, z = x.(B)`},
 
 func TestGenerateSwitchStmt(t *testing.T) {
 	cases := []generatorTestCase{
-		{source: `switch 7
+		{source: `switch 7 {
 case 7:
 	pass
 case 1, 2, 3:
-	pass`,
+	pass
+}`,
 			reference: `switch 7 {
 case 7:
 	// pass
 case 1, 2, 3:
 	// pass
 }`},
-		{source: `switch var x = 1; x + 2
+		{source: `switch var x = 1; x + 2 {
 case 1, 2, 3:
-	pass`,
+	pass
+}`,
 			reference: `switch x := (int)(1); (x + 2) {
 case 1, 2, 3:
 	// pass
 }`},
-		{source: `switch
+		{source: `switch {
 case true || false:
 	pass
 default:
-	print("a")`,
+	print("a")
+}`,
 			reference: `switch  {
 case (true || false):
 	// pass
@@ -417,10 +435,12 @@ default:
 	print("a")
 }`},
 		{source: `
-func apply(l []int, f func(x int) int) []int:
+func apply(l []int, f func(x int) int) []int {
 	pass
-var l = apply({1, 2, 3}, func(x int) int:
-	return x + 2)
+}
+var l = apply({1, 2, 3}, func(x int) int {
+	return x + 2
+})
 `,
 			reference: `func apply(l []int, f func(int) int) ([]int) {
 	// pass
@@ -439,14 +459,18 @@ var l = ([]int)(apply([]int{
 func TestGenerateTypeSwitchStmt(t *testing.T) {
 	cases := []generatorTestCase{
 		{source: `
-var bla interface:
+var bla interface {
 	func a()
-struct x:
-	func a():
+}
+struct x {
+	func a() {
 		pass
-switch bla.(type)
+	}
+}
+switch bla.(type) {
 case x: # Error: impossible assertion, x doesn't implement the interface
 	pass
+}
 `,
 			reference: `
 var bla = (interface{a()})(nil)
@@ -469,14 +493,10 @@ case x:
 func TestGenerateNestedBlocks(t *testing.T) {
 	cases := []generatorTestCase{
 		{source: `
-func a():
-	func b():
-		func c():
-			func d():
-				pass
-	func e():
-		pass
-`,
+func a() {
+	func b() { func c() { func d() { pass } } }
+	func e() { pass }
+}`,
 			reference: `func a() {
 	func b() {
 		func c() {
@@ -496,11 +516,12 @@ func a():
 func TestGenerateWhenStmt(t *testing.T) {
 	cases := []generatorTestCase{
 		{source: `
-func a():
-	when int
+func a() {
+	when int {
 	is int:
 		pass
-`,
+	}
+}`,
 			reference: `
 func a() {
 	{
@@ -509,12 +530,14 @@ func a() {
 }
 `},
 		{source: `
-func a[T](x T):
-	when T
+func a[T](x T) {
+	when T {
 	is string:
 		print("string")
 	is int:
 		print("int")
+	}
+}
 a(1)
 a("bla")
 `,
@@ -543,9 +566,9 @@ a_string("bla")
 func TestGenerateRangeFor(t *testing.T) {
 	cases := []generatorTestCase{
 		{source: `
-for var x range {1, 2, 3}:
+for var x range {1, 2, 3} {
 	print(x)
-`,
+}`,
 			reference: `
 for x := range []int{
 	1,
@@ -557,9 +580,9 @@ for x := range []int{
 }`},
 		{source: `
 var x int
-for x range {1, 2, 3}:
+for x range {1, 2, 3} {
 	print(x)
-`,
+}`,
 			reference: `
 var x = (int)(0)
 for x = range []int{
@@ -570,9 +593,9 @@ for x = range []int{
 	print(x)
 }`},
 		{source: `
-for var x, y range {1, 2, 3}:
+for var x, y range {1, 2, 3} {
 	print(x)
-`,
+}`,
 			reference: `
 for x, y := range []int{
 	1,
@@ -583,9 +606,7 @@ for x, y := range []int{
 	print(x)
 }`},
 		{source: `
-for var _, y range {1, 2, 3}:
-	print(y)
-`,
+for var _, y range {1, 2, 3} { print(y) }`,
 			reference: `
 for _, y := range []int{
 	1,
@@ -597,9 +618,7 @@ for _, y := range []int{
 }`},
 		{source: `
 var ch chan int
-for var x range ch:
-	print(x)
-`,
+for var x range ch { print(x) }`,
 			reference: `
 var ch = (chan int)(nil)
 for x := range ch {
@@ -613,8 +632,9 @@ for x := range ch {
 func TestGenerateCompilerMacro(t *testing.T) {
 	cases := []generatorTestCase{
 		{source: `
-func xyz():
+func xyz() {
 	__compiler_macro("abc()")
+}
 xyz()
 `,
 			reference: `
@@ -622,8 +642,9 @@ xyz()
 abc()
 `},
 		{source: `
-func xyz(x int):
+func xyz(x int) {
 	__compiler_macro("abc(%a0)", x)
+}
 xyz(123)
 `,
 			reference: `
@@ -631,8 +652,9 @@ xyz(123)
 abc(123)
 `},
 		{source: `
-func xyz[T](x T):
+func xyz[T](x T) {
 	__compiler_macro("abc(%a0)", x)
+}
 xyz("bla")
 xyz(123)
 `,
@@ -647,8 +669,9 @@ abc("bla")
 abc(123)
 `},
 		{source: `
-func xyz[T](x T):
+func xyz[T](x T) {
 	__compiler_macro("abc(%t0, %a0)", T, x)
+}
 xyz(100)
 `,
 			reference: `
@@ -658,8 +681,9 @@ xyz(100)
 abc(int, 100)
 `},
 		{source: `
-func make2[T](size int) T:
+func make2[T](size int) T {
 	__compiler_macro("make(%t0, %a0)")
+}
 make2[[]int](5)
 `,
 			reference: `

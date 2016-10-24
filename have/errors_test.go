@@ -39,9 +39,9 @@ func TestErrors(t *testing.T) {
 	}{
 		{
 			[]fakeLocatorFile{fakeLocatorFile{"a", "a.hav", `package a
-func main():
+func main() {
 	var x int = "aaa"
-`}}, []string{"a.hav:3: Can't use this literal for type int"},
+}`}}, []string{"a.hav:3: Can't use this literal for type int"},
 		},
 
 		{
@@ -51,16 +51,16 @@ func main():
 
 		{
 			[]fakeLocatorFile{fakeLocatorFile{"a", "a.hav", `package a
-func main():
+func main() {
 	somethingUnknown()
-`}}, []string{"a.hav:3: Unknown identifier: somethingUnknown"},
+}`}}, []string{"a.hav:3: Unknown identifier: somethingUnknown"},
 		},
 
 		{
 			[]fakeLocatorFile{fakeLocatorFile{"a", "a.hav", `package a
-func main():
+func main() {
 	somethingUnknown[int]()
-`}}, []string{"a.hav:3: Unknown identifier: somethingUnknown"},
+}`}}, []string{"a.hav:3: Unknown identifier: somethingUnknown"},
 		},
 	}
 
