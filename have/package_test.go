@@ -7,8 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/davecgh/go-spew/spew"
 	gotoken "go/token"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 func testPkg(t *testing.T, shouldFail bool, files []struct {
@@ -52,8 +53,7 @@ func TestCompilePackageSimple(t *testing.T) {
 		{
 			"hello.hav",
 			`package main
-func main():
-	pass`,
+func main() { pass }`,
 			`package main
 
 func main() {
@@ -71,10 +71,12 @@ func TestCompilePackage_MemberName(t *testing.T) {
 		{
 			"hello.hav",
 			`package main
-func main():
-	struct A:
+func main() {
+	struct A {
 		foo int
-	var x = A{foo: 7} # We're not sure if 'foo' is an ident until typechecker`,
+	}
+	var x = A{foo: 7} # We're not sure if 'foo' is an ident until typechecker
+}`,
 			`package main
 
 func main() {
@@ -97,10 +99,12 @@ func TestCompilePackage_UnmatchedMemberName(t *testing.T) {
 		{
 			"hello.hav",
 			`package main
-func main():
-	struct A:
+func main() {
+	struct A {
 		foo int
-	var x = A{foob: 7} # Error, A doesn't have a member named 'foob'`,
+	}
+	var x = A{foob: 7} # Error, A doesn't have a member named 'foob'
+}`,
 			"",
 		},
 	}
@@ -114,8 +118,7 @@ func TestCompilePackage_UnmatchedIdent(t *testing.T) {
 		{
 			"hello.hav",
 			`package main
-func main():
-	var y = bla`,
+func main() { var y = bla }`,
 			``,
 		},
 	}
@@ -149,8 +152,9 @@ func TestCompilePackageUnorderedBinding(t *testing.T) {
 		{
 			"hello.hav",
 			`package main
-func main():
+func main() {
 	var x = y
+}
 var y = 10`,
 			`
 package main
@@ -172,8 +176,7 @@ func TestCompilePackageDependentFiles(t *testing.T) {
 		{
 			"hello.hav",
 			`package main
-func main():
-	var x = y`,
+func main() { var x = y }`,
 			`
 package main
 
@@ -198,11 +201,13 @@ func TestCompilePackageGenericFunc(t *testing.T) {
 		{
 			"hello.hav",
 			`package main
-func bla[T](a T) T:
+func bla[T](a T) T {
 	return a
-func main():
+}
+func main() {
 	bla(7)
 	bla("ble")
+}
 `,
 			`
 package main
@@ -232,14 +237,17 @@ func TestCompilePackageGenericStruct(t *testing.T) {
 		{
 			"hello.hav",
 			`package main
-struct bla[T]:
+struct bla[T] {
 	t T
-	func meh(a T) T:
+	func meh(a T) T {
 		return a + self.t
-func main():
+	}
+}
+func main() {
 	var x bla[int], y bla[string]
 	x.meh(7)
 	y.meh("ble")
+}
 `,
 			`package main
 

@@ -94,17 +94,19 @@ func TestPrimaryExpr(t *testing.T) {
 	testPrimaryExpr(t, "[]int{1,2}", &CompoundLit{expr: expr{1}, Left: &TypeExpr{expr: expr{1}}})
 	testPrimaryExpr(t, "dywan{1}", &CompoundLit{expr: expr{1}, Left: &TypeExpr{expr: expr{1}}})
 	//testPrimaryExpr(t, "dy.wan{1}", &CompoundLit{})
-	testPrimaryExpr(t, `struct:
-    x int
+	testPrimaryExpr(t, `struct {
+    x int }
 	{x: 1}`, &CompoundLit{expr: expr{1}, Left: &TypeExpr{expr: expr{1}}})
-	testPrimaryExpr(t, `struct:
-    x int
+	testPrimaryExpr(t, `struct {
+    x int }
   {x: 1}`, &CompoundLit{expr: expr{1}, Left: &TypeExpr{expr: expr{1}}})
-	testPrimaryExpr(t, `struct:
+	testPrimaryExpr(t, `struct {
     x int
+}
 	  {x: 1}`, &CompoundLit{expr: expr{1}, Left: &TypeExpr{expr: expr{1}}})
-	testPrimaryExpr(t, `struct:
+	testPrimaryExpr(t, `struct {
 	x int
+}
 {x: 1}`, &CompoundLit{expr: expr{1}, Left: &TypeExpr{expr: expr{1}}})
 }
 
@@ -213,9 +215,11 @@ func TestCodeBlock(t *testing.T) {
 	}{
 		{`
  var x = 1
- var y = 2`, 2},
+ var y = 2
+}`, 2},
 		{`
  var x = 1
+}
 var y = 2`, 1},
 	}
 	for _, c := range cases {
@@ -603,7 +607,7 @@ func validityTest(t *testing.T, cases []validityTestCase) {
 		if c.valid && !passed {
 			t.Fail()
 			fmt.Printf("Error parsing %s %s\n", err, spew.Sdump(block))
-			fmt.Printf("Unbound idents and types: [%s], [%s]\n", spew.Sdump(parser.unboundIdents), spew.Sdump(parser.unboundTypes))
+			fmt.Printf("Case %d: Unbound idents and types: [%s], [%s]\n", i, spew.Sdump(parser.unboundIdents), spew.Sdump(parser.unboundTypes))
 		} else if !c.valid && passed {
 			t.Fail()
 			fmt.Printf("Parsing case %d should've failed (err: %s)\n%s\n---\n%s\n",
@@ -642,9 +646,9 @@ func TestParseFuncDecl(t *testing.T) {
 		{`func abc() (x int) {
 		  var x = 1
  } `, true},
-		{`func abc() (int, struct:
+		{`func abc() (int, struct {
     x int
-    y float64) {
+    y float64}) {
   var x = 1
 }`, true},
 	}
@@ -817,15 +821,12 @@ var y = x.()`, false},
 
 func TestParseReturnStmt(t *testing.T) {
 	cases := []validityTestCase{
-		{`func a():
-	return 1`, true},
-		{`func a():
-	return 1, "piesek"`, true},
-		{`func a():
-	return`, true},
-		{`func a():
+		{`func a() { return 1 }`, true},
+		{`func a() { return 1, "piesek" }`, true},
+		{`func a() {
 	return
-`, true},
+}`, true},
+		{`func a() { return }`, true},
 		{`return`, false},
 	}
 	validityTest(t, cases)
@@ -836,51 +837,68 @@ func TestBranchStmt(t *testing.T) {
 		{`break`, true},
 		{`continue`, true},
 		{`
-func x():
-	for x = 0; x < 10; x += 1:
-		break`, true},
-		{`
-func x():
-	break`, false},
-		{`
-func x():
-	lol:
-	goto lol`, true},
-		{`
-func x():
-	lol:
-	lol:
-	goto lol`, false},
-		{`
-func x():
-	if true:
+func x() {
+	for x = 0; x < 10; x += 1 {
 		break
-	for x = 0; x < 10; x += 1:
-		pass`, false},
+	}
+}`, true},
 		{`
-func x():
-	goto lol`, false},
+func x() {
+	break
+}`, false},
 		{`
-func x():
+func x() {
 	lol:
-	for x = 0; x < 10; x += 1:
-		goto lol`, true},
-		{`
-func x():
 	goto lol
-	for x = 0; x < 10; x += 1:
-		lol:`, false},
+}`, true},
 		{`
-func x():
+func x() {
+	lol:
+	lol:
+	goto lol
+}`, false},
+		{`
+func x() {
+	if true {
+		break
+	}
+	for x = 0; x < 10; x += 1 {
+		pass
+	}
+}`, false},
+		{`
+func x() {
+	goto lol
+}`, false},
+		{`
+func x() {
+	lol:
+	for x = 0; x < 10; x += 1 {
+		goto lol
+	}
+}`, true},
+		{`
+func x() {
+	goto lol
+	for x = 0; x < 10; x += 1 {
+		lol:
+	}
+}`, false},
+		{`
+func x() {
 	lol:
 	pass
-	for x = 0; x < 10; x += 1:
-		break lol`, false},
+	for x = 0; x < 10; x += 1 {
+		break lol
+	}
+}`, false},
 		{`
-func x():
+func x() {
 	lol:
-	for x = 0; x < 10; x += 1:
-		break lol`, true},
+	for x = 0; x < 10; x += 1 {
+		break lol
+	}
+}`, true},
 	}
 	validityTest(t, cases)
 }

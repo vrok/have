@@ -341,7 +341,7 @@ func (p *Parser) parseCustomCodeBlock(terminators []TokenType, consumeTerminator
 			if consumeTerminator {
 				p.nextToken()
 			}
-			return result, nil
+			break
 		}
 
 		stmt, err := p.parseStmt()
@@ -667,12 +667,7 @@ func (p *Parser) parseIf() (*IfStmt, error) {
 
 loop:
 	for {
-		isBranch, t := p.checkForBranch(TOKEN_ELIF, TOKEN_ELSE)
-		if !isBranch {
-			break loop
-		}
-
-		switch t.Type {
+		switch t := p.nextToken(); t.Type {
 		case TOKEN_ELIF:
 			condition, block, err := getCondAndBlock()
 			if err != nil {
@@ -1559,7 +1554,7 @@ func (p *Parser) parseFuncTypeOrLit() (Expr, error) {
 		return nil, err
 	}
 
-	if p.peek().Type == TOKEN_COLON {
+	if p.peek().Type == TOKEN_LBRACE {
 		return p.parseFuncBody(fd)
 	} else {
 		return &TypeExpr{expr{loc}, fd.typ}, nil
@@ -2264,7 +2259,7 @@ func (p *Parser) parseReturnStmt() (*ReturnStmt, error) {
 	s := &ReturnStmt{stmt: stmt{expr: expr{tok.Pos}}, Func: p.funcStack[len(p.funcStack)-1]}
 
 	switch p.peek().Type {
-	case TOKEN_INDENT, TOKEN_EOF:
+	case TOKEN_INDENT, TOKEN_EOF, TOKEN_RBRACE:
 		// This is a blank
 		return s, nil
 	default:
