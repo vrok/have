@@ -415,7 +415,7 @@ func (p *Parser) scanForToken(forWhat TokenType, untilWhat []TokenType) bool {
 // on parse error, but this seems simpler.
 // It restores initial state of the parser before returning.
 func (p *Parser) scanForSemicolon() bool {
-	return p.scanForToken(TOKEN_SEMICOLON, []TokenType{TOKEN_COLON})
+	return p.scanForToken(TOKEN_SEMICOLON, []TokenType{TOKEN_LBRACE})
 }
 
 // Expects the keyword "for" to be already consumed.
@@ -584,7 +584,7 @@ func (p *Parser) parseForStmt(lbl *LabelStmt) (stmt Stmt, err error) {
 		if err != nil {
 			return
 		}
-	} else if p.scanForToken(TOKEN_RANGE, []TokenType{TOKEN_COLON}) {
+	} else if p.scanForToken(TOKEN_RANGE, []TokenType{TOKEN_LBRACE}) {
 		return p.parseRangeForStmt()
 	} else {
 		stmt, err = p.parseWhileLikeFor()
@@ -1933,7 +1933,7 @@ loop:
 		}
 
 		switch t := p.peek(); t.Type {
-		case TOKEN_RPARENTH, TOKEN_COLON, TOKEN_INDENT:
+		case TOKEN_RPARENTH, TOKEN_LBRACE, TOKEN_INDENT:
 			switch state {
 			case undecided, anon:
 				for _, name := range names {
@@ -1969,7 +1969,7 @@ loop:
 			}
 
 			switch p.peek().Type {
-			case TOKEN_RPARENTH, TOKEN_COLON, TOKEN_INDENT:
+			case TOKEN_RPARENTH, TOKEN_LBRACE, TOKEN_INDENT:
 				break loop
 			case TOKEN_COMMA:
 				p.nextToken()

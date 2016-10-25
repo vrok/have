@@ -300,6 +300,7 @@ func TestIfStmt(t *testing.T) {
 		code       string
 		shouldPass bool
 	}{
+		{`if 0 == 1 {} if var x = 0; x == 1 {}`, true},
 		{`if var x = 0; x == 1 {
 	var y = 3
 }`, true},
