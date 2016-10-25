@@ -169,16 +169,20 @@ func (l *Lexer) skipWhiteChars() []rune {
 	return whitespace
 }
 
+func (l *Lexer) skipLine() []rune {
+	c := 0
+	for c < len(l.buf) && l.buf[c] != '\n' {
+		c++
+	}
+	line := l.buf[0:c]
+	l.skipBy(c)
+	return line
+}
+
 func (l *Lexer) skipInlineComment() []rune {
-	if !l.isEnd() && l.buf[0] == '#' {
-		l.skip()
-		c := 0
-		for c < len(l.buf) && l.buf[c] != '\n' {
-			c++
-		}
-		cmt := l.buf[0:c]
-		l.skipBy(c)
-		return cmt
+	if len(l.buf) >= 2 && string(l.buf[:2]) == "//" {
+		l.skipBy(2)
+		return l.skipLine()
 	}
 	return nil
 }
@@ -502,9 +506,6 @@ func (l *Lexer) Next() *Token {
 	case ch == '.':
 		l.skip()
 		return l.retNewToken(TOKEN_DOT, nil)
-	case ch == '#':
-		l.skipInlineComment()
-		return l.Next()
 	case ch == '*':
 		alt, _ := l.checkAlt("*=", "*")
 		switch alt {
@@ -514,8 +515,11 @@ func (l *Lexer) Next() *Token {
 			return l.retNewToken(TOKEN_MUL_ASSIGN, alt)
 		}
 	case ch == '/':
-		alt, _ := l.checkAlt("/=", "/")
+		alt, _ := l.checkAlt("//", "/=", "/")
 		switch alt {
+		case "//":
+			l.skipLine()
+			return l.Next()
 		case "/":
 			return l.retNewToken(TOKEN_DIV, alt)
 		case "/=":

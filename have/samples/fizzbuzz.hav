@@ -4,7 +4,7 @@ func main() {
     struct A {
         i int
     }
-    var x A = A{i: 1} # some comment blah
+    var x A = A{i: 1} // some comment blah
     for ; x.i <= 100; x.i += 1 {
         if x.i % 3 == 0 && x.i % 5 == 0 {
             print("Fizz Buzz\n")

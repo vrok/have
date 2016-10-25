@@ -636,9 +636,9 @@ func TestParseFuncDecl(t *testing.T) {
   }		`, true},
 		{`func abc(x, y int, z string) int {
 	pass }`, true},
-		{`func abc(x, y int, z) int { # Error: last parameter needs type
+		{`func abc(x, y int, z) int { // Error: last parameter needs type
 	pass }`, false},
-		{`func abc(x, y int int, z string) int { # Error: unexpected token (double int)
+		{`func abc(x, y int int, z string) int { // Error: unexpected token (double int)
 	pass }`, false},
 		{`func abc() (int, float64) {
   var x = 1
@@ -905,23 +905,23 @@ func x() {
 
 func TestParseGenericFunc(t *testing.T) {
 	cases := []validityTestCase{
-		{`func a[T]() int { # OK
+		{`func a[T]() int { // OK
 	return 1
 }`, true},
-		{`func a[T, K]() int { # OK
+		{`func a[T, K]() int { // OK
 	return 1
 }`, true},
-		{`func a[]() int { # Expected a generic type name
+		{`func a[]() int { // Expected a generic type name
 	return 1
 }`, false},
-		{`func a[T]() T { # OK
+		{`func a[T]() T { // OK
 	return 1
 }`, true},
 		// TODO: the sample below causes a runtime panic instead of an error
-		{`func a[T]() K { # K is unknown
+		{`func a[T]() K { // K is unknown
 	return 1
 }`, false},
-		{`func a[T](x T) T { # some recursion
+		{`func a[T](x T) T { // some recursion
 	return a(x + 1)
 }`, true},
 	}
@@ -943,7 +943,7 @@ func TestParseGenericStruct(t *testing.T) {
 	}
 }`, true},
 		{`struct A[T] {
-	func x() K { # K is unknown
+	func x() K { // K is unknown
 		return 1}}}`, false},
 		// This would be a cool test if validityTest allowed hanging idents:
 		//		{`struct A[T]:
@@ -987,7 +987,7 @@ func Bla[X]() {
 	when X {
 	default:
 		pass
-	is int: # 'default' has to be the last branch
+	is int: // 'default' has to be the last branch
 		pass
 	}
 	pass

@@ -365,7 +365,7 @@ var placeholder = 1`,
 			"int",
 		},
 		{`
-for var x, y, y range {1, 2, 3} { # Too many vars
+for var x, y, y range {1, 2, 3} { // Too many vars
 	pass
 }
 var placeholder = 1`,
@@ -374,7 +374,7 @@ var placeholder = 1`,
 		},
 		{`
 for var x range {1, 2, 3} {
-	var a int = "a" # Fail to make sure the code block is typechecked
+	var a int = "a" // Fail to make sure the code block is typechecked
 }
 var placeholder = 1`,
 			false,
@@ -406,7 +406,7 @@ var placeholder = 1`,
 		},
 		{`
 for var x, y range map[float32]string{1: "1", 2: "2", 3: "3"} {
-	var a float32 = x, b int = y # int and string aren't assignable
+	var a float32 = x, b int = y // int and string aren't assignable
 }
 var placeholder = 1`,
 			false,
@@ -423,7 +423,7 @@ var placeholder = x`,
 		},
 		{`
 var x float32, y string
-for x, z range map[float32]string{1: "1", 2: "2", 3: "3"} { # z is unknown 
+for x, z range map[float32]string{1: "1", 2: "2", 3: "3"} { // z is unknown 
 	pass
 }
 var placeholder = x`,
@@ -1176,7 +1176,7 @@ struct x {
 	}
 }
 switch bla.(type) {
-case x: # Error: impossible assertion, x doesn't implement the interface
+case x: // Error: impossible assertion, x doesn't implement the interface
 	pass
 }
 var y = true`, true, "bool"},
@@ -1188,13 +1188,13 @@ struct x {
 	pass
 }
 switch bla.(type) {
-case x: # Error: impossible assertion, x doesn't implement the interface
+case x: // Error: impossible assertion, x doesn't implement the interface
 	pass
 }
 var y = true`, false, ""},
 		{`
 var bla int
-switch bla.(type) { # Error: non-interface used for type switch
+switch bla.(type) { // Error: non-interface used for type switch
 case int:
 	pass
 }
@@ -1208,7 +1208,7 @@ case int:
 var y = true`, true, "bool"},
 		{`
 var bla interface{}
-switch var x = bla.(int) { # "int" instead of "type"
+switch var x = bla.(int) { // "int" instead of "type"
 case int:
 	pass
 }
@@ -1216,7 +1216,7 @@ var y = true`, false, ""},
 		{`
 var bla interface{}
 switch var x = bla.(type) {
-case "ble": # Error: not a type name
+case "ble": // Error: not a type name
 	pass
 }
 var y = true`, false, ""},
@@ -1233,7 +1233,7 @@ var bla interface {
 }
 switch var x = bla.(type) {
 case int:
-	var z string = x # Error: string and int are not assignable
+	var z string = x // Error: string and int are not assignable
 }
 var y = true`, false, ""},
 		{`
@@ -1396,7 +1396,7 @@ var placeholder = 1
 			"",
 		},
 		{`
-if true { # check in a block
+if true { // check in a block
 	_ = 1
 }
 var placeholder = 1
@@ -1552,7 +1552,7 @@ var c = a == b`,
 		},
 		{`
 interface I{ func f() }
-struct S{}# S doesn't implement I, so S and I aren't comparable
+struct S{}// S doesn't implement I, so S and I aren't comparable
 var a I, b S	
 var c = a == b`,
 			false,
@@ -1566,7 +1566,7 @@ var c = a == b`,
 			"bool",
 		},
 		{`
-struct S{ x []int } # []int aren't comparable, so S isn't comparable
+struct S{ x []int } // []int aren't comparable, so S isn't comparable
 var a, b S
 var c = a == b`,
 			false,
@@ -1579,28 +1579,28 @@ var c = a == b`,
 			"bool",
 		},
 		{`
-var a, b [1][]int # slices aren't comparable, so arrays of them aren't too
+var a, b [1][]int // slices aren't comparable, so arrays of them aren't too
 var c = a == b`,
 			false,
 			"bool",
 		},
 		{`var x, y func()
-var y = x == y # Functions aren't comparable`,
+var y = x == y // Functions aren't comparable`,
 			false,
 			"",
 		},
 		{`var x map[string]int
-var y = x == nil # Special case, can compare to nil`,
+var y = x == nil // Special case, can compare to nil`,
 			true,
 			"bool",
 		},
 		{`var x []int
-var y = x == nil # Special case, can compare to nil`,
+var y = x == nil // Special case, can compare to nil`,
 			true,
 			"bool",
 		},
 		{`var x func()
-var y = x == nil # Special case, can compare to nil`,
+var y = x == nil // Special case, can compare to nil`,
 			true,
 			"bool",
 		},
@@ -1663,7 +1663,7 @@ var b = a == nil`,
 func TestTypesCompareLiterals(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`var x []int
-var y = x == {1, 2, 3} # slices aren't comparable`,
+var y = x == {1, 2, 3} // slices aren't comparable`,
 			false,
 			"",
 		},
@@ -1673,7 +1673,7 @@ var y = x == {1, "bla", 3}`,
 			"",
 		},
 		{`var x []int
-var y = x == nil # as a special case, slices/maps/functions can be compared to nil`,
+var y = x == nil // as a special case, slices/maps/functions can be compared to nil`,
 			true,
 			"bool",
 		},
@@ -1687,7 +1687,7 @@ var y = nil == x`,
 			"",
 		},
 		{`var x map[string]int
-var y = x == {"a": 1, "b": 2, "c": 3} # maps aren't comparable`,
+var y = x == {"a": 1, "b": 2, "c": 3} // maps aren't comparable`,
 			false,
 			"",
 		},
@@ -1833,7 +1833,7 @@ var y = x[1:5]`,
 func TestTypesGenericFunc(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`
-func a[T]() int { # Something very simple for start
+func a[T]() int { // Something very simple for start
 	return 1
 }
 var x = a[float32]()`,
@@ -1857,7 +1857,7 @@ var x = a[float32](4)`,
 			"float32",
 		},
 		{`
-func a[T](x T) T { # Trying to add string literal "aaa" to float32
+func a[T](x T) T { // Trying to add string literal "aaa" to float32
 	return "aaa" + x
 }
 var x = a[float32](4)`,
@@ -1874,14 +1874,14 @@ var x = a[float32, float32](4, 5)`,
 		},
 		{`
 func a[T, K](x T, y K) T {
-	return x + y # Error, can't add float32 and string
+	return x + y // Error, can't add float32 and string
 }
 var x = a[float32, string](4, "s")`,
 			false,
 			"",
 		},
 		{`
-func a[T](x T) T { # a[T] used in a[T]
+func a[T](x T) T { // a[T] used in a[T]
 	return x + a[T](10)
 }
 var x = a[float32](4)`,
@@ -2000,7 +2000,7 @@ interface I {
 	func x() float32
 }
 var a A[int]
-var i I = a # Error: x() returns int, not float32
+var i I = a // Error: x() returns int, not float32
 var x = i`,
 			false,
 			"I",
@@ -2426,7 +2426,7 @@ var placeholder int = 0`,
 		},
 		{`
 if true {
-	1 + 1 # Error: expression evaluated but not used (it's only checked for blocks ATM)
+	1 + 1 // Error: expression evaluated but not used (it's only checked for blocks ATM)
 }
 var placeholder int = 0`,
 			false,
@@ -2452,7 +2452,7 @@ var placeholder int = 0`,
 		{`
 func f[T]() {
 	when int {
-	implements int: # Error: not an interface: int
+	implements int: // Error: not an interface: int
 		pass
 	}
 }
@@ -2477,7 +2477,7 @@ var placeholder int = 0`,
 func f[T]() {
 	when T {
 	is int:
-		var x int = "test" # Fail, "test" can't be int
+		var x int = "test" // Fail, "test" can't be int
 	}
 }
 f[int]()
@@ -2489,7 +2489,7 @@ var placeholder int = 0`,
 func f[T]() {
 	when T {
 	is int:
-		var x int = "test" # "test" can't be int, but this branch isn't typechecked
+		var x int = "test" // "test" can't be int, but this branch isn't typechecked
 	}
 }
 f[string]()

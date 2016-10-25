@@ -468,7 +468,7 @@ struct x {
 	}
 }
 switch bla.(type) {
-case x: # Error: impossible assertion, x doesn't implement the interface
+case x: // Error: impossible assertion, x doesn't implement the interface
 	pass
 }
 `,

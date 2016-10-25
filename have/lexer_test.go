@@ -123,15 +123,16 @@ func TestPlus(t *testing.T) {
 }
 
 func TestComments(t *testing.T) {
-	testTokens(t, []rune("\n#bla\n \n  for"), []*Token{
-		&Token{TOKEN_INDENT, 7, "  ", 0},
-		&Token{TOKEN_FOR, 10, nil, 0},
-		&Token{TOKEN_EOF, 13, nil, 0}})
-	testTokens(t, []rune("123#bla\nfor"), []*Token{
+	testTokens(t, []rune("\n//bla\n \n  for"), []*Token{
+		&Token{TOKEN_INDENT, 8, "  ", 0},
+		&Token{TOKEN_FOR, 11, nil, 0},
+		&Token{TOKEN_EOF, 14, nil, 0}})
+	testTokens(t, []rune("123//bla\nfor"), []*Token{
 		&Token{TOKEN_INT, 0, "123", 0},
-		&Token{TOKEN_INDENT, 7, "", 0},
-		&Token{TOKEN_FOR, 8, nil, 0},
-		&Token{TOKEN_EOF, 11, nil, 0}})
+		&Token{TOKEN_INDENT, 8, "", 0},
+		&Token{TOKEN_FOR, 9, nil, 0},
+		&Token{TOKEN_EOF, 12, nil, 0}})
+
 }
 
 func TestFragment(t *testing.T) {

@@ -75,7 +75,7 @@ func main() {
 	struct A {
 		foo int
 	}
-	var x = A{foo: 7} # We're not sure if 'foo' is an ident until typechecker
+	var x = A{foo: 7} // We're not sure if 'foo' is an ident until typechecker
 }`,
 			`package main
 
@@ -103,7 +103,7 @@ func main() {
 	struct A {
 		foo int
 	}
-	var x = A{foob: 7} # Error, A doesn't have a member named 'foob'
+	var x = A{foob: 7} // Error, A doesn't have a member named 'foob'
 }`,
 			"",
 		},
