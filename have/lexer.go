@@ -68,6 +68,7 @@ const (
 	TOKEN_STR                    // string literal
 	TOKEN_RUNE                   // rune literal
 	TOKEN_DOT                    // .
+	TOKEN_ELLIPSIS               // ...
 	TOKEN_LPARENTH               // (
 	TOKEN_RPARENTH               // )
 	TOKEN_LBRACKET               // [
@@ -236,7 +237,7 @@ func (l *Lexer) isEnd() bool {
 // E.g. instead of "=", "=="; rather use "==", "=".
 func (l *Lexer) checkAlt(alts ...string) (alt string, ok bool) {
 	for _, alt := range alts {
-		if string(l.buf[:len(alt)]) == alt {
+		if len(l.buf) >= len(alt) && string(l.buf[:len(alt)]) == alt {
 			l.skipBy(len(alt))
 			return alt, true
 		}
@@ -504,8 +505,13 @@ func (l *Lexer) Next() *Token {
 		l.skip()
 		return l.retNewToken(TOKEN_RBRACE, nil)
 	case ch == '.':
-		l.skip()
-		return l.retNewToken(TOKEN_DOT, nil)
+		alt, _ := l.checkAlt("...", ".")
+		switch alt {
+		case "...":
+			return l.retNewToken(TOKEN_ELLIPSIS, alt)
+		case ".":
+			return l.retNewToken(TOKEN_DOT, alt)
+		}
 	case ch == '*':
 		alt, _ := l.checkAlt("*=", "*")
 		switch alt {
