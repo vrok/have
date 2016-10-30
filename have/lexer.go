@@ -188,6 +188,27 @@ func (l *Lexer) skipInlineComment() []rune {
 	return nil
 }
 
+func (l *Lexer) skipMultilineComment() []rune {
+	fmt.Println("skipMultiLineComment")
+	c := 0
+	closed := false
+	for c < len(l.buf)-1 {
+		if string(l.buf[c:c+2]) == "*/" {
+			closed = true
+			fmt.Println("closed comment")
+			break
+		}
+		c++
+	}
+	if !closed {
+		// return error ?
+	}
+	comment := l.buf[0:c]
+	fmt.Printf("comment: %s\n", string(comment))
+	l.skipBy(c + 2) // +2 to include the "*/"
+	return comment
+}
+
 // Skip whitespace and comments
 func (l *Lexer) skipFluff() {
 	for {
@@ -521,7 +542,7 @@ func (l *Lexer) Next() *Token {
 			return l.retNewToken(TOKEN_MUL_ASSIGN, alt)
 		}
 	case ch == '/':
-		alt, _ := l.checkAlt("//", "/=", "/")
+		alt, _ := l.checkAlt("//", "/=", "/*", "/")
 		switch alt {
 		case "//":
 			l.skipLine()
@@ -530,6 +551,9 @@ func (l *Lexer) Next() *Token {
 			return l.retNewToken(TOKEN_DIV, alt)
 		case "/=":
 			return l.retNewToken(TOKEN_DIV_ASSIGN, alt)
+		case "/*":
+			l.skipMultilineComment()
+			return l.Next()
 		}
 	case ch == ',':
 		l.skip()
