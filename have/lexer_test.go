@@ -132,6 +132,14 @@ func TestComments(t *testing.T) {
 		&Token{TOKEN_INDENT, 8, "", 0},
 		&Token{TOKEN_FOR, 9, nil, 0},
 		&Token{TOKEN_EOF, 12, nil, 0}})
+	testTokens(t, []rune("123/*comment*/for"), []*Token{
+		&Token{TOKEN_INT, 0, "123", 0},
+		&Token{TOKEN_FOR, 14, nil, 0},
+		&Token{TOKEN_EOF, 17, nil, 0}})
+	testTokens(t, []rune("123/*\n com ment \n*/\nfor"), []*Token{
+		&Token{TOKEN_INT, 0, "123", 0},
+		&Token{TOKEN_INDENT, 19, "", 0},
+		&Token{TOKEN_FOR, 20, nil, 0}})
 
 }
 
