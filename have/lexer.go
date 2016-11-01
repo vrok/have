@@ -1,6 +1,7 @@
 package have
 
 import (
+	"errors"
 	"fmt"
 	"unicode"
 	"unicode/utf8"
@@ -188,25 +189,17 @@ func (l *Lexer) skipInlineComment() []rune {
 	return nil
 }
 
-func (l *Lexer) skipMultilineComment() []rune {
-	fmt.Println("skipMultiLineComment")
+func (l *Lexer) skipMultilineComment() ([]rune, error) {
 	c := 0
-	closed := false
 	for c < len(l.buf)-1 {
 		if string(l.buf[c:c+2]) == "*/" {
-			closed = true
-			fmt.Println("closed comment")
-			break
+			comment := l.buf[0:c]
+			l.skipBy(c + 2) // +2 to include the "*/"
+			return comment, nil
 		}
 		c++
 	}
-	if !closed {
-		// return error ?
-	}
-	comment := l.buf[0:c]
-	fmt.Printf("comment: %s\n", string(comment))
-	l.skipBy(c + 2) // +2 to include the "*/"
-	return comment
+	return nil, errors.New("Did not close comment")
 }
 
 // Skip whitespace and comments
@@ -552,7 +545,10 @@ func (l *Lexer) Next() *Token {
 		case "/=":
 			return l.retNewToken(TOKEN_DIV_ASSIGN, alt)
 		case "/*":
-			l.skipMultilineComment()
+			_, err := l.skipMultilineComment()
+			if err != nil {
+				return nil
+			}
 			return l.Next()
 		}
 	case ch == ',':

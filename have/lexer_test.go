@@ -140,6 +140,9 @@ func TestComments(t *testing.T) {
 		&Token{TOKEN_INT, 0, "123", 0},
 		&Token{TOKEN_INDENT, 19, "", 0},
 		&Token{TOKEN_FOR, 20, nil, 0}})
+	t.Skip("Skipping test with unclosed comments")
+	testTokens(t, []rune("123/*\ncomment\nabc\n123"), []*Token{
+		&Token{TOKEN_INT, 0, "123", 0}})
 
 }
 
