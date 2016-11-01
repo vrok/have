@@ -964,7 +964,7 @@ func (t *TupleType) MapSubtypes(callback func(t Type) bool) { mapSubtypes(t.Memb
 
 type StructType struct {
 	Members map[string]Type
-	// Keys in the order of declaration
+	// Keys of the Members map in the order of declaration
 	Keys    []string
 	Methods map[string]*FuncDecl
 	Name    string

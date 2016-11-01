@@ -1160,7 +1160,7 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl, genericPossible bool) (
 
 	self, selfp := &Variable{name: "self", Type: selfType}, &Variable{name: "self", Type: &PointerType{To: selfType}}
 
-	parseMember := func() *Token {
+	for {
 		token := p.nextToken()
 
 		switch token.Type {
@@ -1169,14 +1169,13 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl, genericPossible bool) (
 			var typ Type
 			typ, err = p.parseType()
 			if err != nil {
-				return nil
+				return nil, err
 			}
 			result.Members[name] = typ
 			result.Keys = append(result.Keys, name)
 		case TOKEN_FUNC:
 			if receiverTypeDecl == nil {
-				err = CompileErrorf(token, "Cannot declare methods in inline struct declarations")
-				return nil
+				return nil, CompileErrorf(token, "Cannot declare methods in inline struct declarations")
 			}
 
 			p.identStack.pushScope()
@@ -1192,31 +1191,20 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl, genericPossible bool) (
 			var fun *FuncDecl
 			fun, _, err = p.parseFunc(false)
 			if err != nil {
-				return nil
+				return nil, err
 			}
 			fun.Receiver, fun.PtrReceiver = receiver, ptrReceiver
 			result.Methods[fun.name] = fun
 			result.Keys = append(result.Keys, fun.name)
 			p.identStack.popScope()
 		case TOKEN_PASS:
+			// TODO: Remove `pass` from language.
+		case TOKEN_INDENT, TOKEN_SEMICOLON:
+			// Struct continues.
+		case TOKEN_RBRACE:
+			return result, nil
 		default:
-			return token
-		}
-		return nil
-	}
-
-	for {
-		token := parseMember()
-
-		if token != nil {
-			switch token.Type {
-			case TOKEN_INDENT, TOKEN_SEMICOLON:
-				// Struct continues.
-			case TOKEN_RBRACE:
-				return result, nil
-			default:
-				return nil, CompileErrorf(token, "Unexpected indent: %s", token.Type)
-			}
+			return nil, CompileErrorf(token, "Unexpected indent: %s", token.Type)
 		}
 	}
 }
