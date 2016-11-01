@@ -1165,14 +1165,28 @@ func (p *Parser) parseStruct(receiverTypeDecl *TypeDecl, genericPossible bool) (
 
 		switch token.Type {
 		case TOKEN_WORD:
-			name := token.Value.(string)
+			names := []string{token.Value.(string)}
+
+			for p.peek().Type == TOKEN_COMMA {
+				p.nextToken()
+
+				t, ok := p.expect(TOKEN_WORD)
+				if !ok {
+					return nil, CompileErrorf(t, "Expected member name after a comma")
+				}
+
+				names = append(names, t.Value.(string))
+			}
+
 			var typ Type
 			typ, err = p.parseType()
 			if err != nil {
 				return nil, err
 			}
-			result.Members[name] = typ
-			result.Keys = append(result.Keys, name)
+			for _, name := range names {
+				result.Members[name] = typ
+			}
+			result.Keys = append(result.Keys, names...)
 		case TOKEN_FUNC:
 			if receiverTypeDecl == nil {
 				return nil, CompileErrorf(token, "Cannot declare methods in inline struct declarations")

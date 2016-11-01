@@ -504,6 +504,14 @@ var b point = a`,
 			true,
 			"point",
 		},
+		{
+			`struct A { x, y int }
+var a = A{}
+a.x = a.y // Check if (at least) assignable
+var b = a.x`,
+			true,
+			"int",
+		},
 	})
 }
 

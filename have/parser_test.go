@@ -470,6 +470,10 @@ struct Abc {
 	}
 	z int
 }`,
+		`
+struct Abc {
+	a, b int
+}`,
 	}
 	for i, c := range cases {
 		if *justCase >= 0 && i != *justCase {
