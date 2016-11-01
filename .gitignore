@@ -1,0 +1,4 @@
+cmd/have/test_data/*/output/*
+have/tmp/*
+*.swp
+*.swo
