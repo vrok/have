@@ -324,6 +324,26 @@ func a() (*A) {
 	testCases(t, cases)
 }
 
+func TestGenerateVariadicArgs(t *testing.T) {
+	cases := []generatorTestCase{
+		{source: `func a(x ...int) {}`,
+			reference: `func a(x ...int) {
+}`},
+		{source: `func a(...int) {}`,
+			reference: `func a( ...int) {
+}`},
+		{source: `func a(x string, y ...int) {}`,
+			reference: `func a(x string, y ...int) {
+}`},
+		{source: `func a(x string, y ...int) {}
+a("1", 2, 3)`,
+			reference: `func a(x string, y ...int) {
+}
+a("1", 2, 3)`},
+	}
+	testCases(t, cases)
+}
+
 func TestGenerateUninitializedVar(t *testing.T) {
 	cases := []generatorTestCase{
 		{source: `var x map[int]string`,

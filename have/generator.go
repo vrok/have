@@ -458,10 +458,13 @@ func (fd *FuncDecl) InlineGenerate(tc *TypesContext, current *CodeChunk, noParen
 	i := 0
 
 	fd.Args.eachPair(func(arg *Variable, init Expr) {
-		current.AddChprintf(tc, "%s %s", arg.name, arg.Type)
+		prefix, suffix := "", ""
 		if i+1 < fd.Args.countVars() {
-			current.AddString(", ")
+			suffix = ", "
+		} else if fd.Ellipsis {
+			prefix = "..."
 		}
+		current.AddChprintf(tc, "%s %s%s%s", arg.name, prefix, arg.Type, suffix)
 		i++
 	})
 	current.AddString(")")
