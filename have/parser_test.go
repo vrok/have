@@ -181,7 +181,7 @@ func TestParseType(t *testing.T) {
 func testArgs(t *testing.T, code string, expected []Expr) {
 	parser := newTestParser(code)
 	parser.dontLookup = true
-	result, err := parser.parseArgs(0)
+	result, _, err := parser.parseArgs(0, false)
 	if err != nil {
 		fmt.Print(err)
 		t.Fail()
@@ -839,6 +839,20 @@ func TestParseReturnStmt(t *testing.T) {
 }`, true},
 		{`func a() { return }`, true},
 		{`return`, false},
+	}
+	validityTest(t, cases)
+}
+
+func TestParseVariadicExpand(t *testing.T) {
+	cases := []validityTestCase{
+		{`func a(...int) {}
+a([]int{}...)`, true},
+		{`func a(int, ...int) {}
+a(4, []int{}...)`, true},
+		{`func a(...int) {}
+a(...)`, false},
+		{`func a(int, ...int) {}
+a([]int{}..., 4)`, false},
 	}
 	validityTest(t, cases)
 }

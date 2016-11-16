@@ -972,7 +972,7 @@ groupsLoop:
 
 		// Parse a list of initializers in parentheses.
 		if t := p.nextToken(); t.Type == TOKEN_LPARENTH {
-			inits, err = p.parseArgs(0)
+			inits, _, err = p.parseArgs(0, false)
 			if err != nil {
 				return nil, err
 			}
@@ -989,7 +989,7 @@ groupsLoop:
 					return nil, CompileErrorf(t, "Expected `)`")
 				}
 				if t := p.nextToken(); t.Type == TOKEN_COMMA {
-					restInits, err := p.parseArgs(0)
+					restInits, _, err := p.parseArgs(0, false)
 					if err != nil {
 						return nil, err
 					}
@@ -1002,7 +1002,7 @@ groupsLoop:
 			}
 		} else {
 			p.putBack(t)
-			inits, err = p.parseArgs(len(vars))
+			inits, _, err = p.parseArgs(len(vars), false)
 			if err != nil {
 				return nil, err
 			}
@@ -1671,14 +1671,14 @@ loop:
 				return nil, CompileErrorf(t, "Unexpected token after `.`")
 			}
 		case TOKEN_LPARENTH:
-			args, err := p.parseArgs(0)
+			args, ellipsis, err := p.parseArgs(0, true)
 			if err != nil {
 				return nil, err
 			}
 			if t, ok := p.expect(TOKEN_RPARENTH); !ok {
 				return nil, CompileErrorf(t, "Expected `)`")
 			}
-			left = &FuncCallExpr{expr{token.Pos}, left, args, nil}
+			left = &FuncCallExpr{expr{token.Pos}, left, args, ellipsis, nil}
 		case TOKEN_LBRACKET:
 			var index []Expr
 			exp, err := p.parseEnclosedExpr()
@@ -1866,25 +1866,34 @@ func (p *Parser) parseExpr() (Expr, error) {
 }
 
 // Use max=0 for unbounded number of arguments.
-func (p *Parser) parseArgs(max int) ([]Expr, error) {
-	result := []Expr{}
+func (p *Parser) parseArgs(max int, allowEllipsis bool) (args []Expr, ellipsis bool, err error) {
+	args = []Expr{}
 	for {
 		token := p.nextToken()
 		switch token.Type {
 		case TOKEN_EOF, TOKEN_RPARENTH, TOKEN_INDENT, TOKEN_SEMICOLON:
 			p.putBack(token)
-			return result, nil
+			return args, false, nil
 		case TOKEN_COMMA:
 			// nada
 		default:
 			p.putBack(token)
 			expr, err := p.parseEnclosedExpr()
 			if err != nil {
-				return nil, err
+				return nil, ellipsis, err
 			}
-			result = append(result, expr)
-			if max > 0 && len(result) == max {
-				return result, nil
+			args = append(args, expr)
+
+			if p.peek().Type == TOKEN_ELLIPSIS {
+				p.nextToken()
+				if !allowEllipsis {
+					return nil, true, CompileErrorf(token, "Unexpected `...`")
+				}
+				return args, true, nil
+			}
+
+			if max > 0 && len(args) == max {
+				return args, false, nil
 			}
 		}
 	}
@@ -2311,7 +2320,7 @@ func (p *Parser) parseCompilerMacro() (*compilerMacro, error) {
 		return nil, CompileErrorf(t, "Expected `(`")
 	}
 
-	args, err := p.parseArgs(0)
+	args, _, err := p.parseArgs(0, false)
 	if err != nil {
 		return nil, err
 	}

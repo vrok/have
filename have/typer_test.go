@@ -384,6 +384,24 @@ var a = f(5, 5, "a") // Can't assign "a" to int`,
 var a = f(5, "a", 5) // Can't assign "a" to int`,
 			false,
 			""},
+		{`func f(a ...int) int { return 7 }
+var a = f([]int{}...)`,
+			true,
+			"int"},
+		{`func f(a ...int) int { return 7 }
+type L []int
+var a = f(L{}...)`,
+			true,
+			"int"},
+		{`func f(a ...int) int { return 7 }
+type L struct{}
+var a = f(L{}...)`,
+			false,
+			""},
+		{`func f(b string, a ...int) int { return 7 }
+var a = f("a", []int{}...)`,
+			true,
+			"int"},
 	})
 }
 

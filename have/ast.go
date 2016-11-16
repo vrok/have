@@ -1214,6 +1214,8 @@ type FuncCallExpr struct {
 
 	Left Expr
 	Args []Expr
+	// Ellipsis is true if the last argument is variadic.
+	Ellipsis bool
 
 	// nil unless Left refers to a function
 	fn *FuncDecl

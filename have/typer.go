@@ -1018,17 +1018,29 @@ func (ex *FuncCallExpr) getCalleeType(tc *TypesContext) (Type, error) {
 
 // Type check function arguments.
 func (ex *FuncCallExpr) checkArgs(tc *TypesContext, asFunc *FuncType) error {
-	if len(asFunc.Args) != len(ex.Args) {
+	if len(asFunc.Args) != len(ex.Args) || ex.Ellipsis {
 		if asFunc.Ellipsis {
+			// This function has a variadic argument.
 			if len(asFunc.Args) > 1 && len(asFunc.Args)-1 > len(ex.Args) {
 				return ExprErrorf(ex, "Too few arguments, at least %d required", len(asFunc.Args)-1)
 			}
 
+			lastArgIdx := len(asFunc.Args) - 1
 			for i, arg := range ex.Args {
 				idx := i
 				if i >= len(asFunc.Args) {
 					// Variadic arguments from now on, make idx point to the variadic arg declaration.
-					idx = len(asFunc.Args) - 1
+					idx = lastArgIdx
+				}
+
+				if ex.Ellipsis && idx == lastArgIdx {
+					// Not only this funcion has a variadic parameter, but we're also expading a slice
+					// onto it (e.g. append(x, someSlice...)).
+					var slice Type = &SliceType{Of: asFunc.Args[idx]}
+					if err := NegotiateExprType(tc, &slice, arg.(TypedExpr)); err != nil {
+						return err
+					}
+					continue
 				}
 
 				if err := NegotiateExprType(tc, &asFunc.Args[idx], arg.(TypedExpr)); err != nil {

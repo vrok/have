@@ -428,6 +428,8 @@ func (fc *FuncCallExpr) Generate(tc *TypesContext, current *CodeChunk) {
 		current.AddChprintf(tc, "%iC", arg)
 		if i+1 < len(fc.Args) {
 			current.AddString(", ")
+		} else if fc.Ellipsis {
+			current.AddString("...")
 		}
 	}
 	current.AddString(")")

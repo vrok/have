@@ -340,6 +340,15 @@ a("1", 2, 3)`,
 			reference: `func a(x string, y ...int) {
 }
 a("1", 2, 3)`},
+		{source: `func a(x ...int) {}
+a([]int{1,2,3}...)`,
+			reference: `func a(x ...int) {
+}
+a([]int{
+	1,
+	2,
+	3,
+}...)`},
 	}
 	testCases(t, cases)
 }
