@@ -1019,7 +1019,24 @@ func (ex *FuncCallExpr) getCalleeType(tc *TypesContext) (Type, error) {
 // Type check function arguments.
 func (ex *FuncCallExpr) checkArgs(tc *TypesContext, asFunc *FuncType) error {
 	if len(asFunc.Args) != len(ex.Args) {
-		if len(ex.Args) == 1 {
+		if asFunc.Ellipsis {
+			if len(asFunc.Args) > 1 && len(asFunc.Args)-1 > len(ex.Args) {
+				return ExprErrorf(ex, "Too few arguments, at least %d required", len(asFunc.Args)-1)
+			}
+
+			for i, arg := range ex.Args {
+				idx := i
+				if i >= len(asFunc.Args) {
+					// Variadic arguments from now on, make idx point to the variadic arg declaration.
+					idx = len(asFunc.Args) - 1
+				}
+
+				if err := NegotiateExprType(tc, &asFunc.Args[idx], arg.(TypedExpr)); err != nil {
+					return err
+				}
+			}
+			return nil
+		} else if len(ex.Args) == 1 {
 			types := make([]*Type, len(asFunc.Args))
 			for i, v := range asFunc.Args {
 				v := v
@@ -1045,7 +1062,6 @@ func (ex *FuncCallExpr) Type(tc *TypesContext) (Type, error) {
 	}
 
 	castType, err := ExprToTypeName(tc, ex.Left)
-
 	if err != nil {
 		return nil, err
 	}

@@ -1898,9 +1898,9 @@ func (p *Parser) makeUnnamedVars(types []Type) []*Variable {
 	return result
 }
 
-func (p *Parser) parseArgsDecl() (DeclChain, error) {
+func (p *Parser) parseArgsDecl() (args DeclChain, ellipsis bool, err error) {
 	if p.peek().Type == TOKEN_RPARENTH {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	var result []*Variable
@@ -1914,22 +1914,32 @@ func (p *Parser) parseArgsDecl() (DeclChain, error) {
 
 loop:
 	for {
+		if ellipsis {
+			// After the argument with "..." was read, we should have seen the end of argument list.
+			return nil, ellipsis, CompileErrorf(p.peek(), "Variadic argument should be the last one")
+		}
+
 		switch state {
 		case undecided:
 			if p.peek().Type == TOKEN_WORD && !tokenTypesEq(p.peekN(3), []TokenType{TOKEN_WORD, TOKEN_DOT, TOKEN_WORD}) {
 				// We don't know yet if it's a parameter name or type name.
 				names = append(names, p.nextToken())
 			} else {
-				// This surely isn't a parameter name, but could be a type name.
+				// This surely isn't a parameter name, but could be a type name or ellipsis token.
 				state = anon
 				continue loop
 			}
 		case named:
 			names = append(names, p.nextToken())
 		case anon:
+			if p.peek().Type == TOKEN_ELLIPSIS {
+				p.nextToken()
+				ellipsis = true
+			}
+
 			t, err := p.parseType()
 			if err != nil {
-				return nil, err
+				return nil, ellipsis, err
 			}
 			types = append(types, t)
 		}
@@ -1947,7 +1957,7 @@ loop:
 				names = nil
 				break loop
 			case named:
-				return nil, CompileErrorf(t, "Last parameter needs a type")
+				return nil, ellipsis, CompileErrorf(t, "Last parameter needs a type")
 			}
 		case TOKEN_COMMA:
 			p.nextToken()
@@ -1960,9 +1970,14 @@ loop:
 				state = named
 				fallthrough
 			case named:
+				if t.Type == TOKEN_ELLIPSIS {
+					p.nextToken()
+					ellipsis = true
+				}
+
 				t, err := p.parseType()
 				if err != nil {
-					return nil, err
+					return nil, ellipsis, err
 				}
 				for _, name := range names {
 					result = append(result, &Variable{name: name.Value.(string), Type: t})
@@ -1976,12 +1991,12 @@ loop:
 			case TOKEN_COMMA:
 				p.nextToken()
 			default:
-				return nil, CompileErrorf(p.peek(), "Unexpected token: %s", p.peek().Type)
+				return nil, ellipsis, CompileErrorf(p.peek(), "Unexpected token: %s", p.peek().Type)
 			}
 		}
 	}
 
-	return []*VarDecl{&VarDecl{Vars: result}}, nil
+	return []*VarDecl{&VarDecl{Vars: result}}, ellipsis, nil
 }
 
 func typesFromVars(vd DeclChain) []Type {
@@ -2077,7 +2092,7 @@ func (p *Parser) parseFuncHeader(genericPossible bool) (*FuncDecl, error) {
 		return nil, CompileErrorf(t, "Expected `(`")
 	}
 
-	args, err := p.parseArgsDecl()
+	args, ellipsis, err := p.parseArgsDecl()
 	if err != nil {
 		return nil, err
 	}
@@ -2091,9 +2106,13 @@ func (p *Parser) parseFuncHeader(genericPossible bool) (*FuncDecl, error) {
 	if p.peek().Type == TOKEN_LPARENTH {
 		p.nextToken()
 
-		results, err = p.parseArgsDecl()
+		results, ellipsis, err = p.parseArgsDecl()
 		if err != nil {
 			return nil, err
+		}
+
+		if ellipsis {
+			return nil, CompileErrorf(p.peek(), "Only arguments can be variadic")
 		}
 
 		if t, ok := p.expect(TOKEN_RPARENTH); !ok {
@@ -2112,13 +2131,15 @@ func (p *Parser) parseFuncHeader(genericPossible bool) (*FuncDecl, error) {
 	}
 
 	return &FuncDecl{
-		expr:    expr{startTok.Pos},
-		name:    funcName,
-		Args:    args,
-		Results: results,
+		expr:     expr{startTok.Pos},
+		name:     funcName,
+		Args:     args,
+		Results:  results,
+		Ellipsis: ellipsis,
 		typ: &FuncType{
-			Args:    typesFromVars(args),
-			Results: typesFromVars(results),
+			Args:     typesFromVars(args),
+			Results:  typesFromVars(results),
+			Ellipsis: ellipsis,
 		},
 		GenericParams: genericTypes,
 	}, nil
@@ -2179,7 +2200,13 @@ func (p *Parser) parseFuncBody(fd *FuncDecl) (*FuncDecl, error) {
 	defer p.identStack.popScope()
 
 	// Make arguments accessiable within the function body.
+	argNum, lastArgNum := 0, fd.Args.countVars()
 	fd.Args.eachPair(func(arg *Variable, init Expr) {
+		argNum++
+		if fd.Ellipsis && argNum == lastArgNum {
+			// Variadic argument - we need to bind to a slice of the declared type.
+			arg = &Variable{name: arg.name, Type: &SliceType{Of: arg.Type}}
+		}
 		p.identStack.addObject(arg)
 	})
 

@@ -346,6 +346,73 @@ var a int = f()`,
 	testVarTypes(t, cases)
 }
 
+func TestTypesVariadicFuncCall(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`func f(...int) int {}
+var a = f(10)`,
+			true,
+			"int"},
+		{`func f(...int) int {}
+var a = f(10, 20)`,
+			true,
+			"int"},
+		{`func f(...int) int {}
+var a = f()`,
+			true,
+			"int"},
+		{`func f(a ...int) int {}
+var a = f(10)`,
+			true,
+			"int"},
+		{`func f(b int, a ...int) int {}
+var a = f(5, 10)`,
+			true,
+			"int"},
+		{`func f(b int, a ...int) int {}
+var a = f(5)`,
+			true,
+			"int"},
+		{`func f(b int, a ...int) int {}
+var a = f()`,
+			false,
+			""},
+		{`func f(b int, a ...int) int {}
+var a = f(5, 5, "a") // Can't assign "a" to int`,
+			false,
+			""},
+		{`func f(b int, a ...int) int {}
+var a = f(5, "a", 5) // Can't assign "a" to int`,
+			false,
+			""},
+	})
+}
+
+func TestTypesVariadicFunc(t *testing.T) {
+	testVarTypes(t, []typeTestCase{
+		{`func f(a ...int) int {
+	var _ []int = a
+	return a[0]
+}
+var a = f(10)`,
+			true,
+			"int"},
+		{`func f(b string, a ...int) int {
+	var _ []int = a
+	return a[0]
+}
+var a = f("10", 10)`,
+			true,
+			"int"},
+		{`func f(a ...int) int {
+	var _ int = a
+	return a
+}
+var a = f(10)`,
+			false,
+			""},
+	})
+}
+
 func TestTypesForRange(t *testing.T) {
 	testVarTypes(t, []typeTestCase{
 		{`

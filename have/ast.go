@@ -838,6 +838,8 @@ func (t *MapType) MapSubtypes(callback func(t Type) bool) {
 
 type FuncType struct {
 	Args, Results []Type
+	// Ellipsis is true if the last argument is variadic.
+	Ellipsis bool
 }
 
 func (t *FuncType) Known() bool {
@@ -1224,7 +1226,9 @@ type FuncDecl struct {
 	name          string
 	typ           *FuncType
 	Args, Results DeclChain
-	Code          *CodeBlock
+	// Ellipsis is true if the last argument is variadic.
+	Ellipsis bool
+	Code     *CodeBlock
 	// Is nil for non-method functions
 	Receiver *Variable
 	// Indicates whether the receiver is a pointer.

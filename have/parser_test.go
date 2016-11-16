@@ -656,6 +656,12 @@ func TestParseFuncDecl(t *testing.T) {
     y float64}) {
   var x = 1
 }`, true},
+		{`func abc(x ...int) {}`, true},
+		{`func abc(y string, y ...string) {}`, true},
+		{`func abc(x ...int, y int) {}`, false},
+		{`func abc(string, ...string) {}`, true},
+		{`func abc(...int) {}`, true},
+		{`func abc(...int, int) {}`, false},
 	}
 	for _, c := range cases {
 		parser := newTestParser(c.code)
