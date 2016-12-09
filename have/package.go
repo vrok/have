@@ -39,7 +39,7 @@ const BuiltinsFileName = "_builtin.hav"
 
 func builtinsFile(pkgName string) *File {
 	code := "package " + pkgName + `
-func print(s interface{}) bool { return false }
+func print(s ...interface{}) bool { return false }
 func read() string { pass }
 func len[T](c T) int { __compiler_macro("len(%a0)") }
 func new[T]() *T { __compiler_macro("new(%t0)") }

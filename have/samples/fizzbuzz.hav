@@ -13,8 +13,7 @@ func main() {
         } elif x.i % 5 == 0 {
             print("Buzz\n")
         } else {
-            print(x.i)
-            print("\n")
+            print(x.i, "\n")
         }
     }
 }
