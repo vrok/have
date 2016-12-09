@@ -976,7 +976,7 @@ func (ex *FuncCallExpr) inferGeneric(tc *TypesContext) (*Variable, string, error
 		argTypes = append(argTypes, v.Type)
 	})
 
-	gnParams, err := deduceGenericParams(tc, params, argTypes, ex.Args)
+	gnParams, err := deduceGenericParams(tc, params, argTypes, ex.Args, genericFn.Func.Ellipsis && !ex.Ellipsis)
 	if err != nil {
 		return nil, "", ExprErrorf(ex, err.Error())
 	}
@@ -2286,7 +2286,15 @@ func firstKnown(types ...Type) Type {
 	return nil
 }
 
-func deduceGenericParams(tc *TypesContext, params []string, decls []Type, uses []Expr) ([]Type, error) {
+// deduceGenericParams negotitates generic arguments based on types of arguments used in a function call.
+// ellipsisExpand is true if the last argument is declared with an ellipsis, but ellipsis wasn't used in
+// the function call (so e.g. `append(l, 1, 2)`, but NOT `append(l, []int{1, 2}...)`).
+func deduceGenericParams(tc *TypesContext, params []string, decls []Type, uses []Expr, ellipsisExpand bool) ([]Type, error) {
+	if ellipsisExpand {
+		// Use just the first one for deduction. The rest will be checked for assignability later on.
+		uses = uses[:len(decls)]
+	}
+
 	if len(decls) != len(uses) {
 		// TODO: tuple passing
 		return nil, fmt.Errorf("Invalid number of arguments: %d instead of %d", len(uses), len(decls))

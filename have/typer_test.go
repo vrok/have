@@ -2005,6 +2005,22 @@ var x = a(1.2)`,
 			true,
 			"float64",
 		},
+		{`
+func a[T](x ...T) T {
+	return x[0]
+}
+var x = a(1.2, 2.0)`,
+			true,
+			"float64",
+		},
+		{`
+func a[T](x ...T) T {
+	return x[0]
+}
+var x = a(1.2, "b") // "b" can't be used as a float64 literal`,
+			false,
+			"",
+		},
 	})
 }
 

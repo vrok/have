@@ -721,6 +721,48 @@ make2[[]int](5)
 
 make([]int, 5)
 `},
+		{source: `
+func xyz(x ...int) {
+	__compiler_macro("abc(%v0)")
+}
+xyz({1, 2, 3}...)
+`,
+			reference: `
+// Compiler macro inside function, skipping
+abc([]int{
+	1,
+	2,
+	3,
+}...)`},
+		{source: `
+func xyz(x ...int) {
+	__compiler_macro("abc(%v0)")
+}
+xyz(1, 2, 3)
+`,
+			reference: `
+// Compiler macro inside function, skipping
+abc(1, 2, 3)`},
+		{source: `
+func xyz[T](x ...T) {
+	__compiler_macro("abc(%v0)")
+}
+xyz(1, 2, 3)
+`,
+			reference: `
+// Generic instantiation
+// Compiler macro inside function, skipping
+
+abc(1, 2, 3)`},
+		{source: `
+func xyz(y string, x ...int) {
+	__compiler_macro("abc(%v0)")
+}
+xyz("test", 1, 2, 3)
+`,
+			reference: `
+// Compiler macro inside function, skipping
+abc("test", 1, 2, 3)`},
 	}
 
 	testCases(t, cases)

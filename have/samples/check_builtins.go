@@ -10,6 +10,7 @@ func main() {
 	print("\n")
 
 	x = append(x, 5)
+	x = append(x, 6, 7)
 	print(len(x))
 	print("\n")
 

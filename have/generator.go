@@ -417,7 +417,7 @@ func (fc *FuncCallExpr) Generate(tc *TypesContext, current *CodeChunk) {
 	if fd := fc.fn; fd != nil && len(fd.compilerMacros) > 0 {
 		for _, cm := range fd.compilerMacros {
 			if cm.Active {
-				cm.generate(tc, current, fc.Args, fd.GenericParamVals)
+				cm.generate(tc, current, fc.Args, fd.GenericParamVals, fc.Ellipsis)
 				return
 			}
 		}
@@ -744,9 +744,9 @@ func removeQuotes(s string) string {
 	return s
 }
 
-var reArgs = regexp.MustCompile(`%[at]\d+`)
+var reArgs = regexp.MustCompile(`%[atv]\d+`)
 
-func (cm *compilerMacro) generate(tc *TypesContext, current *CodeChunk, args []Expr, types []Type) {
+func (cm *compilerMacro) generate(tc *TypesContext, current *CodeChunk, args []Expr, types []Type, ellipsis bool) {
 	if !cm.Active {
 		return
 	}
@@ -772,6 +772,18 @@ func (cm *compilerMacro) generate(tc *TypesContext, current *CodeChunk, args []E
 		case 't':
 			pattern = pattern[:loc[0]] + "%s" + pattern[loc[1]:]
 			finalArgs = append(finalArgs, types[num])
+		case 'v':
+			if ellipsis {
+				pattern = pattern[:loc[0]] + "%iC..." + pattern[loc[1]:]
+				finalArgs = append(finalArgs, args[num])
+			} else {
+				subp := make([]string, 0, len(args)-int(num))
+				for j := len(args) - 1; j >= int(num); j-- {
+					finalArgs = append(finalArgs, args[j])
+					subp = append(subp, "%iC")
+				}
+				pattern = pattern[:loc[0]] + strings.Join(subp, ", ") + pattern[loc[1]:]
+			}
 		default:
 			panic("internal error")
 		}
