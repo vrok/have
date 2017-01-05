@@ -1142,12 +1142,17 @@ func (ex *FuncCallExpr) ApplyType(tc *TypesContext, typ Type) error {
 		if calleeType.Kind() != KIND_FUNC {
 			return ExprErrorf(ex, "Only functions can be called, not %s", calleeType)
 		}
+		asFunc := calleeType.(*FuncType)
 
 		if typ.Kind() == KIND_TUPLE {
-			panic("todo")
+			tuple := typ.(*TupleType)
+			ptrs := make([]*Type, 0, len(tuple.Members))
+			for _, t := range tuple.Members {
+				ptrs = append(ptrs, &t)
+			}
+			return NegotiateTupleUnpackAssign(tc, false, ptrs, ex)
 		}
 
-		asFunc := calleeType.(*FuncType)
 		switch {
 		case len(asFunc.Results) == 0:
 			return ExprErrorf(ex, "Function `%s` doesn't return anything", asFunc)

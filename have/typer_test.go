@@ -630,6 +630,15 @@ var z = x`,
 func a() (int, int) {
 	pass
 }
+a()
+var placeholder = 1`,
+			true,
+			"int",
+		},
+		{`
+func a() (int, int) {
+	pass
+}
 var x, y int = a()
 var z = x`,
 			true,
