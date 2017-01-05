@@ -1147,8 +1147,8 @@ func (ex *FuncCallExpr) ApplyType(tc *TypesContext, typ Type) error {
 		if typ.Kind() == KIND_TUPLE {
 			tuple := typ.(*TupleType)
 			ptrs := make([]*Type, 0, len(tuple.Members))
-			for _, t := range tuple.Members {
-				ptrs = append(ptrs, &t)
+			for i := range tuple.Members {
+				ptrs = append(ptrs, &tuple.Members[i])
 			}
 			return NegotiateTupleUnpackAssign(tc, false, ptrs, ex)
 		}

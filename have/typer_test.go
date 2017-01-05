@@ -627,7 +627,7 @@ var z = x`,
 			"int",
 		},
 		{`
-func a() (int, int) {
+func a() (string, error) {
 	pass
 }
 a()
