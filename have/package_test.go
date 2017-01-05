@@ -558,6 +558,27 @@ var aaa = (float32)((123 + b.bbb))`,
 	testPkgImport(t, files, outputCode, false)
 }
 
+func TestPkgImport_Func(t *testing.T) {
+	files := []fakeLocatorFile{
+		{"a", "a.hav", `package a
+import "b"
+func fa() { b.fb() }`},
+		{"b", "b.hav", `package b
+func fb() {}`},
+	}
+
+	outputCode := map[string]string{
+		"a.hav": `package a
+
+import b "b"
+func fa() {
+	b.fb()
+}`,
+	}
+
+	testPkgImport(t, files, outputCode, false)
+}
+
 func TestPkgImport_Type(t *testing.T) {
 	files := []fakeLocatorFile{
 		{"a", "a.hav", `package a

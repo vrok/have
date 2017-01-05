@@ -926,7 +926,6 @@ func ExprToTypeName(tc *TypesContext, e Expr) (t Type, err error) {
 			if decl != nil {
 				return &CustomType{Decl: decl, Name: decl.name, Package: importStmt}, nil
 			}
-			return nil, ExprErrorf(e, "No member %s in package %s", e.Right.name, importStmt.path)
 		}
 	}
 	// No error found, but the expression is not a type.
