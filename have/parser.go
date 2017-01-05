@@ -2115,12 +2115,13 @@ func (p *Parser) parseFuncHeader(genericPossible bool) (*FuncDecl, error) {
 	if p.peek().Type == TOKEN_LPARENTH {
 		p.nextToken()
 
-		results, ellipsis, err = p.parseArgsDecl()
+		var resEllipsis bool
+		results, resEllipsis, err = p.parseArgsDecl()
 		if err != nil {
 			return nil, err
 		}
 
-		if ellipsis {
+		if resEllipsis {
 			return nil, CompileErrorf(p.peek(), "Only arguments can be variadic")
 		}
 

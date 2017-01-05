@@ -579,6 +579,27 @@ func fa() {
 	testPkgImport(t, files, outputCode, false)
 }
 
+func TestPkgImport_Ellipsis(t *testing.T) {
+	files := []fakeLocatorFile{
+		{"a", "a.hav", `package a
+import "b"
+func fa() { b.Println("a", "b", 4) }`},
+		{"b", "b.hav", `package b
+func Println(args ...interface{}) (int, error) {}`},
+	}
+
+	outputCode := map[string]string{
+		"a.hav": `package a
+
+import b "b"
+func fa() {
+	b.Println("a", "b", 4)
+}`,
+	}
+
+	testPkgImport(t, files, outputCode, false)
+}
+
 func TestPkgImport_Type(t *testing.T) {
 	files := []fakeLocatorFile{
 		{"a", "a.hav", `package a
