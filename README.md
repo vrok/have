@@ -1,6 +1,8 @@
 # The Have Programming Language
 
-See http://havelang.org
+See https://havelang.org for more information.
+
+Online playground: https://havelang.org/playground/
 
 Installing: `go get -u github.com/vrok/have/cmd/have`
 
