@@ -100,6 +100,11 @@ func trans(args []string) {
 			}
 			var output = f.GenerateCode()
 
+			if *toStdout {
+				fmt.Println(output)
+				continue
+			}
+
 			var fullFname = path.Join(gopath, "src", f.Name+".go")
 			if strings.HasSuffix(f.Name, ".hav") {
 				fullFname = path.Join(gopath, "src", f.Name[0:len(f.Name)-len("hav")]+"go")
@@ -216,8 +221,9 @@ func run(args []string) {
 	}
 }
 
+var toStdout = flag.CommandLine.Bool("stdout", false, "Print results to stdout rather than files")
+
 func main() {
-	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	flag.Usage = func() {
 		messages := map[string]string{
 			"trans": "Translate .hav files to .go",
@@ -229,6 +235,8 @@ func main() {
 		for command, message := range messages {
 			fmt.Printf("\t%s\t%s\n", command, message)
 		}
+		fmt.Printf("\nAvailable flags:\n")
+		flag.PrintDefaults()
 	}
 	flag.Parse()
 
