@@ -1,0 +1,11 @@
+package main
+
+func main() {
+    var x = make[[]int](10)
+    for var i range x {
+        x[i] = i * 2
+    }
+    for var _, e range x {
+        print(e, "\n")
+    }
+}

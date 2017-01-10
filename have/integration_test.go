@@ -24,9 +24,15 @@ func TestGenerate(t *testing.T) {
 		"helloworld",
 		"fizzbuzz",
 		"check_builtins",
+		"stack",
+		"makeiter",
 	}
 
 	for i, c := range cases {
+		if *justCase >= 0 && i != *justCase {
+			continue
+		}
+
 		code, err := ioutil.ReadFile(fmt.Sprintf("samples/%s.hav", c))
 		if err != nil {
 			panic(err)

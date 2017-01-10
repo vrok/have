@@ -227,7 +227,7 @@ func matchUnbounds(tc *TypesContext, imports Imports, unboundTypes map[string][]
 				case *GenericType:
 					obj, _, errs := decl.Instantiate(tc, typ.Params...)
 					if len(errs) > 0 {
-						panic(errs[0])
+						return errs
 					}
 
 					typ.Generic = decl

@@ -1410,8 +1410,7 @@ func (ex *DotSelector) ApplyType(tc *TypesContext, typ Type) error {
 		return err
 	}
 	if exType.String() != typ.String() {
-		t, _ := ex.Left.(TypedExpr).Type(tc)
-		return ExprErrorf(ex.Right, "Type %s has no member named %s", t, ex.Right.name)
+		return ExprErrorf(ex.Right, "Incompatible types: %s and %s", exType, typ)
 	}
 	return nil
 }

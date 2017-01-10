@@ -1,0 +1,37 @@
+package main
+
+struct Stack[T] {
+	data []T
+
+	func* Push(x T) {
+		self.data = append(self.data, x)
+	}
+
+	func* Pop() T {
+		var x = self.data[len(self.data)-1]
+		self.data = self.data[0:len(self.data)-1]
+		return x
+	}
+
+	func* Size() int {
+		return len(self.data)
+	}
+}
+
+func main() {
+	var s Stack[int]
+	s.Push(10)
+	s.Push(20)
+	s.Push(40)
+	s.Push(80)
+	for s.Size() > 0 {
+		print(s.Pop(), "\n")
+	}
+
+	var d Stack[string]
+	d.Push("a")
+	d.Push("b")
+	for d.Size() > 0 {
+		print(d.Pop(), "\n")
+	}
+}
